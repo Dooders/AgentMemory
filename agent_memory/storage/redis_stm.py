@@ -250,7 +250,11 @@ class RedisSTMStore:
         try:
             timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
             memory_ids = self.redis.zrangebyscore(
-                timeline_key, start_time, end_time, start=0, num=limit
+                timeline_key, 
+                min=start_time, 
+                max=end_time, 
+                start=0, 
+                num=limit
             )
 
             results = []
@@ -294,14 +298,22 @@ class RedisSTMStore:
         """
         try:
             importance_key = f"{self._key_prefix}:{agent_id}:importance"
-            memory_ids = self.redis.zrangebyscore(
+            # Get memory IDs in range with their scores
+            memory_id_scores = self.redis.zrangebyscore(
                 importance_key,
-                min_importance,
-                max_importance,
-                start=0,
-                num=limit,
-                desc=True,  # Higher importance first
+                min=min_importance,
+                max=max_importance,
+                withscores=True
             )
+            
+            # Sort by score in descending order (higher importance first)
+            memory_id_scores = sorted(memory_id_scores, key=lambda x: x[1], reverse=True)
+            
+            # Limit the number of results
+            memory_id_scores = memory_id_scores[:limit]
+            
+            # Get just the memory IDs (without scores)
+            memory_ids = [item[0] for item in memory_id_scores]
 
             results = []
             for memory_id in memory_ids:
