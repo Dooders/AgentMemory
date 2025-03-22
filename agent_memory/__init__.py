@@ -4,10 +4,9 @@ This package provides memory systems for agents to store and retrieve
 their experiences, enabling learning and adaptation.
 """
 
-from redis_memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig
-from docs.research.agent_state_memory.code.core import AgentMemorySystem
+from agent_memory.config import MemoryConfig
+from agent_memory.core import AgentMemorySystem
 from agent_memory.memory_agent import MemoryAgent
-from docs.research.agent_state_memory.code.config import MemoryConfig
 
 __all__ = [
     "AgentMemory",  # Legacy support

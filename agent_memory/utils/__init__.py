@@ -4,48 +4,45 @@ This package provides various utility functions and classes used throughout
 the agent memory system for serialization, Redis operations, and error handling.
 """
 
-from farm.memory.agent_memory.utils.serialization import (
-    MemorySerializer,
-    serialize_memory,
-    deserialize_memory,
-    to_json,
-    from_json
-)
-
-from farm.memory.agent_memory.utils.redis_utils import (
-    serialize_memory_entry,
-    deserialize_memory_entry,
-    serialize_vector,
-    deserialize_vector,
-    vector_to_bytes,
-    bytes_to_vector,
-    RedisConnectionManager,
-    RedisBatchProcessor,
-    redis_key_exists,
-    redis_memory_scan,
-    redis_create_index,
-    redis_drop_index,
-    get_redis_info,
-    get_redis_connection_manager
-)
-
-from farm.memory.agent_memory.utils.error_handling import (
+from agent_memory.utils.error_handling import (
+    MemoryEmbeddingError,
     MemoryError,
+    MemoryRetrievalError,
     MemorySerializationError,
     MemoryStorageError,
-    MemoryRetrievalError,
-    MemoryEmbeddingError,
-    handle_memory_errors
+    handle_memory_errors,
+)
+from agent_memory.utils.redis_utils import (
+    RedisBatchProcessor,
+    RedisConnectionManager,
+    bytes_to_vector,
+    deserialize_memory_entry,
+    deserialize_vector,
+    get_redis_connection_manager,
+    get_redis_info,
+    redis_create_index,
+    redis_drop_index,
+    redis_key_exists,
+    redis_memory_scan,
+    serialize_memory_entry,
+    serialize_vector,
+    vector_to_bytes,
+)
+from agent_memory.utils.serialization import (
+    MemorySerializer,
+    deserialize_memory,
+    from_json,
+    serialize_memory,
+    to_json,
 )
 
 __all__ = [
     # Serialization
-    "MemorySerializer", 
-    "serialize_memory", 
+    "MemorySerializer",
+    "serialize_memory",
     "deserialize_memory",
     "to_json",
     "from_json",
-    
     # Redis utilities
     "serialize_memory_entry",
     "deserialize_memory_entry",
@@ -61,12 +58,11 @@ __all__ = [
     "redis_drop_index",
     "get_redis_info",
     "get_redis_connection_manager",
-    
     # Error handling
     "MemoryError",
     "MemorySerializationError",
     "MemoryStorageError",
     "MemoryRetrievalError",
     "MemoryEmbeddingError",
-    "handle_memory_errors"
-] 
+    "handle_memory_errors",
+]
