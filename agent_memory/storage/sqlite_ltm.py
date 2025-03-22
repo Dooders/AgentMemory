@@ -127,9 +127,9 @@ class SQLiteLTMStore:
                 cursor.execute(
                     f"""
                 CREATE TABLE IF NOT EXISTS {self.memory_table} (
-                    memory_id TEXT PRIMARY KEY,
+                    memory_id TEXT,
                     agent_id TEXT NOT NULL,
-                    step_number INTEGER NOT NULL,
+                    step_number INTEGER,
                     timestamp INTEGER NOT NULL,
                     
                     content_json TEXT NOT NULL,
@@ -138,10 +138,11 @@ class SQLiteLTMStore:
                     compression_level INTEGER DEFAULT 2,
                     importance_score REAL DEFAULT 0.0,
                     retrieval_count INTEGER DEFAULT 0,
-                    memory_type TEXT NOT NULL,
+                    memory_type TEXT,
                     
                     created_at INTEGER NOT NULL,
-                    last_accessed INTEGER NOT NULL
+                    last_accessed INTEGER NOT NULL,
+                    PRIMARY KEY (memory_id, agent_id)
                 )
                 """
                 )
@@ -186,11 +187,13 @@ class SQLiteLTMStore:
                 cursor.execute(
                     f"""
                 CREATE TABLE IF NOT EXISTS {self.embeddings_table} (
-                    memory_id TEXT PRIMARY KEY,
+                    memory_id TEXT,
+                    agent_id TEXT NOT NULL,
                     vector_blob BLOB NOT NULL,
                     vector_dim INTEGER NOT NULL,
                     
-                    FOREIGN KEY (memory_id) REFERENCES {self.memory_table} (memory_id) 
+                    PRIMARY KEY (memory_id, agent_id),
+                    FOREIGN KEY (memory_id, agent_id) REFERENCES {self.memory_table} (memory_id, agent_id) 
                     ON DELETE CASCADE
                 )
                 """
@@ -226,14 +229,37 @@ class SQLiteLTMStore:
 
             # Extract metadata fields for direct storage
             timestamp = memory_entry.get("timestamp", int(time.time()))
-            step_number = memory_entry.get("step_number", 0)
-            memory_type = memory_entry.get("type", "unknown")
+            # Allow None values to be stored directly
+            step_number = memory_entry.get("step_number")
+            if step_number is None:
+                # Keep it as None
+                pass
+            elif step_number == 0:
+                # Default value
+                step_number = 0
+            
+            memory_type = memory_entry.get("type")
+            if memory_type is None:
+                # Keep it as None
+                pass
+            elif not memory_type:
+                # Empty or falsy but not None
+                memory_type = "unknown"
 
             metadata = memory_entry.get("metadata", {})
             compression_level = metadata.get(
                 "compression_level", self.config.compression_level
             )
-            importance_score = metadata.get("importance_score", 0.0)
+            
+            # Preserve None for importance score
+            importance_score = metadata.get("importance_score")
+            if importance_score is None:
+                # Keep it as None
+                pass
+            elif importance_score == 0:
+                # Default value
+                importance_score = 0.0
+                
             retrieval_count = metadata.get("retrieval_count", 0)
             created_at = metadata.get("creation_time", int(time.time()))
             last_accessed = metadata.get("last_access_time", int(time.time()))
@@ -283,10 +309,10 @@ class SQLiteLTMStore:
                     cursor.execute(
                         f"""
                     INSERT OR REPLACE INTO {self.embeddings_table}
-                    (memory_id, vector_blob, vector_dim)
-                    VALUES (?, ?, ?)
+                    (memory_id, agent_id, vector_blob, vector_dim)
+                    VALUES (?, ?, ?, ?)
                     """,
-                        (memory_id, vector_blob, vector_dim),
+                        (memory_id, self.agent_id, vector_blob, vector_dim),
                     )
 
                 conn.commit()
@@ -324,6 +350,14 @@ class SQLiteLTMStore:
         if not memory_entries:
             return True
 
+        # Check if any entry is missing memory_id
+        all_valid = True
+        for memory_entry in memory_entries:
+            if not memory_entry.get("memory_id"):
+                all_valid = False
+                logger.warning("Found memory entry without memory_id in batch")
+                break
+
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -339,14 +373,37 @@ class SQLiteLTMStore:
 
                     # Extract metadata fields for direct storage
                     timestamp = memory_entry.get("timestamp", int(time.time()))
-                    step_number = memory_entry.get("step_number", 0)
-                    memory_type = memory_entry.get("type", "unknown")
+                    # Allow None values to be stored directly
+                    step_number = memory_entry.get("step_number")
+                    if step_number is None:
+                        # Keep it as None
+                        pass
+                    elif step_number == 0:
+                        # Default value
+                        step_number = 0
+                    
+                    memory_type = memory_entry.get("type")
+                    if memory_type is None:
+                        # Keep it as None
+                        pass
+                    elif not memory_type:
+                        # Empty or falsy but not None
+                        memory_type = "unknown"
 
                     metadata = memory_entry.get("metadata", {})
                     compression_level = metadata.get(
                         "compression_level", self.config.compression_level
                     )
-                    importance_score = metadata.get("importance_score", 0.0)
+                    
+                    # Preserve None for importance score
+                    importance_score = metadata.get("importance_score")
+                    if importance_score is None:
+                        # Keep it as None
+                        pass
+                    elif importance_score == 0:
+                        # Default value
+                        importance_score = 0.0
+                        
                     retrieval_count = metadata.get("retrieval_count", 0)
                     created_at = metadata.get("creation_time", int(time.time()))
                     last_accessed = metadata.get("last_access_time", int(time.time()))
@@ -393,10 +450,10 @@ class SQLiteLTMStore:
                         cursor.execute(
                             f"""
                         INSERT OR REPLACE INTO {self.embeddings_table}
-                        (memory_id, vector_blob, vector_dim)
-                        VALUES (?, ?, ?)
+                        (memory_id, agent_id, vector_blob, vector_dim)
+                        VALUES (?, ?, ?, ?)
                         """,
-                            (memory_id, vector_blob, vector_dim),
+                            (memory_id, self.agent_id, vector_blob, vector_dim),
                         )
 
                 # Commit the transaction
@@ -407,7 +464,7 @@ class SQLiteLTMStore:
                     len(memory_entries),
                     self.agent_id,
                 )
-                return True
+                return all_valid
 
         except (SQLiteTemporaryError, SQLitePermanentError) as e:
             logger.warning(
@@ -468,9 +525,9 @@ class SQLiteLTMStore:
                 cursor.execute(
                     f"""
                 SELECT vector_blob, vector_dim FROM {self.embeddings_table}
-                WHERE memory_id = ?
+                WHERE memory_id = ? AND agent_id = ?
                 """,
-                    (memory_id,),
+                    (memory_id, self.agent_id),
                 )
 
                 vector_row = cursor.fetchone()
