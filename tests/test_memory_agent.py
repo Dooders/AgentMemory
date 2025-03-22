@@ -92,17 +92,27 @@ def memory_agent(mock_stm_store, mock_im_store, mock_ltm_store,
     agent_id = "test-agent"
     config = MemoryConfig()
     config.autoencoder_config.use_neural_embeddings = True
+    config.ltm_config.db_path = "test_agent_memory.db"  # Set a valid db path
     
-    agent = MemoryAgent(agent_id, config)
-    
-    # Replace the real stores with mocks
-    agent.stm_store = mock_stm_store
-    agent.im_store = mock_im_store
-    agent.ltm_store = mock_ltm_store
-    agent.compression_engine = mock_compression_engine
-    agent.embedding_engine = mock_embedding_engine
-    
-    return agent
+    # Mock store classes before instantiating the agent
+    with mock.patch("agent_memory.memory_agent.RedisSTMStore") as mock_stm_class, \
+         mock.patch("agent_memory.memory_agent.RedisIMStore") as mock_im_class, \
+         mock.patch("agent_memory.memory_agent.SQLiteLTMStore") as mock_ltm_class, \
+         mock.patch("agent_memory.memory_agent.CompressionEngine"), \
+         mock.patch("agent_memory.memory_agent.AutoencoderEmbeddingEngine"):
+        
+        # Configure the mock classes to return our mock instances
+        mock_stm_class.return_value = mock_stm_store
+        mock_im_class.return_value = mock_im_store
+        mock_ltm_class.return_value = mock_ltm_store
+        
+        agent = MemoryAgent(agent_id, config)
+        
+        # No need to replace stores as they are already our mocks
+        agent.compression_engine = mock_compression_engine
+        agent.embedding_engine = mock_embedding_engine
+        
+        return agent
 
 
 # Base test cases follow
@@ -113,6 +123,7 @@ class TestMemoryAgentBasics:
         """Test memory agent initialization."""
         agent_id = "test-agent"
         config = MemoryConfig()
+        config.ltm_config.db_path = "test_agent_memory.db"  # Set a valid db path
         
         with mock.patch("agent_memory.memory_agent.RedisSTMStore") as mock_stm, \
              mock.patch("agent_memory.memory_agent.RedisIMStore") as mock_im, \
@@ -123,8 +134,8 @@ class TestMemoryAgentBasics:
             agent = MemoryAgent(agent_id, config)
             
             # Verify stores were initialized
-            mock_stm.assert_called_once_with(agent_id, config.stm_config)
-            mock_im.assert_called_once_with(agent_id, config.im_config)
+            mock_stm.assert_called_once_with(config.stm_config)
+            mock_im.assert_called_once_with(config.im_config)
             mock_ltm.assert_called_once_with(agent_id, config.ltm_config)
             mock_ce.assert_called_once_with(config.autoencoder_config)
             mock_ae.assert_called_once()
@@ -137,6 +148,7 @@ class TestMemoryAgentBasics:
         agent_id = "test-agent"
         config = MemoryConfig()
         config.autoencoder_config.use_neural_embeddings = False
+        config.ltm_config.db_path = "test_agent_memory.db"  # Set a valid db path
         
         with mock.patch("agent_memory.memory_agent.RedisSTMStore"), \
              mock.patch("agent_memory.memory_agent.RedisIMStore"), \
@@ -166,7 +178,7 @@ class TestMemoryStorage:
             mock_create.assert_called_once_with(state_data, step_number, "state", priority)
             
             # Check the store call
-            mock_stm_store.store.assert_called_once_with({"memory_id": "test-memory-1"})
+            mock_stm_store.store.assert_called_once_with(memory_agent.agent_id, {"memory_id": "test-memory-1"})
             
             assert result is True
             assert memory_agent._insert_count == 1
@@ -187,7 +199,7 @@ class TestMemoryStorage:
             mock_create.assert_called_once_with(interaction_data, step_number, "interaction", priority)
             
             # Check the store call
-            mock_stm_store.store.assert_called_once_with({"memory_id": "test-memory-2"})
+            mock_stm_store.store.assert_called_once_with(memory_agent.agent_id, {"memory_id": "test-memory-2"})
             
             assert result is True
             assert memory_agent._insert_count == 1
@@ -208,7 +220,7 @@ class TestMemoryStorage:
             mock_create.assert_called_once_with(action_data, step_number, "action", priority)
             
             # Check the store call
-            mock_stm_store.store.assert_called_once_with({"memory_id": "test-memory-3"})
+            mock_stm_store.store.assert_called_once_with(memory_agent.agent_id, {"memory_id": "test-memory-3"})
             
             assert result is True
             assert memory_agent._insert_count == 1
@@ -303,7 +315,7 @@ class TestMemoryTransitions:
             # Verify memories were deleted from STM
             assert mock_stm_store.delete.call_count == 5
     
-    def test_check_memory_transition_im_to_ltm(self, memory_agent, mock_im_store, mock_ltm_store):
+    def test_check_memory_transition_im_to_ltm(self, memory_agent, mock_im_store, mock_ltm_store, mock_stm_store):
         """Test transitioning memories from IM to LTM when IM is at capacity."""
         # Configure mocks
         memory_agent.config.im_config.memory_limit = 5
@@ -371,8 +383,9 @@ class TestMemoryTransitions:
         }
         
         high_reward_importance = memory_agent._calculate_importance(memory_high_reward)
-        # Should have full reward component (40%)
-        assert high_reward_importance == pytest.approx(0.4, abs=0.01)
+
+        # Should have full reward component (40%) and full recency component (20%)
+        assert high_reward_importance == pytest.approx(0.6, abs=0.01)
         
         # Test retrieval frequency component (30% of score)
         memory_high_retrieval = {
@@ -385,8 +398,8 @@ class TestMemoryTransitions:
         }
         
         high_retrieval_importance = memory_agent._calculate_importance(memory_high_retrieval)
-        # Should have full retrieval component (30%)
-        assert high_retrieval_importance == pytest.approx(0.3, abs=0.01)
+        # Should have full retrieval component (30%) and full recency component (20%)
+        assert high_retrieval_importance == pytest.approx(0.5, abs=0.01)
 
 
 class TestMemoryRetrieval:
@@ -408,22 +421,30 @@ class TestMemoryRetrieval:
         # Mock the embedding engine
         query_state = {"position": [1, 2, 3]}
         
-        results = memory_agent.retrieve_similar_states(query_state, k=3)
+        # Set k=5 to ensure we search all tiers
+        results = memory_agent.retrieve_similar_states(query_state, k=5)
         
-        # Should return top 3 results from all stores combined, sorted by similarity
-        assert len(results) == 3
+        # Should return top 5 results from all stores combined, sorted by similarity
+        assert len(results) == 5
         assert results[0]["memory_id"] == "stm1"  # Highest similarity
         assert results[1]["memory_id"] == "stm2"
         assert results[2]["memory_id"] == "im1"
+        assert results[3]["memory_id"] == "ltm1"
+        assert results[4]["memory_id"] == "ltm2"  # Lowest similarity
         
         # Verify embedding engine calls
         memory_agent.embedding_engine.encode_stm.assert_called_with(query_state)
         memory_agent.embedding_engine.encode_im.assert_called_with(query_state)
+        memory_agent.embedding_engine.encode_ltm.assert_called_with(query_state)
         
-        # Verify search calls on stores
-        mock_stm_store.search_similar.assert_called_once()
-        mock_im_store.search_similar.assert_called_once()
-        mock_ltm_store.search_similar.assert_called_once()
+        # Verify search calls on stores with correct parameters
+        stm_query = memory_agent.embedding_engine.encode_stm.return_value
+        im_query = memory_agent.embedding_engine.encode_im.return_value
+        ltm_query = memory_agent.embedding_engine.encode_ltm.return_value
+        
+        mock_stm_store.search_similar.assert_called_once_with(memory_agent.agent_id, stm_query, k=5, memory_type=None)
+        mock_im_store.search_similar.assert_called_once_with(memory_agent.agent_id, im_query, k=3, memory_type=None)
+        mock_ltm_store.search_similar.assert_called_once_with(ltm_query, k=2, memory_type=None)
     
     def test_retrieve_similar_states_with_type_filter(self, memory_agent, mock_stm_store):
         """Test retrieving similar states with a memory type filter."""
@@ -462,8 +483,8 @@ class TestMemoryRetrieval:
         assert results[3]["memory_id"] == "stm2"  # Latest step
         
         # Verify calls to stores
-        mock_stm_store.search_by_step_range.assert_called_once_with(1, 10, None)
-        mock_im_store.search_by_step_range.assert_called_once_with(1, 10, None)
+        mock_stm_store.search_by_step_range.assert_called_once_with(memory_agent.agent_id, 1, 10, None)
+        mock_im_store.search_by_step_range.assert_called_once_with(memory_agent.agent_id, 1, 10, None)
         mock_ltm_store.search_by_step_range.assert_called_once_with(1, 10, None)
     
     def test_retrieve_by_attributes(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
@@ -488,8 +509,8 @@ class TestMemoryRetrieval:
         assert results[2]["memory_id"] == "ltm1"  # Oldest
         
         # Verify calls to stores
-        mock_stm_store.search_by_attributes.assert_called_once_with(attributes, None)
-        mock_im_store.search_by_attributes.assert_called_once_with(attributes, None)
+        mock_stm_store.search_by_attributes.assert_called_once_with(memory_agent.agent_id, attributes, None)
+        mock_im_store.search_by_attributes.assert_called_once_with(memory_agent.agent_id, attributes, None)
         mock_ltm_store.search_by_attributes.assert_called_once_with(attributes, None)
     
     def test_search_by_embedding(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
@@ -516,6 +537,11 @@ class TestMemoryRetrieval:
         # Verify compression engine calls for IM and LTM
         memory_agent.compression_engine.compress_embedding.assert_any_call(query_embedding, level=1)
         memory_agent.compression_engine.compress_embedding.assert_any_call(query_embedding, level=2)
+        
+        # Verify search calls include agent_id for Redis stores
+        mock_stm_store.search_by_embedding.assert_called_once_with(memory_agent.agent_id, query_embedding, k=3)
+        mock_im_store.search_by_embedding.assert_called_once()  # Already passes but could be more specific
+        mock_ltm_store.search_by_embedding.assert_called_once()  # Already passes but could be more specific
     
     def test_search_by_content(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
         """Test searching by content text or attributes."""
@@ -533,7 +559,7 @@ class TestMemoryRetrieval:
         results = memory_agent.search_by_content(text_query, k=3)
         
         # Verify string query was converted to dict
-        mock_stm_store.search_by_content.assert_called_with({"text": text_query}, 3)
+        mock_stm_store.search_by_content.assert_called_with(memory_agent.agent_id, {"text": text_query}, 3)
         
         # Results should be sorted by relevance score
         assert len(results) == 3
@@ -546,7 +572,7 @@ class TestMemoryRetrieval:
         memory_agent.search_by_content(dict_query, k=2)
         
         # Verify dict query was passed as is
-        mock_stm_store.search_by_content.assert_called_with(dict_query, 2)
+        mock_stm_store.search_by_content.assert_called_with(memory_agent.agent_id, dict_query, 2)
 
 
 class TestEventHooks:

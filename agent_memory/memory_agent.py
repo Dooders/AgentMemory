@@ -42,8 +42,8 @@ class MemoryAgent:
         self.config = config
 
         # Initialize memory stores
-        self.stm_store = RedisSTMStore(agent_id, config.stm_config)
-        self.im_store = RedisIMStore(agent_id, config.im_config)
+        self.stm_store = RedisSTMStore(config.stm_config)
+        self.im_store = RedisIMStore(config.im_config)
         self.ltm_store = SQLiteLTMStore(agent_id, config.ltm_config)
 
         # Initialize compression engine
@@ -85,7 +85,7 @@ class MemoryAgent:
         )
 
         # Store in Short-Term Memory first
-        success = self.stm_store.store(memory_entry)
+        success = self.stm_store.store(self.agent_id, memory_entry)
 
         # Increment insert count and check if cleanup is needed
         self._insert_count += 1
@@ -113,7 +113,7 @@ class MemoryAgent:
         )
 
         # Store in Short-Term Memory first
-        success = self.stm_store.store(memory_entry)
+        success = self.stm_store.store(self.agent_id, memory_entry)
 
         # Increment insert count and check if cleanup is needed
         self._insert_count += 1
@@ -141,7 +141,7 @@ class MemoryAgent:
         )
 
         # Store in Short-Term Memory first
-        success = self.stm_store.store(memory_entry)
+        success = self.stm_store.store(self.agent_id, memory_entry)
 
         # Increment insert count and check if cleanup is needed
         self._insert_count += 1
@@ -205,10 +205,10 @@ class MemoryAgent:
         current_time = time.time()
 
         # Check if STM is at capacity
-        stm_count = self.stm_store.count()
+        stm_count = self.stm_store.count(self.agent_id)
         if stm_count > self.config.stm_config.memory_limit:
             # Calculate transition scores for all STM memories
-            stm_memories = self.stm_store.get_all()
+            stm_memories = self.stm_store.get_all(self.agent_id)
             transition_candidates = []
 
             for memory in stm_memories:
@@ -241,10 +241,10 @@ class MemoryAgent:
                 compressed_entry["metadata"]["last_transition_time"] = current_time
 
                 # Store in IM
-                self.im_store.store(compressed_entry)
+                self.im_store.store(self.agent_id, compressed_entry)
 
                 # Remove from STM
-                self.stm_store.delete(memory["memory_id"])
+                self.stm_store.delete(self.agent_id, memory["memory_id"])
 
             logger.debug(
                 "Transitioned %d memories from STM to IM for agent %s",
@@ -253,10 +253,10 @@ class MemoryAgent:
             )
 
         # Check if IM is at capacity
-        im_count = self.im_store.count()
+        im_count = self.im_store.count(self.agent_id)
         if im_count > self.config.im_config.memory_limit:
             # Calculate transition scores for all IM memories
-            im_memories = self.im_store.get_all()
+            im_memories = self.im_store.get_all(self.agent_id)
             transition_candidates = []
 
             for memory in im_memories:
@@ -293,7 +293,7 @@ class MemoryAgent:
                 batch.append(compressed_entry)
 
                 # Remove from IM
-                self.im_store.delete(memory["memory_id"])
+                self.im_store.delete(self.agent_id, memory["memory_id"])
 
                 # Process in batches
                 if len(batch) >= self.config.ltm_config.batch_size:
@@ -352,8 +352,8 @@ class MemoryAgent:
         Returns:
             True if clearing was successful
         """
-        stm_success = self.stm_store.clear()
-        im_success = self.im_store.clear()
+        stm_success = self.stm_store.clear(self.agent_id)
+        im_success = self.im_store.clear(self.agent_id)
         ltm_success = self.ltm_store.clear()
 
         return stm_success and im_success and ltm_success
@@ -382,7 +382,7 @@ class MemoryAgent:
 
         # Search STM (full resolution)
         stm_results = self.stm_store.search_similar(
-            query_embedding, k=k, memory_type=memory_type
+            self.agent_id, query_embedding, k=k, memory_type=memory_type
         )
         results.extend(stm_results)
 
@@ -391,7 +391,7 @@ class MemoryAgent:
             remaining = k - len(results)
             im_query = self.embedding_engine.encode_im(query_state)
             im_results = self.im_store.search_similar(
-                im_query, k=remaining, memory_type=memory_type
+                self.agent_id, im_query, k=remaining, memory_type=memory_type
             )
             results.extend(im_results)
 
@@ -425,12 +425,12 @@ class MemoryAgent:
 
         # Search each tier
         stm_results = self.stm_store.search_by_step_range(
-            start_step, end_step, memory_type
+            self.agent_id, start_step, end_step, memory_type
         )
         results.extend(stm_results)
 
         im_results = self.im_store.search_by_step_range(
-            start_step, end_step, memory_type
+            self.agent_id, start_step, end_step, memory_type
         )
         results.extend(im_results)
 
@@ -458,10 +458,14 @@ class MemoryAgent:
         results = []
 
         # Search each tier
-        stm_results = self.stm_store.search_by_attributes(attributes, memory_type)
+        stm_results = self.stm_store.search_by_attributes(
+            self.agent_id, attributes, memory_type
+        )
         results.extend(stm_results)
 
-        im_results = self.im_store.search_by_attributes(attributes, memory_type)
+        im_results = self.im_store.search_by_attributes(
+            self.agent_id, attributes, memory_type
+        )
         results.extend(im_results)
 
         ltm_results = self.ltm_store.search_by_attributes(attributes, memory_type)
@@ -486,13 +490,13 @@ class MemoryAgent:
             "timestamp": int(time.time()),
             "tiers": {
                 "stm": {
-                    "count": self.stm_store.count(),
-                    "size_bytes": self.stm_store.get_size(),
+                    "count": self.stm_store.count(self.agent_id),
+                    "size_bytes": self.stm_store.get_size(self.agent_id),
                     "avg_importance": self._calculate_tier_importance("stm"),
                 },
                 "im": {
-                    "count": self.im_store.count(),
-                    "size_bytes": self.im_store.get_size(),
+                    "count": self.im_store.count(self.agent_id),
+                    "size_bytes": self.im_store.get_size(self.agent_id),
                     "avg_importance": self._calculate_tier_importance("im"),
                     "compression_ratio": self._calculate_compression_ratio("im"),
                 },
@@ -504,7 +508,9 @@ class MemoryAgent:
                 },
             },
             "total_memories": (
-                self.stm_store.count() + self.im_store.count() + self.ltm_store.count()
+                self.stm_store.count(self.agent_id) + 
+                self.im_store.count(self.agent_id) + 
+                self.ltm_store.count()
             ),
             "memory_types": self._get_memory_type_distribution(),
             "access_patterns": self._get_access_patterns(),
@@ -546,7 +552,9 @@ class MemoryAgent:
 
         for tier in tiers:
             if tier == "stm" and "stm" in tiers:
-                stm_results = self.stm_store.search_by_embedding(query_embedding, k=k)
+                stm_results = self.stm_store.search_by_embedding(
+                    self.agent_id, query_embedding, k=k
+                )
                 results.extend(stm_results)
 
             if tier == "im" and "im" in tiers:
@@ -554,7 +562,9 @@ class MemoryAgent:
                 im_query = self.compression_engine.compress_embedding(
                     query_embedding, level=1
                 )
-                im_results = self.im_store.search_by_embedding(im_query, k=k)
+                im_results = self.im_store.search_by_embedding(
+                    self.agent_id, im_query, k=k
+                )
                 results.extend(im_results)
 
             if tier == "ltm" and "ltm" in tiers:
@@ -588,12 +598,16 @@ class MemoryAgent:
             content_query = {"text": content_query}
 
         # Search each tier
-        stm_results = self.stm_store.search_by_content(content_query, k)
+        stm_results = self.stm_store.search_by_content(
+            self.agent_id, content_query, k
+        )
         results.extend(stm_results)
 
         if len(results) < k:
             remaining = k - len(results)
-            im_results = self.im_store.search_by_content(content_query, remaining)
+            im_results = self.im_store.search_by_content(
+                self.agent_id, content_query, remaining
+            )
             results.extend(im_results)
 
         if len(results) < k:
@@ -670,7 +684,11 @@ class MemoryAgent:
     def _calculate_tier_importance(self, tier: str) -> float:
         """Calculate average importance score for a memory tier."""
         store = getattr(self, f"{tier}_store")
-        memories = store.get_all()
+        if tier in ["stm", "im"]:
+            memories = store.get_all(self.agent_id)
+        else:
+            memories = store.get_all()
+            
         if not memories:
             return 0.0
 
@@ -682,12 +700,20 @@ class MemoryAgent:
     def _calculate_compression_ratio(self, tier: str) -> float:
         """Calculate compression ratio for a memory tier."""
         store = getattr(self, f"{tier}_store")
-        compressed_size = store.get_size()
+        if tier in ["stm", "im"]:
+            compressed_size = store.get_size(self.agent_id)
+        else:
+            compressed_size = store.get_size()
+            
         if compressed_size == 0:
             return 0.0
 
         # Get original size from metadata
-        memories = store.get_all()
+        if tier in ["stm", "im"]:
+            memories = store.get_all(self.agent_id)
+        else:
+            memories = store.get_all()
+            
         if not memories:
             return 0.0
 
@@ -702,8 +728,13 @@ class MemoryAgent:
         """Get distribution of memory types across all tiers."""
         distribution = {}
 
-        for store in [self.stm_store, self.im_store, self.ltm_store]:
-            memories = store.get_all()
+        for store_name in ["stm_store", "im_store", "ltm_store"]:
+            store = getattr(self, store_name)
+            if store_name in ["stm_store", "im_store"]:
+                memories = store.get_all(self.agent_id)
+            else:
+                memories = store.get_all()
+                
             for memory in memories:
                 memory_type = memory["metadata"]["memory_type"]
                 distribution[memory_type] = distribution.get(memory_type, 0) + 1
@@ -720,8 +751,12 @@ class MemoryAgent:
         }
 
         all_memories = []
-        for store in [self.stm_store, self.im_store, self.ltm_store]:
-            all_memories.extend(store.get_all())
+        for store_name in ["stm_store", "im_store", "ltm_store"]:
+            store = getattr(self, store_name)
+            if store_name in ["stm_store", "im_store"]:
+                all_memories.extend(store.get_all(self.agent_id))
+            else:
+                all_memories.extend(store.get_all())
 
         if not all_memories:
             return patterns

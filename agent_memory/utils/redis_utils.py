@@ -170,7 +170,7 @@ class RedisConnectionManager:
             Redis client instance
         """
         # Create a connection key
-        conn_key = f"{host}:{port}:{db}:{decode_responses}"
+        conn_key = f"{host}:{port}:{db}"
 
         # Reuse existing connection if available
         if conn_key in self.connections:
@@ -225,11 +225,12 @@ class RedisBatchProcessor:
             max_batch_size: Maximum batch size
             auto_execute: Whether to auto-execute when batch size is reached
         """
-        self.redis = redis_client
+        self.redis_client = redis_client
         self.max_batch_size = max_batch_size
         self.auto_execute = auto_execute
-        self.pipeline = self.redis.pipeline(transaction=False)
-        self.command_count = 0
+        # Create pipeline only once initially, then recreate when needed
+        self.pipeline = self.redis_client.pipeline(transaction=False)
+        self.commands = []
 
     def add_command(self, method_name: str, *args, **kwargs) -> "RedisBatchProcessor":
         """Add a command to the batch.
@@ -247,10 +248,10 @@ class RedisBatchProcessor:
 
         # Add the command to the pipeline
         method(*args, **kwargs)
-        self.command_count += 1
+        self.commands.append((method_name, args, kwargs))
 
         # Auto-execute if needed
-        if self.auto_execute and self.command_count >= self.max_batch_size:
+        if self.auto_execute and len(self.commands) >= self.max_batch_size:
             self.execute()
 
         return self
@@ -261,18 +262,21 @@ class RedisBatchProcessor:
         Returns:
             List of results from the commands
         """
-        if self.command_count == 0:
+        if len(self.commands) == 0:
             return []
 
         try:
+            # Execute the pipeline
             results = self.pipeline.execute()
-            self.pipeline = self.redis.pipeline(transaction=False)
-            self.command_count = 0
+            
+            # Reset for next batch (without creating a new pipeline)
+            self.commands = []
+            
             return results
         except Exception as e:
             logger.error("Failed to execute Redis batch: %s", str(e))
-            self.pipeline = self.redis.pipeline(transaction=False)
-            self.command_count = 0
+            # Reset for next batch
+            self.commands = []
             raise
 
 
@@ -308,24 +312,16 @@ def redis_memory_scan(
     Yields:
         Memory entries
     """
-    cursor = 0
-    while True:
-        cursor, keys = redis_client.scan(cursor, pattern, count)
-
-        if keys:
-            # Get memory entries in batches
-            for key in keys:
-                try:
-                    data = redis_client.get(key)
-                    if data:
-                        yield deserialize_memory_entry(data)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to deserialize memory at key %s: %s", key, str(e)
-                    )
-
-        if cursor == 0:
-            break
+    # Use scan_iter for more convenient iteration
+    for key in redis_client.scan_iter(match=pattern, count=count):
+        try:
+            data = redis_client.get(key)
+            if data:
+                yield deserialize_memory_entry(data)
+        except Exception as e:
+            logger.warning(
+                "Failed to deserialize memory at key %s: %s", key, str(e)
+            )
 
 
 def redis_create_index(
@@ -359,19 +355,22 @@ def redis_create_index(
             schema_args.extend([field_name, field_type])
 
         # Create the index
-        redis_client.execute_command(
-            "FT.CREATE",
-            index_name,
-            "ON",
-            "HASH",
-            "PREFIX",
-            "1",
-            f"{prefix}:",
-            "SCHEMA",
-            *schema_args,
+        ft = redis_client.ft()
+        ft.create_index(
+            schema_args,
+            definition={
+                "prefix": [f"{prefix}:"],
+            }
         )
 
         return True
+    except redis.ResponseError as e:
+        # Special handling for 'Index already exists' error
+        if "index already exists" in str(e).lower():
+            logger.warning("Redis index %s already exists", index_name)
+            return True
+        logger.error("Failed to create Redis index %s: %s", index_name, str(e))
+        return False
     except Exception as e:
         logger.error("Failed to create Redis index %s: %s", index_name, str(e))
         return False
@@ -388,7 +387,8 @@ def redis_drop_index(redis_client: redis.Redis, index_name: str) -> bool:
         True if the index was dropped successfully
     """
     try:
-        redis_client.execute_command("FT.DROPINDEX", index_name)
+        ft = redis_client.ft()
+        ft.dropindex(index_name)
         return True
     except Exception as e:
         logger.error("Failed to drop Redis index %s: %s", index_name, str(e))
@@ -406,18 +406,28 @@ def get_redis_info(redis_client: redis.Redis) -> Dict[str, Any]:
     """
     try:
         info = redis_client.info()
+        
+        # Extract and process relevant information
+        result = {
+            "version": info.get("redis_version", "unknown"),
+            "memory": {
+                "used": int(info.get("used_memory", 0)),
+                "peak": int(info.get("used_memory_peak", 0)),
+            },
+            "clients": int(info.get("connected_clients", 0)),
+        }
 
         # Add RediSearch module availability
         try:
             modules = redis_client.execute_command("MODULE LIST")
-            info["modules"] = {m[1].decode(): m[3].decode() for m in modules}
-            info["has_redisearch"] = any(
+            result["modules"] = {m[1].decode(): m[3].decode() for m in modules}
+            result["has_redisearch"] = any(
                 m[1].decode().lower() == "search" for m in modules
             )
         except:
-            info["has_redisearch"] = False
+            result["has_redisearch"] = False
 
-        return info
+        return result
     except Exception as e:
         logger.error("Failed to get Redis info: %s", str(e))
         return {"error": str(e)}
