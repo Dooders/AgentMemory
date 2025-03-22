@@ -9,9 +9,6 @@ from agent_memory.core import AgentMemorySystem
 from agent_memory.memory_agent import MemoryAgent
 
 __all__ = [
-    "AgentMemory",  # Legacy support
-    "AgentMemoryManager",  # Legacy support
-    "RedisMemoryConfig",  # Legacy support
     "AgentMemorySystem",  # New unified system
     "MemoryAgent",  # New memory agent
     "MemoryConfig",  # New configuration

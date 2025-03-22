@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from agent_memory.api.hooks import BaseAgent, install_memory_hooks, with_memory
+from agent_memory.api.hooks import ActionResult, BaseAgent, install_memory_hooks, with_memory
 from agent_memory.config import MemoryConfig
 from agent_memory.core import AgentMemorySystem
 
@@ -17,6 +17,15 @@ class TestAgent(BaseAgent):
         self.config = config or Mock()
         self.agent_id = "test_agent"
         self.step_number = 0
+        
+    def act(self, observation=None, **kwargs):
+        """Test implementation of act method."""
+        self.step_number += 1
+        return ActionResult(action_type="test_action", params={}, reward=5.0)
+        
+    def get_state(self):
+        """Test implementation of get_state method."""
+        return {"health": 0.8, "reward": 5.0}
 
 
 class TestMemoryHooks:
@@ -79,7 +88,7 @@ class TestMemoryHooks:
 
         # Verify memory system calls when not recording
         mock_memory_system.store_agent_state.assert_called_once_with(
-            "test_agent", {"health": 0.8, "reward": 5.0}, 0, priority=0.5
+            "test_agent", {"health": 0.8, "reward": 5.0}, 0, priority=1.0
         )
 
     def test_calculate_state_difference(self, test_agent):

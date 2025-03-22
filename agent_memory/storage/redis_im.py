@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from redis_client import ResilientRedisClient
+from agent_memory.storage.redis_client import ResilientRedisClient
 
 from agent_memory.config import RedisIMConfig
 from agent_memory.utils.error_handling import (

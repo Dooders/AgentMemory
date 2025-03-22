@@ -198,7 +198,9 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
                     importance = max(importance, 1.0 - state["health"])
                 if "reward" in state:
                     # High rewards (positive or negative) are important
-                    importance = max(importance, min(1.0, abs(state["reward"]) / 10.0))
+                    # Scale so that rewards > 5.0 result in importance > 0.5
+                    reward_importance = min(1.0, abs(state["reward"]) / 5.0)
+                    importance = max(importance, reward_importance)
 
                 self.memory_system.store_agent_state(
                     self.agent_id, state, step_number, priority=importance
@@ -225,8 +227,11 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
             Normalized difference score (0.0-1.0)
         """
         # Handle empty states
+        if not state_before and not state_after:
+            return 0.5  # Return mid-range value for empty-to-empty comparison
+            
         if not state_before or not state_after:
-            return 1.0
+            return 1.0  # Maximum difference when one state is empty
 
         # Track differences in numeric values
         diff_sum = 0
