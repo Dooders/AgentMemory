@@ -5,11 +5,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from farm.agents.base_agent import BaseAgent
-
-from ..api.hooks import install_memory_hooks, with_memory
-from ..config import MemoryConfig
-from ..core import AgentMemorySystem
+from agent_memory.api.hooks import BaseAgent, install_memory_hooks, with_memory
+from agent_memory.config import MemoryConfig
+from agent_memory.core import AgentMemorySystem
 
 
 class TestAgent(BaseAgent):
@@ -19,14 +17,6 @@ class TestAgent(BaseAgent):
         self.config = config or Mock()
         self.agent_id = "test_agent"
         self.step_number = 0
-
-    def act(self, *args, **kwargs):
-        """Test act method."""
-        return Mock(action_type="test_action", params={"test": "param"}, reward=1.0)
-
-    def get_state(self):
-        """Test get_state method."""
-        return {"health": 0.8, "reward": 5.0}
 
 
 class TestMemoryHooks:
