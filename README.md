@@ -80,7 +80,7 @@ agent_memory/
 ### Basic Usage
 
 ```python
-from farm.memory import AgentMemoryAPI, MemoryConfig
+from agent_memory.memory import AgentMemoryAPI, MemoryConfig
 
 # Initialize memory system
 memory_api = AgentMemoryAPI(MemoryConfig())
@@ -103,8 +103,8 @@ memory_api.store_agent_action(
 ### Using Memory Hooks
 
 ```python
-from farm.memory import install_memory_hooks
-from farm.agents import BaseAgent
+from agent_memory.memory import install_memory_hooks
+from agent_memory.agents import BaseAgent
 
 @install_memory_hooks
 class MyAgent(BaseAgent):
@@ -116,7 +116,7 @@ class MyAgent(BaseAgent):
 ### Custom Configuration
 
 ```python
-from farm.memory import MemoryConfig, RedisSTMConfig
+from agent_memory.memory import MemoryConfig, RedisSTMConfig
 
 config = MemoryConfig(
     stm_config=RedisSTMConfig(
