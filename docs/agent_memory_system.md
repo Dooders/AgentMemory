@@ -4,6 +4,42 @@
 
 The Agent Memory System is a hierarchical memory management system designed for intelligent agents. It provides a sophisticated way to store, retrieve, and manage agent experiences and states across different memory tiers with varying levels of detail and persistence.
 
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph "Main Components"
+        AS[Agent State Storage]
+        MA[Memory Agent]
+        RC[Redis Cache]
+    end
+    
+    AS --> |State updates| UMS[Unified Memory System]
+    MA --> |Memory operations| UMS
+    RC --> |Caching layer| UMS
+    
+    subgraph "Unified Memory System"
+        SM[State Management]
+        MM[Memory Management]
+        QE[Query Engine]
+        PM[Persistence Manager]
+    end
+    
+    UMS --> SM
+    UMS --> MM
+    UMS --> QE
+    UMS --> PM
+    
+    SM --> |Uses| Redis[Redis]
+    MM --> |Uses| Redis
+    QE --> |Queries| Redis
+    PM --> |Persists| DB[Database/File Storage]
+    
+    Redis --> |Syncs with| DB
+```
+
+The system integrates three key components (Agent State Storage, Memory Agent, and Redis Cache) with a Unified Memory System. This central system contains four specialized subsystems: State Management handles agent state data, Memory Management controls transitions between tiers, the Query Engine enables efficient retrieval, and the Persistence Manager ensures data durability. All subsystems use Redis for performance while persisting important data to database storage.
+
 ## Core Components
 
 ### 1. Memory Agent (`MemoryAgent` class)
@@ -83,6 +119,50 @@ memory_agent.trigger_event(
 ```
 
 ## Memory Entry Structure
+
+```mermaid
+classDiagram
+    class MemoryEntry {
+        +string memory_id
+        +string agent_id
+        +string simulation_id
+        +int step_number
+        +timestamp timestamp
+        +StateData state_data
+        +Metadata metadata
+        +Embeddings embeddings
+    }
+    
+    class StateData {
+        +array position
+        +int resources
+        +float health
+        +array action_history
+        +array perception_data
+        +object other_attributes
+    }
+    
+    class Metadata {
+        +timestamp creation_time
+        +timestamp last_access_time
+        +int compression_level
+        +float importance_score
+        +int retrieval_count
+        +string memory_type
+    }
+    
+    class Embeddings {
+        +array full_vector
+        +array compressed_vector
+        +array abstract_vector
+    }
+    
+    MemoryEntry *-- StateData
+    MemoryEntry *-- Metadata
+    MemoryEntry *-- Embeddings
+```
+
+Each memory entry follows a unified structure containing three main components. The entry includes identifiers, a timestamp, and state data (position, resources, health, etc.) that capture what the agent experienced. The metadata section tracks creation time, importance score, retrieval frequency, and memory type to inform system decisions. The embeddings section contains vector representations at different resolutions for semantic retrieval. This unified design allows both state data and interaction data to share the same infrastructure.
 
 Each memory entry follows this structure:
 ```json

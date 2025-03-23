@@ -6,6 +6,48 @@ The Agent Memory API provides a clean, standardized interface for interacting wi
 
 The API enables storing and retrieving agent states, actions, and interactions across the hierarchical memory architecture (Short-Term Memory, Intermediate Memory, and Long-Term Memory). It provides methods for both exact and similarity-based retrieval, as well as management operations for the memory system.
 
+## Memory Query System
+
+```mermaid
+graph TB
+    subgraph "Memory Indices"
+        TI[Temporal Index]
+        SI[Spatial Index]
+        EI[Embedding Index]
+        TYI[Type Index]
+        II[Importance Index]
+    end
+    
+    subgraph "Query Types"
+        QT1[Time-based Query]
+        QT2[Location-based Query]
+        QT3[Semantic Query]
+        QT4[Type-specific Query]
+        QT5[Importance-based Query]
+        QT6[Combined Query]
+    end
+    
+    QT1 --> |Uses| TI
+    QT2 --> |Uses| SI
+    QT3 --> |Uses| EI
+    QT4 --> |Uses| TYI
+    QT5 --> |Uses| II
+    
+    QT6 --> |Uses| TI
+    QT6 --> |Uses| SI
+    QT6 --> |Uses| EI
+    QT6 --> |Uses| TYI
+    QT6 --> |Uses| II
+    
+    TI --> |Indexes| MEM[Memory Entries]
+    SI --> |Indexes| MEM
+    EI --> |Indexes| MEM
+    TYI --> |Indexes| MEM
+    II --> |Indexes| MEM
+```
+
+The memory system maintains five specialized indices for efficient retrieval operations. Temporal indices organize memories by time, spatial indices by location, embedding indices for semantic similarity, type indices for categorization, and importance indices for priority-based access. These correspond to different query patterns like "What happened yesterday?", "What did I see in the forest?", or "What do I know about resources?". The system can combine multiple indices for complex queries, enabling powerful and flexible memory retrieval.
+
 ## Key Features
 
 - **Hierarchical Memory Access**: Unified access to all memory tiers (STM, IM, LTM)
@@ -161,6 +203,46 @@ memories = memory_agent.search_by_content(
     k=5
 )
 ```
+
+## Memory Retrieval Process
+
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant Q as Query Engine
+    participant STM as Short-Term Memory
+    participant IM as Intermediate Memory
+    participant LTM as Long-Term Memory
+    
+    A->>Q: Query for relevant memories
+    
+    par Query all memory tiers
+        Q->>STM: Search recent memories
+        STM-->>Q: Return matches (high detail)
+        
+        Q->>IM: Search relevant memories
+        IM-->>Q: Return matches (medium detail)
+        
+        Q->>LTM: Search historical memories
+        LTM-->>Q: Return matches (low detail)
+    end
+    
+    Q->>Q: Rank and merge results
+    
+    alt Detailed information needed
+        Q->>LTM: Request decompression of entry
+        LTM-->>IM: Restore memory to IM
+        IM-->>Q: Return detailed entry
+    end
+    
+    Q-->>A: Return consolidated memories
+    
+    A->>Q: Select memory for focus
+    Q->>Q: Update retrieval count
+    Q->>IM: Promote memory if needed
+```
+
+Memory retrieval employs a parallel search strategy across all tiers. When an agent requests memories, the Query Engine simultaneously searches Short-Term Memory for recent details, Intermediate Memory for relevant medium-term information, and Long-Term Memory for historical context. Results are ranked and merged based on relevance. If detailed information is needed from compressed long-term memories, they're decompressed and restored to Intermediate Memory. When an agent focuses on a specific memory, its retrieval count increases, potentially promoting frequently accessed memories to more accessible tiers.
 
 ## API Reference
 

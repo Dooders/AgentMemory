@@ -1,3 +1,44 @@
+# AgentMemory System Design
+
+## Architecture Overview
+
+```mermaid
+graph TD
+    Agent[Agent] --> |Interacts with| MS[Memory System]
+    
+    subgraph "AgentMemory Architecture"
+        MS --> |Stores/Retrieves| STM[Short-Term Memory]
+        MS --> |Stores/Retrieves| IM[Intermediate Memory]
+        MS --> |Stores/Retrieves| LTM[Long-Term Memory]
+        
+        STM --> |Importance-based transfer| IM
+        IM --> |Age/importance-based transfer| LTM
+    end
+    
+    MS --> |Uses| Redis[Redis Cache]
+    MS --> |Persists to| DB[Persistent Storage]
+    
+    Redis --> |Syncs with| DB
+```
+
+Agents interact with a central Memory System that manages three distinct memory tiers. Short-Term Memory holds recent experiences, Intermediate Memory stores important information for medium-term access, and Long-Term Memory archives historical data. The system uses Redis for fast memory access and syncs important data to permanent storage for analysis.
+
+## Memory Flow
+
+```mermaid
+flowchart LR
+    A[New Memory Entry] --> STM[Short-Term Memory]
+    STM --> |Low importance| Discard[Discarded]
+    STM --> |High importance| IM[Intermediate Memory]
+    IM --> |Low retrieval frequency| Compress[Compressed]
+    Compress --> LTM[Long-Term Memory]
+    IM --> |High retrieval frequency| Retain[Retained in IM]
+    LTM --> |Retrieval request| Decompress[Decompressed]
+    Decompress --> IM
+```
+
+Memories move through the system similar to human memory processes. New experiences enter Short-Term Memory, where unimportant items are discarded while significant ones advance to Intermediate Memory. Frequently accessed memories remain in Intermediate Memory for quick retrieval. Less-used memories are compressed and moved to Long-Term Memory for efficient storage. When needed again, older memories are restored to Intermediate Memory for easier access.
+
 # Major Requirements
 
 1. **Hierarchical Memory Architecture**

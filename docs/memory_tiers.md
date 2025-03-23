@@ -4,6 +4,73 @@
 
 The Agent Memory System implements a three-tier hierarchical memory architecture that mimics cognitive memory processes. Each tier serves a specific purpose and has distinct characteristics in terms of storage duration, access speed, and data resolution.
 
+```mermaid
+graph TD
+    subgraph "Memory Types"
+        ST[State Data]
+        IN[Interaction Data]
+    end
+    
+    ST --> |Stored in| UMS[Unified Memory System]
+    IN --> |Stored in| UMS
+    
+    subgraph "Storage Tiers"
+        STM[Short-Term Memory Tier]
+        IM[Intermediate Memory Tier]
+        LTM[Long-Term Memory Tier]
+    end
+    
+    UMS --> STM
+    UMS --> IM
+    UMS --> LTM
+    
+    STM --> |In-memory, Redis| RC[Redis Cache]
+    IM --> |Partially cached| RC
+    IM --> |Partially persisted| PS[Persistent Storage]
+    LTM --> |Fully persisted| PS
+```
+
+The unified memory system handles both State Data and Interaction Data through the same architecture. All memory types flow through three tiers with different storage characteristics. Short-Term Memory is kept entirely in Redis for fast access, Intermediate Memory uses a hybrid approach with partial caching, and Long-Term Memory relies on persistent storage for complete data preservation.
+
+## Memory Entry Transformation
+
+```mermaid
+graph TD
+    subgraph "Memory Entry Creation"
+        A[New Agent Experience] --> |Generate| ME[Memory Entry]
+        ME --> |Initial Storage| STM[Short-Term Memory]
+    end
+    
+    subgraph "Memory Structure - STM Stage"
+        STM_E[STM Entry]
+        STM_E --> |Contains| Full[Full State Data]
+        STM_E --> |Contains| Comp[Complete Metadata]
+        STM_E --> |Contains| FV[Full Embeddings Vector]
+    end
+    
+    subgraph "Memory Structure - IM Stage"
+        IM_E[IM Entry]
+        IM_E --> |Contains| Sel[Selected State Data]
+        IM_E --> |Contains| UpdM[Updated Metadata]
+        IM_E --> |Contains| CV[Compressed Vector]
+    end
+    
+    subgraph "Memory Structure - LTM Stage"
+        LTM_E[LTM Entry]
+        LTM_E --> |Contains| Abs[Abstract State Summary]
+        LTM_E --> |Contains| ArchM[Archival Metadata]
+        LTM_E --> |Contains| AV[Abstract Vector]
+    end
+    
+    STM --> |Importance Analysis| IM[Intermediate Memory]
+    IM --> |Age/Usage Analysis| LTM[Long-Term Memory]
+    
+    STM_E --> |Transfer & Process| IM_E
+    IM_E --> |Compress & Summarize| LTM_E
+```
+
+Memory entries transform as they move through the memory tiers. When an agent has a new experience, a memory entry is created with full state data, complete metadata, and full embedding vectors in Short-Term Memory. As important memories transfer to Intermediate Memory, they undergo processing where only selected state data is retained and vectors are compressed. Long-Term Memory entries contain highly abstract summaries with minimal metadata and simplified vector representations.
+
 ## Tier Structure
 
 ### 1. Short-Term Memory (STM)
@@ -121,6 +188,47 @@ def _transition_to_ltm(memory_entry: Dict[str, Any]) -> Dict[str, Any]:
 - Minimal feature vectors (32d)
 - Essential metadata only
 - Abstract content representation
+
+```mermaid
+graph TD
+    subgraph "Raw State Data"
+        RS1[Exact Position]
+        RS2[Resource Levels]
+        RS3[Health Status]
+        RS4[All Perception Data]
+        RS5[Detailed Action History]
+    end
+    
+    subgraph "Compressed State Data"
+        CS1[Region Only]
+        CS2[Resource Summary]
+        CS3[Health Trend]
+        CS4[Important Perceptions]
+        CS5[Key Actions]
+    end
+    
+    subgraph "Abstract State Data"
+        AS1[Area Description]
+        AS2[Resource State]
+        AS3[Overall Condition]
+        AS4[Critical Insights]
+        AS5[Behavior Pattern]
+    end
+    
+    RS1 --> |Spatial Compression| CS1
+    RS2 --> |Numerical Binning| CS2
+    RS3 --> |Trend Analysis| CS3
+    RS4 --> |Relevance Filtering| CS4
+    RS5 --> |Action Clustering| CS5
+    
+    CS1 --> |Semantic Abstraction| AS1
+    CS2 --> |State Classification| AS2
+    CS3 --> |Condition Summary| AS3
+    CS4 --> |Insight Extraction| AS4
+    CS5 --> |Pattern Recognition| AS5
+```
+
+Progressive compression techniques transform state data as memories move through tiers. Raw data in Short-Term Memory contains precise information like exact positions and detailed resource levels. In Intermediate Memory, this data undergoes initial compression: positions become regions, resources are summarized, and only important perceptions and key actions are retained. In Long-Term Memory, the data reaches its most abstract form: regions become general area descriptions, resource details become simplified state classifications, and specific actions evolve into behavioral patterns.
 
 ## Memory Importance Scoring
 

@@ -4,6 +4,42 @@
 
 The Agent Memory Hooks system provides a non-intrusive way to add memory capabilities to agent classes and instances. These hooks integrate with the agent lifecycle, capturing and storing states and actions in the hierarchical memory system without requiring changes to the agent's implementation.
 
+## Component Integration
+
+```mermaid
+graph TB
+    subgraph "Main Components"
+        AS[Agent State Storage]
+        MA[Memory Agent]
+        RC[Redis Cache]
+    end
+    
+    AS --> |State updates| UMS[Unified Memory System]
+    MA --> |Memory operations| UMS
+    RC --> |Caching layer| UMS
+    
+    subgraph "Unified Memory System"
+        SM[State Management]
+        MM[Memory Management]
+        QE[Query Engine]
+        PM[Persistence Manager]
+    end
+    
+    UMS --> SM
+    UMS --> MM
+    UMS --> QE
+    UMS --> PM
+    
+    SM --> |Uses| Redis[Redis]
+    MM --> |Uses| Redis
+    QE --> |Queries| Redis
+    PM --> |Persists| DB[Database/File Storage]
+    
+    Redis --> |Syncs with| DB
+```
+
+Memory hooks function as connectors between agents and the memory architecture. They transparently intercept agent lifecycle events and state changes, forwarding this information to the Agent State Storage component. This component interfaces with the Unified Memory System, which distributes data to four specialized subsystems: State Management for handling state data, Memory Management for tier transitions, Query Engine for retrieval operations, and Persistence Manager for long-term storage. The hooks create a seamless integration layer that enables memory capabilities without modifying agent implementation logic.
+
 ## Features
 
 - **Seamless Integration**: Hooks into agent lifecycle methods (`__init__`, `act`, `get_state`) without modifying their behavior

@@ -4,7 +4,75 @@
 
 The `RedisSTMStore` is a Redis-based implementation of the Short-Term Memory (STM) storage tier in the agent memory system. It provides high-performance, in-memory storage for recent agent memory entries with comprehensive error handling, indexing capabilities, and automatic metadata management.
 
-## **2. Key Features**
+## **2. Redis Memory Architecture**
+
+```mermaid
+graph TB
+    subgraph "Redis Memory System"
+        STM[Short-Term Memory]
+        IM[Intermediate Memory]
+        IDX[Memory Indices]
+        META[Metadata Store]
+    end
+    
+    Agent[Agent] --> |Write memory| WRITE[Memory Write Handler]
+    Agent --> |Query memory| QUERY[Memory Query Handler]
+    
+    WRITE --> STM
+    WRITE --> |Update indices| IDX
+    WRITE --> |Update metadata| META
+    
+    QUERY --> IDX
+    IDX --> STM
+    IDX --> IM
+    IDX --> LTM[Long-Term Memory]
+    
+    STM --> |Importance-based transfer| PROC[Memory Processor]
+    PROC --> IM
+    IM --> |Age-based compression| COMP[Compression Service]
+    COMP --> LTM
+    
+    LTM --> |Stored in| PS[Persistent Storage]
+    META --> |Tracked in| PS
+```
+
+The Redis-based memory architecture consists of several interconnected components that manage memory storage and retrieval. Agents interact with the system through Write and Query handlers. When storing memories, the Write handler saves data to Short-Term Memory while simultaneously updating indices and metadata. The Memory Processor periodically evaluates STM entries and transfers important ones to Intermediate Memory based on configurable criteria. A Compression Service handles further movement to Long-Term Memory, which is ultimately persisted to stable storage.
+
+## **3. Redis Data Organization**
+
+```mermaid
+graph LR
+    subgraph "Redis Key Structure"
+        STM_K["stm:{agent_id}:{memory_id}"]
+        IM_K["im:{agent_id}:{memory_id}"]
+        LTM_K["ltm:{agent_id}:{memory_id}"]
+        IDX_K["idx:{agent_id}:{index_type}"]
+        META_K["meta:{agent_id}:{memory_id}"]
+    end
+    
+    STM_K --> |Hash| STM_V[Memory Entry JSON]
+    IM_K --> |Hash| IM_V[Memory Entry JSON]
+    LTM_K --> |Hash| LTM_V[Compressed Memory JSON]
+    
+    IDX_K --> |Sorted Set| IDX_V["{memory_id}" score]
+    META_K --> |Hash| META_V[Metadata Fields]
+    
+    subgraph "Index Types"
+        TEMP["temporal:step"]
+        SPAT["spatial:region"]
+        IMPO["importance:score"]
+        TYPE["type:{state|interaction}"]
+    end
+    
+    IDX_K --> TEMP
+    IDX_K --> SPAT
+    IDX_K --> IMPO
+    IDX_K --> TYPE
+```
+
+The Redis implementation uses a structured key naming system for efficient data organization. Memory entries are stored as Redis hashes, with keys following the pattern `{tier}:{agent_id}:{memory_id}`. Various indices implemented as sorted sets enable efficient querying across different dimensions - temporal indices for time-based retrieval, spatial indices for location queries, importance indices for priority-based access, and type indices for filtering by memory category. This key structure allows for rapid access while maintaining logical organization of data.
+
+## **4. Key Features**
 
 - **Resilient Redis Operations**: Leverages circuit breaker pattern and retry mechanisms for reliable storage
 - **Multi-Index Design**: Maintains specialized indices for different query patterns
@@ -13,9 +81,9 @@ The `RedisSTMStore` is a Redis-based implementation of the Short-Term Memory (ST
 - **Priority-Based Operations**: Support for different operation priorities
 - **Comprehensive Error Handling**: Graceful degradation under failure conditions
 
-## **3. Class Structure**
+## **5. Class Structure**
 
-### **3.1 RedisSTMStore**
+### **5.1 RedisSTMStore**
 
 ```python
 class RedisSTMStore:
@@ -28,9 +96,9 @@ class RedisSTMStore:
         # ...
 ```
 
-## **4. Key Methods**
+## **6. Key Methods**
 
-### **4.1 Memory Storage and Retrieval**
+### **6.1 Memory Storage and Retrieval**
 
 | Method | Purpose |
 |--------|---------|
@@ -43,16 +111,16 @@ class RedisSTMStore:
 | `clear(agent_id)` | Clear all memories for an agent |
 | `check_health()` | Check Redis connection health |
 
-### **4.2 Internal Methods**
+### **6.2 Internal Methods**
 
 | Method | Purpose |
 |--------|---------|
 | `_store_memory_entry(agent_id, memory_entry)` | Internal storage implementation |
 | `_update_access_metadata(agent_id, memory_id, memory_entry)` | Update access statistics |
 
-## **5. Data Organization**
+## **7. Data Organization**
 
-### **5.1 Memory Entry Structure**
+### **7.1 Memory Entry Structure**
 
 Each memory entry is stored as a JSON string with this structure:
 
@@ -79,7 +147,7 @@ Each memory entry is stored as a JSON string with this structure:
 }
 ```
 
-### **5.2 Redis Key Structure**
+### **7.2 Redis Key Structure**
 
 | Key Pattern | Purpose | Example |
 |-------------|---------|---------|
@@ -89,11 +157,11 @@ Each memory entry is stored as a JSON string with this structure:
 | `{namespace}:{agent_id}:importance` | Importance-based index | `agent_memory:stm:agent123:importance` |
 | `{namespace}:{agent_id}:vector:{memory_id}` | Vector embeddings | `agent_memory:stm:agent123:vector:mem456` |
 
-## **6. Indexing Strategy**
+## **8. Indexing Strategy**
 
 The `RedisSTMStore` maintains multiple indices for efficient retrieval:
 
-### **6.1 Timeline Index**
+### **8.1 Timeline Index**
 
 ```
 {namespace}:{agent_id}:timeline (Sorted Set)
@@ -103,7 +171,7 @@ The `RedisSTMStore` maintains multiple indices for efficient retrieval:
 - **Score**: Timestamp
 - **Purpose**: Chronological retrieval and time-range queries
 
-### **6.2 Importance Index**
+### **8.2 Importance Index**
 
 ```
 {namespace}:{agent_id}:importance (Sorted Set)
@@ -113,7 +181,7 @@ The `RedisSTMStore` maintains multiple indices for efficient retrieval:
 - **Score**: Importance score (0.0-1.0)
 - **Purpose**: Retrieving important memories first
 
-### **6.3 Vector Storage**
+### **8.3 Vector Storage**
 
 ```
 {namespace}:{agent_id}:vector:{memory_id} (String)
@@ -122,9 +190,9 @@ The `RedisSTMStore` maintains multiple indices for efficient retrieval:
 - **Value**: JSON array of embedding vector
 - **Purpose**: Semantic similarity search and vector retrieval
 
-## **7. Error Handling Strategy**
+## **9. Error Handling Strategy**
 
-### **7.1 Resilient Storage**
+### **9.1 Resilient Storage**
 
 The store uses the `ResilientRedisClient` for all operations, providing:
 
@@ -132,7 +200,7 @@ The store uses the `ResilientRedisClient` for all operations, providing:
 2. **Operation Retries**: Automatic retries for transient errors
 3. **Priority-Based Handling**: Different approaches for different priority levels
 
-### **7.2 Graceful Degradation**
+### **9.2 Graceful Degradation**
 
 In failure scenarios, the system:
 
@@ -140,9 +208,9 @@ In failure scenarios, the system:
 2. Logs errors with appropriate detail
 3. Attempts to continue normal operation when possible
 
-## **8. Memory Metadata Management**
+## **10. Memory Metadata Management**
 
-### **8.1 Automatic Updates**
+### **10.1 Automatic Updates**
 
 Each time a memory is accessed:
 
@@ -150,7 +218,7 @@ Each time a memory is accessed:
 2. **Last Access Time**: Updated to the current timestamp
 3. **Importance Score**: Adjusted based on access patterns
 
-### **8.2 Importance Calculation**
+### **10.2 Importance Calculation**
 
 Importance is influenced by:
 
@@ -158,9 +226,9 @@ Importance is influenced by:
 2. **Access Patterns**: More frequently accessed memories gain importance
 3. **Recency**: Recently accessed memories are considered more important
 
-## **9. Usage Examples**
+## **11. Usage Examples**
 
-### **9.1 Basic Memory Storage and Retrieval**
+### **11.1 Basic Memory Storage and Retrieval**
 
 ```python
 from memory.agent_memory.config import RedisSTMConfig
@@ -188,7 +256,7 @@ stm_store.store("agent123", memory_entry)
 retrieved_memory = stm_store.get("agent123", "mem123")
 ```
 
-### **9.2 Time-Based Retrieval**
+### **11.2 Time-Based Retrieval**
 
 ```python
 # Get memories from the last hour
@@ -203,7 +271,7 @@ recent_memories = stm_store.get_by_timerange(
 )
 ```
 
-### **9.3 Importance-Based Retrieval**
+### **11.3 Importance-Based Retrieval**
 
 ```python
 # Get important memories (score >= 0.7)
@@ -215,9 +283,9 @@ important_memories = stm_store.get_by_importance(
 )
 ```
 
-## **10. Configuration Options**
+## **12. Configuration Options**
 
-### **10.1 Redis Connection Settings**
+### **12.1 Redis Connection Settings**
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -226,7 +294,7 @@ important_memories = stm_store.get_by_importance(
 | `db` | Redis database number | 0 |
 | `password` | Redis password | None |
 
-### **10.2 Memory Settings**
+### **12.2 Memory Settings**
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -234,16 +302,16 @@ important_memories = stm_store.get_by_importance(
 | `memory_limit` | Maximum memories per agent | 1000 |
 | `namespace` | Redis key namespace | "agent_memory:stm" |
 
-## **11. Performance Considerations**
+## **13. Performance Considerations**
 
-### **11.1 Optimization Techniques**
+### **13.1 Optimization Techniques**
 
 1. **TTL Management**: Automatic expiry prevents memory accumulation
 2. **Index Pruning**: Sorted sets maintain high query performance
 3. **JSON Serialization**: Efficient storage format for complex structures
 4. **Circuit Breaker**: Prevents performance degradation during Redis issues
 
-### **11.2 Memory Usage**
+### **13.2 Memory Usage**
 
 Approximate memory usage per entry:
 
@@ -251,7 +319,7 @@ Approximate memory usage per entry:
 - With embedding vector: ~3-5 KB
 - Indices: ~100-200 bytes per memory entry
 
-## **12. Integration with Memory System**
+## **14. Integration with Memory System**
 
 The `RedisSTMStore` integrates with:
 
@@ -260,9 +328,9 @@ The `RedisSTMStore` integrates with:
 3. **Memory Tiers**: Part of the hierarchical memory architecture
 4. **Memory Hooks**: Used by agent hooks to store state snapshots
 
-## **13. Future Enhancements**
+## **15. Future Enhancements**
 
-### **13.1 Planned Improvements**
+### **15.1 Planned Improvements**
 
 1. **Redis Cluster Support**: Distributed memory storage across multiple Redis instances
 2. **Compression**: Automatic compression for large memory entries
@@ -270,7 +338,7 @@ The `RedisSTMStore` integrates with:
 4. **Query Caching**: Local caching of frequent queries
 5. **Batch Operations**: Performance optimizations for bulk storage and retrieval
 
-### **13.2 Implementation Roadmap**
+### **15.2 Implementation Roadmap**
 
 | Feature | Priority | Complexity | Status |
 |---------|----------|------------|--------|
@@ -280,7 +348,7 @@ The `RedisSTMStore` integrates with:
 | Query Caching | Low | Medium | Backlog |
 | Batch Operations | High | Medium | Planned |
 
-## **14. Additional Resources**
+## **16. Additional Resources**
 
 - [Core Concepts](../../core_concepts.md)
 - [Agent State Storage](../../agent_state_storage.md)

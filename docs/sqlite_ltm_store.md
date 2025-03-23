@@ -4,7 +4,50 @@
 
 The `SQLiteLTMStore` is a SQLite-based implementation of the Long-Term Memory (LTM) storage tier in the agent memory system. It provides persistent, highly-compressed storage for historical agent memory entries with comprehensive error handling, efficient vector similarity search, and robust database operations.
 
-## **2. Key Features**
+## **2. LTM Structure**
+
+```mermaid
+graph TD
+    subgraph "Memory Structure - LTM Stage"
+        LTM_E[LTM Entry]
+        LTM_E --> |Contains| Abs[Abstract State Summary]
+        LTM_E --> |Contains| ArchM[Archival Metadata]
+        LTM_E --> |Contains| AV[Abstract Vector]
+    end
+```
+
+Long-Term Memory entries follow a specialized structure designed for efficient long-term storage while preserving core information. Each entry contains an abstract state summary instead of detailed data, focusing on the essential aspects of the original experience. The entry includes archival metadata that tracks long-term importance and usage patterns. Instead of full embedding vectors, LTM entries store abstract vectors that capture core semantic concepts rather than specific details, substantially reducing storage requirements.
+
+## **3. Memory Importance System**
+
+```mermaid
+graph LR
+    subgraph "Importance Scoring Factors"
+        E1[Emotional Impact]
+        E2[Novelty Score]
+        E3[Action Relevance]
+        E4[Goal Alignment]
+        E5[Retrieval Frequency]
+    end
+    
+    E1 --> |Weight & Sum| IS[Importance Score]
+    E2 --> |Weight & Sum| IS
+    E3 --> |Weight & Sum| IS
+    E4 --> |Weight & Sum| IS
+    E5 --> |Weight & Sum| IS
+    
+    IS --> |Score > Threshold| Retain[Retain in Memory]
+    IS --> |Score < Threshold| Discard[Discard from Memory]
+    
+    Retain --> |Very High Score| IM_P[IM - Priority]
+    Retain --> |High Score| IM_S[IM - Standard]
+    Retain --> |Medium Score| LTM_A[LTM - Active]
+    Retain --> |Low Score| LTM_D[LTM - Deep]
+```
+
+The memory system uses a sophisticated importance scoring algorithm to determine which memories to retain and where to store them. Five key factors are evaluated: emotional impact, novelty, relevance to actions, alignment with goals, and retrieval frequency. These factors are weighted and combined to produce an overall importance score. Memories scoring below a defined threshold are discarded, while those above are retained in appropriate storage tiers. Medium and low-scoring memories (that still exceed the minimum threshold) are stored in the Long-Term Memory tier, with different access patterns based on their score level.
+
+## **4. Key Features**
 
 - **Resilient SQLite Operations**: Contextual connection management with error categorization
 - **Persistent Storage**: Disk-based storage for long-term retention of memories
@@ -15,9 +58,9 @@ The `SQLiteLTMStore` is a SQLite-based implementation of the Long-Term Memory (L
 - **Foreign Key Integrity**: Ensures data consistency across tables
 - **Health Monitoring**: Database integrity checking and performance metrics
 
-## **3. Class Structure**
+## **5. Class Structure**
 
-### **3.1 SQLiteLTMStore**
+### **5.1 SQLiteLTMStore**
 
 ```python
 class SQLiteLTMStore:
@@ -31,9 +74,9 @@ class SQLiteLTMStore:
         # ...
 ```
 
-## **4. Key Methods**
+## **6. Key Methods**
 
-### **4.1 Memory Storage and Retrieval**
+### **6.1 Memory Storage and Retrieval**
 
 | Method | Purpose |
 |--------|---------|
@@ -49,7 +92,7 @@ class SQLiteLTMStore:
 | `clear()` | Clear all memories for an agent |
 | `check_health()` | Check SQLite database health |
 
-### **4.2 Internal Methods**
+### **6.2 Internal Methods**
 
 | Method | Purpose |
 |--------|---------|
@@ -57,9 +100,9 @@ class SQLiteLTMStore:
 | `_init_database()` | Initialize the database schema |
 | `_update_access_metadata(memory_id)` | Update access statistics |
 
-## **5. Data Organization**
+## **7. Data Organization**
 
-### **5.1 Memory Entry Structure**
+### **7.1 Memory Entry Structure**
 
 Each memory entry is stored with this structure:
 
@@ -89,7 +132,7 @@ Each memory entry is stored with this structure:
 }
 ```
 
-### **5.2 Database Schema**
+### **7.2 Database Schema**
 
 #### **Main Memory Table**
 
@@ -126,7 +169,7 @@ CREATE TABLE {table_prefix}_embeddings (
 )
 ```
 
-### **5.3 Database Indices**
+### **7.3 Database Indices**
 
 | Index | Purpose | Implementation |
 |-------|---------|----------------|
@@ -136,9 +179,9 @@ CREATE TABLE {table_prefix}_embeddings (
 | `idx_{table_prefix}_importance` | Importance-based sorting | `CREATE INDEX ... ON {table_prefix}_memories (importance_score)` |
 | `idx_{table_prefix}_timestamp` | Temporal sorting | `CREATE INDEX ... ON {table_prefix}_memories (timestamp)` |
 
-## **6. Error Handling Strategy**
+## **8. Error Handling Strategy**
 
-### **6.1 Error Classification**
+### **8.1 Error Classification**
 
 The store classifies SQLite errors into two categories:
 
@@ -150,7 +193,7 @@ The store classifies SQLite errors into two categories:
    - Database corruption
    - Structural issues requiring intervention
 
-### **6.2 Connection Management**
+### **8.2 Connection Management**
 
 The store uses Python's context manager pattern to:
 
@@ -159,7 +202,7 @@ The store uses Python's context manager pattern to:
 3. Enforce transaction boundaries
 4. Set consistent connection parameters
 
-### **6.3 Error Recovery**
+### **8.3 Error Recovery**
 
 All public methods include comprehensive try/except blocks that:
 
@@ -167,9 +210,9 @@ All public methods include comprehensive try/except blocks that:
 2. Return reasonable defaults on failure
 3. Preserve database consistency
 
-## **7. Vector Similarity Search Implementation**
+## **9. Vector Similarity Search Implementation**
 
-### **7.1 Embedding Storage**
+### **9.1 Embedding Storage**
 
 Embeddings are stored as binary blobs for space efficiency:
 
@@ -178,7 +221,7 @@ Embeddings are stored as binary blobs for space efficiency:
 vector_blob = np.array(vector, dtype=np.float32).tobytes()
 ```
 
-### **7.2 Similarity Calculation**
+### **9.2 Similarity Calculation**
 
 Vector similarity is computed using cosine similarity:
 
@@ -189,9 +232,9 @@ similarity = np.dot(query_array, vector) / (
 )
 ```
 
-## **8. Usage Examples**
+## **10. Usage Examples**
 
-### **8.1 Basic Memory Storage and Retrieval**
+### **10.1 Basic Memory Storage and Retrieval**
 
 ```python
 from memory.agent_memory.config import SQLiteLTMConfig
@@ -227,7 +270,7 @@ ltm_store.store(memory_entry)
 retrieved_memory = ltm_store.get("mem123")
 ```
 
-### **8.2 Batch Storage**
+### **10.2 Batch Storage**
 
 ```python
 # Prepare multiple memories
@@ -247,7 +290,7 @@ for i in range(10):
 ltm_store.store_batch(memories)
 ```
 
-### **8.3 Vector Similarity Search**
+### **10.3 Vector Similarity Search**
 
 ```python
 # Query vector
@@ -261,7 +304,7 @@ for memory, similarity in similar_memories:
     print(f"Memory ID: {memory['memory_id']}, Similarity: {similarity:.4f}")
 ```
 
-### **8.4 Time-Based Retrieval**
+### **10.4 Time-Based Retrieval**
 
 ```python
 # Get memories from a specific time range
@@ -275,7 +318,7 @@ time_range_memories = ltm_store.get_by_timerange(
 )
 ```
 
-### **8.5 Health Check**
+### **10.5 Health Check**
 
 ```python
 # Check database health
@@ -285,9 +328,9 @@ print(f"Latency: {health_status['latency_ms']:.2f} ms")
 print(f"Integrity: {health_status['integrity']}")
 ```
 
-## **9. Configuration Options**
+## **11. Configuration Options**
 
-### **9.1 SQLiteLTMConfig Parameters**
+### **11.1 SQLiteLTMConfig Parameters**
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -296,16 +339,16 @@ print(f"Integrity: {health_status['integrity']}")
 | `batch_size` | Number of entries to batch write | 100 |
 | `table_prefix` | Prefix for table names | "agent_ltm" |
 
-## **10. Performance Considerations**
+## **12. Performance Considerations**
 
-### **10.1 Optimization Techniques**
+### **12.1 Optimization Techniques**
 
 1. **Indexing Strategy**: Indices on frequently queried fields
 2. **Connection Pooling**: Context manager for connection reuse
 3. **Batch Operations**: Transactional batch writes for efficiency
 4. **BLOB Storage**: Efficient binary storage for vector embeddings
 
-### **10.2 Performance Recommendations**
+### **12.2 Performance Recommendations**
 
 1. **Database Location**: Store on local SSD for best performance
 2. **Vacuum Regularly**: Run VACUUM periodically on large databases
@@ -313,7 +356,7 @@ print(f"Integrity: {health_status['integrity']}")
 4. **Connection Timeout**: Adjust timeout for network/disk conditions
 5. **Batch Size**: Tune batch size based on memory requirements
 
-## **11. Integration with Memory Architecture**
+## **13. Integration with Memory Architecture**
 
 The `SQLiteLTMStore` is designed to be the final persistence tier in the memory hierarchy:
 
@@ -324,7 +367,7 @@ Agent State → Redis STM → Redis IM → SQLite LTM
 
 This class handles the long-term storage requirements with efficient compression and retrieval mechanisms.
 
-## **12. Future Enhancements**
+## **14. Future Enhancements**
 
 1. **Full-Text Search**: Add text-based search capabilities for content
 2. **Partitioning Strategy**: Implement sharding for large agent populations

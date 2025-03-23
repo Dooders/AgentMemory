@@ -4,7 +4,77 @@
 
 The `ResilientRedisClient` is a resilient wrapper around Redis operations that implements robust error handling, automatic retries, and circuit breaker patterns to ensure reliable Redis operations in the AgentMemory system.
 
-## **2. Key Features**
+## **2. Data Consistency Architecture**
+
+```mermaid
+graph TB
+    subgraph "Redis Cache"
+        STM[Short-Term Memory]
+        IM[Intermediate Memory]
+        IDX[Memory Indices]
+    end
+    
+    subgraph "Persistent Storage"
+        P_IM[Persisted IM]
+        P_LTM[Long-Term Memory]
+        P_IDX[Persisted Indices]
+    end
+    
+    STM --> |Write-through| SYNC1[Sync Service]
+    IM --> |Periodic sync| SYNC1
+    IDX --> |Index updates| SYNC1
+    
+    SYNC1 --> P_IM
+    SYNC1 --> P_LTM
+    SYNC1 --> P_IDX
+    
+    P_IM --> |Cache miss| SYNC2[Data Loader]
+    P_LTM --> |Cache miss| SYNC2
+    P_IDX --> |Index rebuild| SYNC2
+    
+    SYNC2 --> IM
+    SYNC2 --> IDX
+```
+
+Data consistency between Redis and persistent storage is maintained through a two-way synchronization system. The Sync Service moves data from Redis to persistent storage using different strategies for each memory tier. Short-Term Memory uses write-through for immediate persistence of critical data, while Intermediate Memory and indices use periodic syncing to balance performance with data durability. When cache misses occur, the Data Loader retrieves information from persistent storage and populates Redis accordingly. This architecture enables the system to recover from Redis failures while preserving data integrity across both transient and permanent storage layers.
+
+## **3. Memory Access Patterns**
+
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant MS as Memory System
+    participant R as Redis
+    participant PS as Persistent Storage
+    
+    A->>MS: Request memory (query)
+    MS->>R: Check cache for matching entries
+    R-->>MS: Return cached entries
+    
+    alt Cache Miss
+        MS->>PS: Query persistent storage
+        PS-->>MS: Return matching entries
+        MS->>R: Update cache
+    end
+    
+    MS->>MS: Apply relevance scoring
+    MS-->>A: Return relevant memories
+    
+    A->>MS: Store new memory
+    MS->>R: Store in STM
+    MS->>R: Update indices
+    
+    loop Memory Management (Background)
+        MS->>R: Process STM entries
+        MS->>R: Move important memories to IM
+        MS->>R: Compress older IM entries to LTM
+        MS->>PS: Persist LTM entries
+    end
+```
+
+Memory access follows a consistent pattern designed for performance and reliability. When an agent requests information, the system first queries Redis for cached entries, providing fast responses for frequently accessed data. Cache misses trigger queries to persistent storage, and Redis is updated afterward to improve future access times. For storage operations, new memories are immediately placed in Short-Term Memory with index updates. A background process continuously manages memory transfers between tiers based on importance and age. The ResilientRedisClient ensures all Redis interactions remain reliable by implementing retries and circuit breaking when the Redis server experiences instability.
+
+## **4. Key Features**
 
 - **Circuit Breaker Pattern**: Prevents cascading failures by stopping operations when Redis is unreliable
 - **Automatic Retries**: Configurable retry policies for transient errors
@@ -12,9 +82,9 @@ The `ResilientRedisClient` is a resilient wrapper around Redis operations that i
 - **Priority-Based Operation Handling**: Different handling for critical vs. normal operations
 - **Comprehensive Redis Method Coverage**: Full set of Redis operations with error handling
 
-## **3. Class Structure**
+## **5. Class Structure**
 
-### **3.1 ResilientRedisClient**
+### **5.1 ResilientRedisClient**
 
 ```python
 class ResilientRedisClient:
@@ -34,9 +104,9 @@ class ResilientRedisClient:
         # ...
 ```
 
-## **4. Key Methods**
+## **6. Key Methods**
 
-### **4.1 Core Redis Operations**
+### **6.1 Core Redis Operations**
 
 All basic Redis operations are wrapped with circuit breaker pattern:
 
@@ -59,7 +129,7 @@ All basic Redis operations are wrapped with circuit breaker pattern:
 | `zrem(name, *values)` | Remove from sorted set | ZREM |
 | `zcard(name)` | Count sorted set members | ZCARD |
 
-### **4.2 Error Handling Methods**
+### **6.2 Error Handling Methods**
 
 | Method | Purpose |
 |--------|---------|
@@ -67,9 +137,9 @@ All basic Redis operations are wrapped with circuit breaker pattern:
 | `_create_redis_client()` | Create Redis client with error handling |
 | `store_with_retry(agent_id, state_data, store_func, priority)` | Store with priority-based retry |
 
-## **5. Error Handling Strategy**
+## **7. Error Handling Strategy**
 
-### **5.1 Circuit Breaker Pattern**
+### **7.1 Circuit Breaker Pattern**
 
 The client uses a circuit breaker to prevent repeated failed attempts to Redis:
 
@@ -77,7 +147,7 @@ The client uses a circuit breaker to prevent repeated failed attempts to Redis:
 2. **Open State**: After `circuit_threshold` failures, requests are blocked
 3. **Half-Open State**: After `circuit_reset_timeout` seconds, a test request is allowed
 
-### **5.2 Priority-Based Handling**
+### **7.2 Priority-Based Handling**
 
 Operations are handled differently based on priority:
 
@@ -87,7 +157,7 @@ Operations are handled differently based on priority:
 | **HIGH/NORMAL** | Enqueue for background retry |
 | **LOW** | Log and continue |
 
-### **5.3 Error Categories**
+### **7.3 Error Categories**
 
 | Error | Description | Handling |
 |-------|-------------|----------|
@@ -95,16 +165,16 @@ Operations are handled differently based on priority:
 | `RedisTimeoutError` | Operation timeouts | Circuit breaker, retry |
 | Other exceptions | Various errors | Logged and propagated |
 
-## **6. Integration with Memory System**
+## **8. Integration with Memory System**
 
-### **6.1 Memory Tier Support**
+### **8.1 Memory Tier Support**
 
 The client is designed to support the memory tier architecture:
 
 - **STM (Short-Term Memory)**: Fast, recent, high-detail memory storage
 - **IM (Intermediate Memory)**: Medium-term storage with compression
 
-### **6.2 Memory Operations**
+### **8.2 Memory Operations**
 
 The client facilitates these memory operations:
 
@@ -113,9 +183,9 @@ The client facilitates these memory operations:
 3. **Indexing**: Supporting the Redis schema for efficient queries
 4. **Memory Transitions**: Enabling data flow between memory tiers
 
-## **7. Usage Examples**
+## **9. Usage Examples**
 
-### **7.1 Basic Redis Operations**
+### **9.1 Basic Redis Operations**
 
 ```python
 # Create client
@@ -136,7 +206,7 @@ client.hset("agent:123:state", "position", "10,20")
 state = client.hgetall("agent:123:state")
 ```
 
-### **7.2 Priority-Based Storage**
+### **9.2 Priority-Based Storage**
 
 ```python
 def store_agent_state(agent_id, state_data):
@@ -158,9 +228,9 @@ client.store_with_retry(
 )
 ```
 
-## **8. Configuration**
+## **10. Configuration**
 
-### **8.1 Connection Parameters**
+### **10.1 Connection Parameters**
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -171,14 +241,14 @@ client.store_with_retry(
 | `socket_timeout` | Timeout for operations | 2.0 seconds |
 | `socket_connect_timeout` | Connection timeout | 2.0 seconds |
 
-### **8.2 Circuit Breaker Settings**
+### **10.2 Circuit Breaker Settings**
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `circuit_threshold` | Failures before circuit opens | 3 |
 | `circuit_reset_timeout` | Seconds before circuit reset | 300 |
 
-### **8.3 Retry Policy**
+### **10.3 Retry Policy**
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -186,9 +256,9 @@ client.store_with_retry(
 | `base_delay` | Base delay between retries | 1.0 second |
 | `backoff_factor` | Multiplier for backoff | 2.0 |
 
-## **9. Future Enhancements**
+## **11. Future Enhancements**
 
-### **9.1 Potential Improvements**
+### **11.1 Potential Improvements**
 
 1. **Health Monitoring System**: Implement proactive health checks for Redis servers
 2. **Metrics Collection**: Track operation latencies, error rates, and circuit breaker state
@@ -197,7 +267,7 @@ client.store_with_retry(
 5. **Caching Layer**: Add local caching for frequently accessed items
 6. **Tier Fallback Mechanism**: Implement automatic fallback between memory tiers
 
-### **9.2 Implementation Roadmap**
+### **11.2 Implementation Roadmap**
 
 | Feature | Priority | Complexity | Status |
 |---------|----------|------------|--------|
@@ -208,7 +278,7 @@ client.store_with_retry(
 | Local Caching | Medium | Medium | Backlog |
 | Tier Fallback | High | High | Planned |
 
-## **10. Additional Resources**
+## **12. Additional Resources**
 
 - [Redis Integration](../../redis_integration.md)
 - [Error Handling Strategy](../../error_handling_strategy.md)
