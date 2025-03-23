@@ -172,6 +172,28 @@ def calculate_importance(memory: Dict[str, Any]) -> float:
 - SQLite index optimization
 - Compression ratio tuning
 
+## Accessing Memory Tiers
+
+The memory system provides a unified interface for accessing all memory tiers through the central API:
+
+```python
+from agent_memory.core import AgentMemorySystem
+from agent_memory.config import MemoryConfig
+
+# Initialize the memory system
+memory_system = AgentMemorySystem.get_instance(MemoryConfig())
+
+# Store in STM (default tier)
+memory_system.store_agent_state(
+    agent_id="agent1",
+    state_data={"position": [10, 20], "health": 95},
+    step_number=100
+)
+
+# Force memory maintenance to transition memories between tiers
+memory_system.force_memory_maintenance(agent_id="agent1")
+```
+
 ## See Also
 - [Redis STM Store](redis_stm_store.md)
 - [SQLite LTM Store](sqlite_ltm_store.md)

@@ -21,7 +21,7 @@ The API enables storing and retrieving agent states, actions, and interactions a
 The Agent Memory API is available as part of the agent state memory system. Import it directly:
 
 ```python
-from memory.agent_memory.api import AgentMemoryAPI
+from agent_memory.core import AgentMemorySystem
 ```
 
 ## Basic Usage
@@ -29,25 +29,25 @@ from memory.agent_memory.api import AgentMemoryAPI
 ### Initialization
 
 ```python
-from memory.agent_memory.api import AgentMemoryAPI
-from memory.agent_memory.config import MemoryConfig
+from agent_memory.core import AgentMemorySystem
+from agent_memory.config import MemoryConfig
 
 # Initialize with default configuration
-api = AgentMemoryAPI()
+memory_system = AgentMemorySystem.get_instance()
 
 # Or, initialize with custom configuration
 config = MemoryConfig(
     cleanup_interval=100,
     stm_config={"memory_limit": 10000}
 )
-api = AgentMemoryAPI(config)
+memory_system = AgentMemorySystem.get_instance(config)
 ```
 
 ### Storing Agent Information
 
 ```python
 # Store an agent's state
-api.store_agent_state(
+memory_system.store_agent_state(
     agent_id="agent-123",
     state_data={
         "position": [10, 20],
@@ -59,7 +59,7 @@ api.store_agent_state(
 )
 
 # Store an interaction
-api.store_agent_interaction(
+memory_system.store_agent_interaction(
     agent_id="agent-123",
     interaction_data={
         "interaction_type": "conversation",
@@ -71,7 +71,7 @@ api.store_agent_interaction(
 )
 
 # Store an action
-api.store_agent_action(
+memory_system.store_agent_action(
     agent_id="agent-123",
     action_data={
         "action_type": "trade",
@@ -87,29 +87,25 @@ api.store_agent_action(
 ### Retrieving Memories
 
 ```python
-# Get specific memory by ID
-memory = api.retrieve_state_by_id(
-    agent_id="agent-123",
-    memory_id="agent-123-1234-1679233344"
-)
+# Get memory agent instance for more specialized operations
+memory_agent = memory_system.get_memory_agent("agent-123")
 
 # Get recent states
-recent_states = api.retrieve_recent_states(
-    agent_id="agent-123",
+recent_states = memory_agent.retrieve_recent_states(
     count=5,
     memory_type="state"  # Optional filter
 )
 
 # Find similar states
 current_state = {"position": [12, 22], "health": 0.8}
-similar_states = api.retrieve_similar_states(
+similar_states = memory_system.retrieve_similar_states(
     agent_id="agent-123",
     query_state=current_state,
     k=5
 )
 
 # Get memories within a time range
-memories = api.retrieve_by_time_range(
+memories = memory_system.retrieve_by_time_range(
     agent_id="agent-123",
     start_step=1000,
     end_step=2000,
@@ -117,7 +113,7 @@ memories = api.retrieve_by_time_range(
 )
 
 # Find memories with specific attributes
-trading_memories = api.retrieve_by_attributes(
+trading_memories = memory_system.retrieve_by_attributes(
     agent_id="agent-123",
     attributes={"action_type": "trade", "outcome": "success"},
     memory_type="action"
@@ -128,52 +124,12 @@ trading_memories = api.retrieve_by_attributes(
 
 ```python
 # Force memory maintenance (tier transitions)
-api.force_memory_maintenance(agent_id="agent-123")
+memory_system.force_memory_maintenance(agent_id="agent-123")
 
-# Clear agent memory
-api.clear_agent_memory(
-    agent_id="agent-123",
-    memory_tiers=["stm", "im"]  # Optional: specific tiers to clear
-)
-
-# Update importance score for a memory
-api.set_importance_score(
-    agent_id="agent-123",
-    memory_id="agent-123-1234-1679233344",
-    importance_score=0.9  # New importance (0.0-1.0)
-)
-
-# Update memory system configuration
-api.configure_memory_system({
-    "cleanup_interval": 150,
-    "stm_config": {
-        "memory_limit": 15000,
-        "ttl": 7200  # 2 hours
-    }
-})
-```
-
-### Analytics and Insights
-
-```python
 # Get memory statistics
-stats = api.get_memory_statistics(agent_id="agent-123")
+stats = memory_system.get_memory_statistics(agent_id="agent-123")
 print(f"Total memories: {stats['total_memories']}")
 print(f"Memory distribution: {stats['memory_type_distribution']}")
-
-# Get agent state snapshots at specific steps
-snapshots = api.get_memory_snapshots(
-    agent_id="agent-123",
-    steps=[1000, 2000, 3000]
-)
-
-# Track attribute changes over time
-health_history = api.get_attribute_change_history(
-    agent_id="agent-123",
-    attribute_name="health",
-    start_step=1000,
-    end_step=2000
-)
 ```
 
 ## Advanced Usage
@@ -185,8 +141,8 @@ health_history = api.get_attribute_change_history(
 embedding = [0.1, 0.2, 0.3, ...]  # Your embedding vector
 
 # Search using the raw embedding
-similar_memories = api.search_by_embedding(
-    agent_id="agent-123",
+memory_agent = memory_system.get_memory_agent("agent-123")
+similar_memories = memory_agent.search_by_embedding(
     query_embedding=embedding,
     k=10,
     memory_tiers=["stm", "im"]  # Optional: specific tiers to search
@@ -196,17 +152,12 @@ similar_memories = api.search_by_embedding(
 ### Content-Based Search
 
 ```python
-# Search by text content
-conversation_memories = api.search_by_content(
-    agent_id="agent-123",
-    content_query="trade wood",
-    k=5
-)
+# Get memory agent instance
+memory_agent = memory_system.get_memory_agent("agent-123")
 
-# Or search by attribute patterns
-attribute_matches = api.search_by_content(
-    agent_id="agent-123",
-    content_query={"health": {"$lt": 0.5}},  # Find low health states
+# Search by content pattern 
+memories = memory_agent.search_by_content(
+    content_query="trade wood",
     k=5
 )
 ```
@@ -225,30 +176,17 @@ attribute_matches = api.search_by_content(
 
 | Method | Description |
 |--------|-------------|
-| `retrieve_state_by_id(agent_id, memory_id)` | Retrieve a specific memory by ID |
-| `retrieve_recent_states(agent_id, count=10, memory_type=None)` | Get most recent agent states |
 | `retrieve_similar_states(agent_id, query_state, k=5, memory_type=None)` | Find states similar to the query state |
 | `retrieve_by_time_range(agent_id, start_step, end_step, memory_type=None)` | Get memories in a step range |
 | `retrieve_by_attributes(agent_id, attributes, memory_type=None)` | Find memories matching attributes |
 
-### Advanced Retrieval Methods
+### Advanced Methods
 
 | Method | Description |
 |--------|-------------|
-| `search_by_embedding(agent_id, query_embedding, k=5, memory_tiers=None)` | Search using a raw embedding vector |
-| `search_by_content(agent_id, content_query, k=5)` | Search by content pattern |
-| `get_memory_snapshots(agent_id, steps)` | Get agent states at specific steps |
-| `get_attribute_change_history(agent_id, attribute_name, start_step=None, end_step=None)` | Track attribute changes over time |
-
-### Memory Management Methods
-
-| Method | Description |
-|--------|-------------|
+| `get_memory_agent(agent_id)` | Get a MemoryAgent instance for more specialized operations |
 | `force_memory_maintenance(agent_id=None)` | Force tier transitions and cleanup |
-| `clear_agent_memory(agent_id, memory_tiers=None)` | Clear agent memory |
-| `set_importance_score(agent_id, memory_id, importance_score)` | Update memory importance |
-| `configure_memory_system(config)` | Update system configuration |
-| `get_memory_statistics(agent_id)` | Get memory usage statistics |
+| `get_memory_statistics(agent_id)` | Get statistics about memory usage |
 
 ## Memory Structure
 
@@ -332,7 +270,7 @@ When using the Agent Memory API, consider these performance factors:
 The API can be configured using the `MemoryConfig` object:
 
 ```python
-from memory.agent_memory.config import MemoryConfig, RedisSTMConfig
+from agent_memory.config import MemoryConfig, RedisSTMConfig
 
 config = MemoryConfig(
     # System-wide settings
@@ -348,7 +286,7 @@ config = MemoryConfig(
     )
 )
 
-api = AgentMemoryAPI(config)
+memory_system = AgentMemorySystem.get_instance(config)
 ```
 
 ## Integration with Agent Systems

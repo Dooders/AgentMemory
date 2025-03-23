@@ -167,4 +167,38 @@ config = MemoryConfig(
 - [Redis STM Store](redis_stm_store.md)
 - [SQLite LTM Store](sqlite_ltm_store.md)
 - [Agent Memory API](agent_memory_api.md)
-- [Resilient Redis Client](resilient_redis_client.md) 
+- [Resilient Redis Client](resilient_redis_client.md)
+
+## Using the Agent Memory System
+
+```python
+from agent_memory.core import AgentMemorySystem
+from agent_memory.config import MemoryConfig
+
+# Get the singleton instance with default configuration
+memory_system = AgentMemorySystem.get_instance()
+
+# Or initialize with custom configuration
+config = MemoryConfig(
+    cleanup_interval=1000,
+    stm_config={"memory_limit": 5000},
+    im_config={"ttl": 172800}  # 48 hours
+)
+memory_system = AgentMemorySystem.get_instance(config)
+
+# Store an agent state
+memory_system.store_agent_state(
+    agent_id="agent_001",
+    state_data={"position": [10, 20], "health": 100, "inventory": {"gold": 50}},
+    step_number=1500
+)
+
+# Retrieve similar states
+similar_states = memory_system.retrieve_similar_states(
+    agent_id="agent_001",
+    query_state={"position": [12, 18]},
+    k=5
+)
+
+# Get statistics
+stats = memory_system.get_memory_statistics(agent_id="agent_001") 

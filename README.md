@@ -80,20 +80,21 @@ agent_memory/
 ### Basic Usage
 
 ```python
-from farm.memory import AgentMemoryAPI, MemoryConfig
+from agent_memory.core import AgentMemorySystem
+from agent_memory.config import MemoryConfig
 
 # Initialize memory system
-memory_api = AgentMemoryAPI(MemoryConfig())
+memory_system = AgentMemorySystem.get_instance(MemoryConfig())
 
 # Store agent state
-memory_api.store_agent_state(
+memory_system.store_agent_state(
     agent_id="agent1",
     state_data={"position": [0, 0], "health": 100},
     step_number=1
 )
 
 # Store agent action
-memory_api.store_agent_action(
+memory_system.store_agent_action(
     agent_id="agent1",
     action_data={"action": "move", "direction": "north"},
     step_number=1
@@ -103,8 +104,8 @@ memory_api.store_agent_action(
 ### Using Memory Hooks
 
 ```python
-from farm.memory import install_memory_hooks
-from farm.agents import BaseAgent
+from agent_memory.api.hooks import install_memory_hooks
+from agent_memory.api.hooks import BaseAgent
 
 @install_memory_hooks
 class MyAgent(BaseAgent):
@@ -116,7 +117,7 @@ class MyAgent(BaseAgent):
 ### Custom Configuration
 
 ```python
-from farm.memory import MemoryConfig, RedisSTMConfig
+from agent_memory.config import MemoryConfig, RedisSTMConfig
 
 config = MemoryConfig(
     stm_config=RedisSTMConfig(
@@ -127,7 +128,7 @@ config = MemoryConfig(
     )
 )
 
-memory_api = AgentMemoryAPI(config)
+memory_system = AgentMemorySystem.get_instance(config)
 ```
 
 ## Memory Tiers
@@ -168,10 +169,10 @@ Memories automatically transition between tiers based on:
 ### Vector Similarity Search
 Find similar memories using embedding-based similarity search:
 ```python
-similar_states = memory_api.retrieve_states_by_similarity(
+similar_states = memory_system.retrieve_similar_states(
     agent_id="agent1",
     query_state=current_state,
-    count=10
+    k=10
 )
 ```
 

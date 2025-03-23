@@ -20,11 +20,10 @@ The Agent Memory Hooks system provides a non-intrusive way to add memory capabil
 Apply memory hooks to all instances of an agent class:
 
 ```python
-from farm.agents import SimpleAgent
-from memory.agent_memory.api.hooks import install_memory_hooks
+from agent_memory.api.hooks import install_memory_hooks, BaseAgent
 
 @install_memory_hooks
-class MyAgent(SimpleAgent):
+class MyAgent(BaseAgent):
     def __init__(self, config, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         # Your custom initialization
@@ -35,11 +34,10 @@ class MyAgent(SimpleAgent):
 Apply memory hooks to a specific agent instance:
 
 ```python
-from farm.agents import SimpleAgent
-from memory.agent_memory.api.hooks import with_memory
+from agent_memory.api.hooks import with_memory, BaseAgent
 
 # Create agent
-agent = SimpleAgent(config)
+agent = BaseAgent(config)
 
 # Add memory capabilities
 agent_with_memory = with_memory(agent)
