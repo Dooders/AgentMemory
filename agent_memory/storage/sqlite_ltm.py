@@ -59,7 +59,8 @@ class SQLiteLTMStore:
 
         # Ensure database directory exists
         db_dir = os.path.dirname(self.db_path)
-        os.makedirs(db_dir, exist_ok=True)
+        if db_dir:  # Only try to create directory if there is a directory path
+            os.makedirs(db_dir, exist_ok=True)
 
         # Initialize database tables if they don't exist
         self._init_database()
@@ -776,6 +777,130 @@ class SQLiteLTMStore:
             logger.error("Unexpected error retrieving similar memories: %s", str(e))
             return []
 
+    def search_similar(
+        self,
+        query_embedding: List[float],
+        k: int = 5,
+        memory_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories with similar embeddings.
+
+        Args:
+            query_embedding: The vector embedding to use for similarity search
+            k: Number of results to return
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries sorted by similarity score
+        """
+        try:
+            # Get similar memories using the existing method
+            similar_memories = self.get_most_similar(query_embedding, top_k=k)
+            
+            # Process results to match the expected format
+            results = []
+            for memory, similarity in similar_memories:
+                # Filter by memory type if specified
+                if memory_type and memory.get("memory_type") != memory_type:
+                    continue
+                    
+                # Add similarity score to the memory entry
+                memory["similarity_score"] = float(similarity)
+                results.append(memory)
+                
+            # If we've filtered by memory_type, we might need more results
+            if memory_type and len(results) < k:
+                # We would need to get more results and filter them
+                additional_needed = k - len(results)
+                more_similar = self.get_most_similar(query_embedding, top_k=k+20)
+                
+                for memory, similarity in more_similar[k:]:
+                    if memory.get("memory_type") == memory_type:
+                        memory["similarity_score"] = float(similarity)
+                        results.append(memory)
+                        if len(results) >= k:
+                            break
+            
+            return results[:k]
+            
+        except Exception as e:
+            logger.error(f"Error in search_similar: {e}")
+            return []
+
+    def search_by_attributes(
+        self,
+        attributes: Dict[str, Any],
+        memory_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Search for memories matching specific attributes.
+
+        Args:
+            attributes: Dictionary of attribute keys and values to match
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries with matching attributes
+        """
+        try:
+            # Get all memories (with type filter if provided)
+            if memory_type:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        f"""
+                    SELECT memory_id FROM {self.memory_table}
+                    WHERE agent_id = ? AND memory_type = ?
+                    """,
+                        (self.agent_id, memory_type),
+                    )
+                    rows = cursor.fetchall()
+                    candidates = [self.get(row["memory_id"]) for row in rows if row]
+                    candidates = [m for m in candidates if m]  # Filter out None values
+            else:
+                candidates = self.get_all(limit=1000)
+            
+            # Filter by attributes
+            results = []
+            for memory in candidates:
+                if self._matches_attributes(memory, attributes):
+                    results.append(memory)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error in search_by_attributes: {e}")
+            return []
+    
+    def _matches_attributes(self, memory: Dict[str, Any], attributes: Dict[str, Any]) -> bool:
+        """Check if a memory matches the specified attributes.
+        
+        Args:
+            memory: Memory entry to check
+            attributes: Dictionary of attribute keys and values to match
+            
+        Returns:
+            True if the memory matches all attributes, False otherwise
+        """
+        for attr_path, attr_value in attributes.items():
+            # Handle nested attributes using dot notation (e.g., "position.location")
+            parts = attr_path.split('.')
+            
+            # Start from the memory content
+            current = memory.get("content", {})
+            
+            # Navigate through the nested structure
+            for i, part in enumerate(parts[:-1]):
+                if part not in current:
+                    return False
+                current = current[part]
+            
+            # Check the final attribute value
+            last_part = parts[-1]
+            if last_part not in current or current[last_part] != attr_value:
+                return False
+        
+        return True
+
     def count(self) -> int:
         """Get the number of memories for the agent.
 
@@ -804,6 +929,54 @@ class SQLiteLTMStore:
             return 0
         except Exception as e:
             logger.error("Unexpected error counting memories: %s", str(e))
+            return 0
+
+    def get_size(self) -> int:
+        """Get the approximate size in bytes of all memories for the agent.
+        
+        Returns:
+            Approximate size in bytes
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Get the size of the memory data
+                cursor.execute(
+                    f"""
+                SELECT SUM(LENGTH(content_json)) as total_size 
+                FROM {self.memory_table}
+                WHERE agent_id = ?
+                """,
+                    (self.agent_id,),
+                )
+                
+                row = cursor.fetchone()
+                memory_size = row["total_size"] if row and row["total_size"] else 0
+                
+                # Get the size of the embeddings
+                cursor.execute(
+                    f"""
+                SELECT SUM(LENGTH(vector_blob)) as total_size 
+                FROM {self.embeddings_table} e
+                JOIN {self.memory_table} m ON e.memory_id = m.memory_id
+                WHERE m.agent_id = ?
+                """,
+                    (self.agent_id,),
+                )
+                
+                row = cursor.fetchone()
+                embedding_size = row["total_size"] if row and row["total_size"] else 0
+                
+                return memory_size + embedding_size
+                
+        except (SQLiteTemporaryError, SQLitePermanentError) as e:
+            logger.warning(
+                "Failed to calculate memory size for agent %s: %s", self.agent_id, str(e)
+            )
+            return 0
+        except Exception as e:
+            logger.error("Unexpected error calculating memory size: %s", str(e))
             return 0
 
     def get_all(self, limit: int = 1000) -> List[Dict[str, Any]]:
@@ -973,3 +1146,58 @@ class SQLiteLTMStore:
                 "client": "sqlite-ltm",
                 "db_path": self.db_path,
             }
+
+    def search_by_step_range(
+        self,
+        start_step: int,
+        end_step: int,
+        memory_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Search for memories within a specific step range.
+
+        Args:
+            start_step: Beginning of step range (inclusive)
+            end_step: End of step range (inclusive)
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries with step numbers in the range
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Construct query based on whether memory_type is specified
+                if memory_type:
+                    cursor.execute(
+                        f"""
+                    SELECT memory_id FROM {self.memory_table}
+                    WHERE agent_id = ? AND step_number BETWEEN ? AND ? AND memory_type = ?
+                    ORDER BY step_number
+                    """,
+                        (self.agent_id, start_step, end_step, memory_type),
+                    )
+                else:
+                    cursor.execute(
+                        f"""
+                    SELECT memory_id FROM {self.memory_table}
+                    WHERE agent_id = ? AND step_number BETWEEN ? AND ?
+                    ORDER BY step_number
+                    """,
+                        (self.agent_id, start_step, end_step),
+                    )
+                
+                rows = cursor.fetchall()
+                
+                # Get full memory entries
+                results = []
+                for row in rows:
+                    memory = self.get(row["memory_id"])
+                    if memory:
+                        results.append(memory)
+                        
+                return results
+                
+        except Exception as e:
+            logger.error(f"Error in search_by_step_range: {e}")
+            return []

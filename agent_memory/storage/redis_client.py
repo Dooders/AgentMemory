@@ -415,17 +415,49 @@ class ResilientRedisClient:
         )
 
     def zcard(self, name: str) -> int:
-        """Get number of members in sorted set.
+        """Get the number of members in a sorted set.
 
         Args:
-            name: Sorted set name
+            name: Name of sorted set
 
         Returns:
-            Number of members
+            Cardinality of set
+
+        Raises:
+            RedisTimeoutError: If operation times out
+            RedisUnavailableError: If Redis is unavailable
         """
         return self._execute_with_circuit_breaker(
             "zcard", lambda: self.client.zcard(name)
         )
+
+    def scan_iter(self, match: Optional[str] = None, count: int = 10) -> list:
+        """Iterates over keys in the database matching the pattern.
+
+        Args:
+            match: Pattern to match
+            count: Number of keys to return at a time
+
+        Returns:
+            List of matching keys
+
+        Raises:
+            RedisTimeoutError: If operation times out
+            RedisUnavailableError: If Redis is unavailable
+        """
+        def _scan_iter():
+            # Manual implementation using scan instead of scan_iter
+            # as we need to handle the cursor ourselves
+            keys = []
+            cursor = 0
+            while True:
+                cursor, chunk = self.client.scan(cursor, match=match, count=count)
+                keys.extend(chunk)
+                if cursor == 0:
+                    break
+            return keys
+            
+        return self._execute_with_circuit_breaker("scan_iter", _scan_iter)
 
     def store_with_retry(
         self,

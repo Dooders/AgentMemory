@@ -17,6 +17,7 @@ from agent_memory.utils.error_handling import (
 )
 
 from .redis_client import ResilientRedisClient
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -442,17 +443,272 @@ class RedisSTMStore:
             return False
 
     def check_health(self) -> Dict[str, Any]:
-        """Check the health of the Redis STM store.
+        """Check the health of the Redis store.
 
         Returns:
-            Dictionary with health status information
+            Dictionary containing health metrics
         """
         try:
-            start_time = time.time()
-            self.redis.ping()
-            latency = (time.time() - start_time) * 1000  # ms
-
-            return {"status": "healthy", "latency_ms": latency, "client": "redis-stm"}
+            ping_result = self.redis.ping()
+            return {
+                "status": "ok" if ping_result else "degraded",
+                "message": "Redis connection successful" if ping_result else "Redis ping failed",
+                "latency_ms": self.redis.get_latency(),
+            }
+        except (RedisTimeoutError, RedisUnavailableError) as e:
+            return {"status": "error", "message": str(e)}
+            
+    def get_size(self, agent_id: str) -> int:
+        """Get the approximate size in bytes of all memories for an agent.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Approximate size in bytes
+        """
+        try:
+            # Get all memory keys for this agent
+            pattern = f"{self._key_prefix}:{agent_id}:memory:*"
+            memory_keys = list(self.redis.scan_iter(match=pattern))
+            
+            # Get memory size by dumping each key
+            total_size = 0
+            for key in memory_keys:
+                try:
+                    # Get the memory entry JSON size
+                    value = self.redis.get(key)
+                    if value:
+                        total_size += len(value)
+                except Exception as e:
+                    # Skip keys that cause errors (wrong type, etc.)
+                    logger.debug("Skipping key %s: %s", key, e)
+                    continue
+            
+            return total_size
         except Exception as e:
-            logger.error("STM health check failed: %s", str(e))
-            return {"status": "unhealthy", "error": str(e), "client": "redis-stm"}
+            logger.error("Error calculating memory size: %s", e)
+            return 0
+
+    def get_all(self, agent_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
+        """Get all memories for an agent.
+        
+        Args:
+            agent_id: ID of the agent
+            limit: Maximum number of memories to return
+            
+        Returns:
+            List of memory entries
+        """
+        try:
+            # Get all memory IDs sorted by recency
+            memories_key = f"{self._key_prefix}:{agent_id}:memories"
+            memory_ids = self.redis.zrange(
+                memories_key, 0, limit - 1, desc=True  # Most recent first
+            )
+            
+            # Get each memory
+            results = []
+            for memory_id in memory_ids:
+                memory = self.get(agent_id, memory_id)
+                if memory:
+                    results.append(memory)
+                    
+            return results
+        except Exception as e:
+            logger.error("Error retrieving all memories: %s", e)
+            return []
+
+    def search_similar(
+        self,
+        agent_id: str,
+        query_embedding: List[float],
+        k: int = 5,
+        memory_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories with similar embeddings.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            query_embedding: The vector embedding to use for similarity search
+            k: Number of results to return
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries sorted by similarity score
+        """
+        try:
+            memories = self.get_all(agent_id)
+            
+            # Filter by memory type if specified
+            if memory_type:
+                memories = [m for m in memories if m.get("memory_type") == memory_type]
+            
+            # Filter memories without embeddings
+            memories = [m for m in memories if "embedding" in m]
+            
+            # Return empty list if no memories with embeddings
+            if not memories:
+                return []
+            
+            # Calculate similarity scores
+            for memory in memories:
+                # Calculate cosine similarity if the memory has an embedding
+                memory_embedding = memory.get("embedding", [])
+                if memory_embedding:
+                    similarity = self._cosine_similarity(query_embedding, memory_embedding)
+                    memory["similarity_score"] = float(similarity)
+                else:
+                    memory["similarity_score"] = 0.0
+            
+            # Sort by similarity score (descending)
+            memories.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
+            
+            # Return top k results
+            return memories[:k]
+            
+        except Exception as e:
+            logger.error(f"Error in search_similar: {e}")
+            return []
+    
+    def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
+        """Calculate cosine similarity between two vectors.
+        
+        Args:
+            a: First vector
+            b: Second vector
+            
+        Returns:
+            Cosine similarity as a float between -1 and 1
+        """
+        if not a or not b or len(a) != len(b):
+            return 0.0
+            
+        try:
+            # Convert to numpy for vector operations
+            a_array = np.array(a)
+            b_array = np.array(b)
+            
+            # Calculate norm products
+            norm_a = np.linalg.norm(a_array)
+            norm_b = np.linalg.norm(b_array)
+            
+            # Prevent division by zero
+            if norm_a == 0 or norm_b == 0:
+                return 0.0
+                
+            # Calculate cosine similarity
+            return float(np.dot(a_array, b_array) / (norm_a * norm_b))
+            
+        except Exception as e:
+            logger.error(f"Error calculating cosine similarity: {e}")
+            return 0.0
+
+    def search_by_attributes(
+        self,
+        agent_id: str,
+        attributes: Dict[str, Any],
+        memory_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Search for memories matching specific attributes.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            attributes: Dictionary of attribute keys and values to match
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries with matching attributes
+        """
+        try:
+            # Get all memories
+            memories = self.get_all(agent_id)
+            
+            # Filter by memory type if specified
+            if memory_type:
+                memories = [m for m in memories if m.get("memory_type") == memory_type]
+            
+            # Filter by attributes
+            results = []
+            for memory in memories:
+                if self._matches_attributes(memory, attributes):
+                    results.append(memory)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error in search_by_attributes: {e}")
+            return []
+    
+    def _matches_attributes(self, memory: Dict[str, Any], attributes: Dict[str, Any]) -> bool:
+        """Check if a memory matches the specified attributes.
+        
+        Args:
+            memory: Memory entry to check
+            attributes: Dictionary of attribute keys and values to match
+            
+        Returns:
+            True if the memory matches all attributes, False otherwise
+        """
+        for attr_path, attr_value in attributes.items():
+            # Handle nested attributes using dot notation (e.g., "position.location")
+            parts = attr_path.split('.')
+            
+            # Start from the memory content
+            current = memory.get("content", {})
+            
+            # Navigate through the nested structure
+            for i, part in enumerate(parts[:-1]):
+                if part not in current:
+                    return False
+                current = current[part]
+            
+            # Check the final attribute value
+            last_part = parts[-1]
+            if last_part not in current or current[last_part] != attr_value:
+                return False
+        
+        return True
+
+    def search_by_step_range(
+        self,
+        agent_id: str,
+        start_step: int,
+        end_step: int,
+        memory_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Search for memories within a specific step range.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            start_step: Beginning of step range (inclusive)
+            end_step: End of step range (inclusive)
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries with step numbers in the range
+        """
+        try:
+            # Get all memories
+            memories = self.get_all(agent_id)
+            
+            # Filter by memory type if specified
+            if memory_type:
+                memories = [m for m in memories if m.get("memory_type") == memory_type]
+            
+            # Filter by step range
+            results = []
+            for memory in memories:
+                step_number = memory.get("step_number")
+                # Only include memories with step numbers in the requested range
+                if step_number is not None and start_step <= step_number <= end_step:
+                    results.append(memory)
+            
+            # Sort by step number
+            results.sort(key=lambda x: x.get("step_number", 0))
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error in search_by_step_range: {e}")
+            return []
