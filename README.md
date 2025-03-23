@@ -18,6 +18,7 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 - **Priority-Based Memory**: Importance scoring for intelligent memory retention
 - **Vector Search**: Similarity-based memory retrieval using embeddings
 - **Configurable**: Extensive configuration options for all components
+- **Direct Imports**: Import all key classes directly from the root package
 
 ## Directory Structure
 
@@ -80,8 +81,7 @@ agent_memory/
 ### Basic Usage
 
 ```python
-from agent_memory.core import AgentMemorySystem
-from agent_memory.config import MemoryConfig
+from agent_memory import AgentMemorySystem, MemoryConfig
 
 # Initialize memory system
 memory_system = AgentMemorySystem.get_instance(MemoryConfig())
@@ -104,6 +104,7 @@ memory_system.store_agent_action(
 ### Using Memory Hooks
 
 ```python
+from agent_memory import MemoryConfig
 from agent_memory.api.hooks import install_memory_hooks
 from agent_memory.api.hooks import BaseAgent
 
@@ -117,7 +118,7 @@ class MyAgent(BaseAgent):
 ### Custom Configuration
 
 ```python
-from agent_memory.config import MemoryConfig, RedisSTMConfig
+from agent_memory import MemoryConfig, RedisSTMConfig
 
 config = MemoryConfig(
     stm_config=RedisSTMConfig(
@@ -169,7 +170,9 @@ Memories automatically transition between tiers based on:
 ### Vector Similarity Search
 Find similar memories using embedding-based similarity search:
 ```python
-similar_states = memory_system.retrieve_similar_states(
+from agent_memory import AgentMemorySystem
+
+similar_states = AgentMemorySystem.get_instance().retrieve_similar_states(
     agent_id="agent1",
     query_state=current_state,
     k=10
