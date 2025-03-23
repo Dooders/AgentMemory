@@ -258,7 +258,7 @@ class TestMemoryStorage:
             assert entry["agent_id"] == memory_agent.agent_id
             assert entry["step_number"] == step_number
             assert entry["timestamp"] == 12345
-            assert entry["contents"] == test_data
+            assert entry["content"] == test_data
             
             # Check metadata
             metadata = entry["metadata"]
@@ -359,7 +359,7 @@ class TestMemoryTransitions:
         # Create a test memory with relevant fields
         current_time = time.time()
         memory = {
-            "contents": {"reward": 5.0},
+            "content": {"reward": 5.0},
             "metadata": {
                 "retrieval_count": 3,
                 "creation_time": current_time - 500,
@@ -374,7 +374,7 @@ class TestMemoryTransitions:
         
         # Test reward component (40% of score)
         memory_high_reward = {
-            "contents": {"reward": 20.0},  # Above the cap of 10
+            "content": {"reward": 20.0},  # Above the cap of 10
             "metadata": {
                 "retrieval_count": 0,
                 "creation_time": current_time,
@@ -389,7 +389,7 @@ class TestMemoryTransitions:
         
         # Test retrieval frequency component (30% of score)
         memory_high_retrieval = {
-            "contents": {"reward": 0.0},
+            "content": {"reward": 0.0},
             "metadata": {
                 "retrieval_count": 10,  # Above the cap of 5
                 "creation_time": current_time,

@@ -6,6 +6,7 @@ import redis
 import sqlite3
 import json
 import os
+import time
 
 from agent_memory.config import RedisSTMConfig, RedisIMConfig, SQLiteLTMConfig
 from agent_memory.retrieval.attribute import AttributeRetrieval
@@ -98,6 +99,26 @@ class TestAttributeRetrievalIntegration:
     def retriever(self, stm_store, im_store, ltm_store):
         """Create an AttributeRetrieval instance with mocked stores."""
         return AttributeRetrieval(stm_store, im_store, ltm_store)
+
+    @pytest.fixture
+    def test_memories(self):
+        """Create a set of test memories with content."""
+        return [
+            {
+                "memory_id": f"memory_{i}",
+                "type": "observation",
+                "timestamp": int(time.time()) - i * 100,
+                "metadata": {"importance": 0.5 + i * 0.1},
+                "content": {
+                    "person": "Alice" if i % 3 == 0 else "Bob",
+                    "location": "Office" if i % 2 == 0 else "Home",
+                    "action": "Working" if i % 4 == 0 else "Relaxing",
+                    "score": i * 10,
+                    "has_document": i % 2 == 0,
+                },
+            }
+            for i in range(10)
+        ]
 
     def test_retrieve_by_memory_type_stm_integration(self, retriever, stm_store):
         """Test retrieving memories by type from STM with store integration."""

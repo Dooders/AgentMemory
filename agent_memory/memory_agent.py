@@ -2,6 +2,7 @@
 
 import logging
 import time
+import math
 from typing import Any, Dict, List, Optional, Union
 
 from agent_memory.config import MemoryConfig
@@ -183,7 +184,7 @@ class MemoryAgent:
             "agent_id": self.agent_id,
             "step_number": step_number,
             "timestamp": timestamp,
-            "contents": data,
+            "content": data,
             "metadata": {
                 "creation_time": timestamp,
                 "last_access_time": timestamp,
@@ -311,40 +312,49 @@ class MemoryAgent:
             )
 
     def _calculate_importance(self, memory: Dict[str, Any]) -> float:
-        """Calculate importance score for a memory entry.
+        """Calculate an importance score for a memory.
 
-        The importance score determines how likely a memory is to be retained
-        in its current tier versus being transitioned to a lower tier.
+        This uses several factors to determine how important a memory is:
+        - Recency: More recent memories are more important
+        - Reward: Higher rewards increase importance
+        - Relevance: How relevant the memory is to current goals
+        - Surprise: How unexpected or novel the memory is
 
         Args:
-            memory: Memory entry to calculate importance for
+            memory: Memory to calculate importance for
 
         Returns:
-            Importance score between 0.0 and 1.0
+            Importance score between 0 and 1
         """
+        if memory is None:
+            return 0.5  # Default value for None memories
+
+        # Start with base importance from metadata if available
+        base_importance = 0.5
+        if "metadata" in memory and memory["metadata"] and isinstance(memory["metadata"], dict):
+            base_importance = memory["metadata"].get("importance_score", 0.5)
+
         # Reward magnitude component (40%)
-        reward = memory.get("contents", {}).get("reward", 0)
+        reward = 0
+        if "content" in memory and memory["content"] and isinstance(memory["content"], dict):
+            reward = memory["content"].get("reward", 0)
         reward_importance = min(1.0, abs(reward) / 10.0) * 0.4
 
-        # Retrieval frequency component (30%)
-        retrieval_count = memory["metadata"].get("retrieval_count", 0)
-        retrieval_factor = min(1.0, retrieval_count / 5.0) * 0.3
-
-        # Recency component (20%)
+        # Calculate recency factor (30%)
+        # More recent memories get higher importance
         current_time = time.time()
-        creation_time = memory["metadata"].get("creation_time", current_time)
-        time_diff = current_time - creation_time
-        recency = max(0.0, 1.0 - (time_diff / 1000)) * 0.2
+        timestamp = memory.get("timestamp", current_time)
+        time_diff = max(0, current_time - timestamp)
+        recency_factor = math.exp(-time_diff / (24 * 3600))  # Decay over 24 hours
+        recency_importance = recency_factor * 0.3
 
-        # Surprise factor component (10%)
-        # This measures how different the outcome was from the expected outcome
-        # For now, we use a simplified placeholder implementation
-        surprise = memory["metadata"].get("surprise_factor", 0.5) * 0.1
+        # Combine factors
+        importance = base_importance * 0.3 + reward_importance + recency_importance
 
-        # Combine all factors
-        importance = reward_importance + retrieval_factor + recency + surprise
+        # Cap to [0, 1] range
+        importance = max(0.0, min(1.0, importance))
 
-        return min(1.0, max(0.0, importance))
+        return importance
 
     def clear_memory(self) -> bool:
         """Clear all memory data for this agent.
@@ -508,9 +518,9 @@ class MemoryAgent:
                 },
             },
             "total_memories": (
-                self.stm_store.count(self.agent_id) + 
-                self.im_store.count(self.agent_id) + 
-                self.ltm_store.count()
+                self.stm_store.count(self.agent_id)
+                + self.im_store.count(self.agent_id)
+                + self.ltm_store.count()
             ),
             "memory_types": self._get_memory_type_distribution(),
             "access_patterns": self._get_access_patterns(),
@@ -525,7 +535,24 @@ class MemoryAgent:
             True if maintenance was successful
         """
         try:
-            self._check_memory_transition()
+            # Temporarily reduce the STM limit to force transition
+            original_stm_limit = self.config.stm_config.memory_limit
+            stm_count = self.stm_store.count(self.agent_id)
+
+            # Only modify the limit if there are memories to transition
+            if stm_count > 0:
+                # Set the limit to 1 less than current count to force transition
+                self.config.stm_config.memory_limit = stm_count - 1
+
+                # Run the memory transition
+                self._check_memory_transition()
+
+                # Restore the original limit
+                self.config.stm_config.memory_limit = original_stm_limit
+            else:
+                # Just run normal transition if no memories
+                self._check_memory_transition()
+
             return True
         except Exception as e:
             logger.error("Failed to perform maintenance: %s", e)
@@ -598,9 +625,7 @@ class MemoryAgent:
             content_query = {"text": content_query}
 
         # Search each tier
-        stm_results = self.stm_store.search_by_content(
-            self.agent_id, content_query, k
-        )
+        stm_results = self.stm_store.search_by_content(self.agent_id, content_query, k)
         results.extend(stm_results)
 
         if len(results) < k:
@@ -688,7 +713,7 @@ class MemoryAgent:
             memories = store.get_all(self.agent_id)
         else:
             memories = store.get_all()
-            
+
         if not memories:
             return 0.0
 
@@ -704,7 +729,7 @@ class MemoryAgent:
             compressed_size = store.get_size(self.agent_id)
         else:
             compressed_size = store.get_size()
-            
+
         if compressed_size == 0:
             return 0.0
 
@@ -713,7 +738,7 @@ class MemoryAgent:
             memories = store.get_all(self.agent_id)
         else:
             memories = store.get_all()
-            
+
         if not memories:
             return 0.0
 
@@ -734,7 +759,7 @@ class MemoryAgent:
                 memories = store.get_all(self.agent_id)
             else:
                 memories = store.get_all()
-                
+
             for memory in memories:
                 memory_type = memory["metadata"]["memory_type"]
                 distribution[memory_type] = distribution.get(memory_type, 0) + 1
@@ -776,3 +801,24 @@ class MemoryAgent:
         patterns["least_accessed"] = [m for _, m in access_counts[-5:]]
 
         return patterns
+
+    def calculate_reward_score(self, memory: Dict[str, Any]) -> float:
+        """Calculate a reward score for a memory.
+
+        This is used for reinforcement learning applications to give
+        higher importance to memories with higher rewards.
+
+        Args:
+            memory: Memory to calculate score for
+
+        Returns:
+            Reward score between 0 and 1
+        """
+        # Extract reward from memory if available
+        reward = memory.get("content", {}).get("reward", 0)
+
+        # Cap and normalize reward to [0, 1]
+        max_reward = self.config.autoencoder_config.max_reward_score
+        normalized_reward = min(max(reward, 0), max_reward) / max_reward
+
+        return normalized_reward

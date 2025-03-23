@@ -516,4 +516,19 @@ class TestMemoryHooks:
         )
         
         assert result is False
-        mock_memory_agent.trigger_event.assert_not_called() 
+        mock_memory_agent.trigger_event.assert_not_called()
+
+
+def test_add_memory(memory_system, sample_memory):
+    """Test adding a memory entry."""
+    # Add a memory
+    memory_id = memory_system.add_memory(sample_memory)
+
+    # Verify it was assigned a memory_id if none was provided
+    assert memory_id is not None
+
+    # Retrieve and check
+    retrieved = memory_system.get_memory(memory_id)
+    assert retrieved["memory_id"] == memory_id
+    assert retrieved["content"] == sample_memory["content"]
+    assert retrieved["type"] == sample_memory["type"] 

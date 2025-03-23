@@ -5,6 +5,7 @@ move through the memory hierarchy, reducing detail while preserving
 essential information.
 """
 
+import base64
 import copy
 import json
 import logging
@@ -77,115 +78,138 @@ class CompressionEngine:
             },
         }
 
-    def compress(self, memory_entry: Dict[str, Any], level: int = 0) -> Dict[str, Any]:
-        """Compress a memory entry to the specified level.
+    def compress(self, memory: Dict[str, Any], level: int) -> Dict[str, Any]:
+        """Compress a memory entry to a specified level.
 
         Args:
-            memory_entry: Memory entry to compress
-            level: Compression level (0=none, 1=moderate, 2=high)
+            memory: Memory entry to compress
+            level: Compression level (0-2)
 
         Returns:
-            Compressed memory entry
+            Compressed memory entry copy
         """
-        # If level is 0, return a deep copy of the original entry
         if level == 0:
-            return copy.deepcopy(memory_entry)
+            # No compression
+            return copy.deepcopy(memory)
 
-        # Get compression config for the requested level
-        if level not in self.level_configs:
-            logger.warning("Unknown compression level %d, using level 1", level)
-            level = 1
+        compressed = copy.deepcopy(memory)
+        compression_config = self.level_configs[level]
 
-        level_config = self.level_configs[level]
-
-        # Start with a copy of the original entry
-        compressed_entry = copy.deepcopy(memory_entry)
-
-        # Apply content filtering (remove non-essential keys)
-        if "contents" in compressed_entry and level_config["content_filter_keys"]:
-            self._filter_content_keys(
-                compressed_entry["contents"], level_config["content_filter_keys"]
-            )
-
-        # Apply numeric precision reduction
-        if level_config["attribute_precision"] is not None:
+        # Apply attribute precision reduction
+        if compression_config["attribute_precision"] is not None:
             self._reduce_numeric_precision(
-                compressed_entry, level_config["attribute_precision"]
+                compressed, compression_config["attribute_precision"]
             )
+
+        # Apply content filtering
+        if compression_config["content_filter_keys"] and "content" in compressed:
+            filtered_content = self._filter_content_keys(
+                compressed["content"], compression_config["content_filter_keys"]
+            )
+            compressed["content"] = filtered_content
+
+        # Apply binary compression if configured
+        if compression_config["binary_compression"] and "content" in compressed:
+            # Convert to string and then compress
+            content_str = json.dumps(compressed["content"])
+            compressed_bytes = zlib.compress(content_str.encode("utf-8"))
+
+            # Store compressed data as base64 string
+            compressed["content"] = {
+                "_compressed": base64.b64encode(compressed_bytes).decode("ascii"),
+                "_compression_info": {
+                    "algorithm": "zlib",
+                    "original_size": len(content_str),
+                    "compressed_size": len(compressed_bytes),
+                },
+            }
 
         # Update metadata
-        if "metadata" in compressed_entry:
-            compressed_entry["metadata"]["compression_level"] = level
+        if "metadata" in compressed:
+            if not isinstance(compressed["metadata"], dict):
+                compressed["metadata"] = {}
+            compressed["metadata"]["compression_level"] = level
 
-        # Apply binary compression if enabled
-        if level_config["binary_compression"]:
-            if "contents" in compressed_entry:
-                compressed_entry["contents"] = self._binary_compress(
-                    compressed_entry["contents"]
-                )
+        return compressed
 
-        return compressed_entry
-
-    def decompress(self, memory_entry: Dict[str, Any]) -> Dict[str, Any]:
+    def decompress(self, memory: Dict[str, Any]) -> Dict[str, Any]:
         """Attempt to decompress a memory entry.
 
-        This performs partial decompression, recovering what information
-        is available after compression. Note that some information loss
-        is inevitable at higher compression levels.
-
         Args:
-            memory_entry: Compressed memory entry
+            memory: Compressed memory entry
 
         Returns:
-            Decompressed memory entry
+            Decompressed memory entry (best effort)
         """
-        # Make a copy to avoid modifying the original
-        decompressed_entry = copy.deepcopy(memory_entry)
+        if not memory:
+            return {}
 
-        # Check if binary compression was applied
+        # If not compressed or unknown format, return as is
         if (
-            "metadata" in decompressed_entry
-            and decompressed_entry["metadata"].get("compression_level", 0) > 1
+            "metadata" not in memory
+            or not isinstance(memory["metadata"], dict)
+            or "compression_level" not in memory["metadata"]
+            or memory["metadata"]["compression_level"] == 0
         ):
-            if "contents" in decompressed_entry and isinstance(
-                decompressed_entry["contents"], str
-            ):
-                try:
-                    decompressed_entry["contents"] = self._binary_decompress(
-                        decompressed_entry["contents"]
-                    )
-                except Exception as e:
-                    logger.error("Failed to decompress memory contents: %s", str(e))
+            return copy.deepcopy(memory)
 
-        return decompressed_entry
+        # Check for binary compression
+        if "content" in memory and isinstance(memory["content"], dict):
+            content_data = memory["content"]
+            if "_compressed" in content_data and "_compression_info" in content_data:
+                try:
+                    # Get compressed data
+                    compressed_data = base64.b64decode(content_data["_compressed"])
+
+                    # Decompress based on algorithm
+                    compression_info = content_data["_compression_info"]
+                    if compression_info.get("algorithm") == "zlib":
+                        decompressed_str = zlib.decompress(compressed_data).decode(
+                            "utf-8"
+                        )
+                        memory = copy.deepcopy(memory)
+                        memory["content"] = json.loads(decompressed_str)
+                except Exception as e:
+                    logger.warning(f"Failed to decompress memory: {str(e)}")
+
+        return copy.deepcopy(memory)
 
     def _filter_content_keys(
         self, content: Dict[str, Any], filter_keys: Set[str]
-    ) -> None:
-        """Remove non-essential keys from content dictionary.
+    ) -> Dict[str, Any]:
+        """Remove specified keys from content dictionary.
 
         Args:
             content: Content dictionary to filter
             filter_keys: Set of keys to remove
+
+        Returns:
+            Filtered content dictionary
         """
         if not isinstance(content, dict):
-            return
+            return content
+            
+        # Create a copy to avoid modifying the original
+        result = copy.deepcopy(content)
 
         # Get keys to remove (cannot modify during iteration)
-        keys_to_remove = [key for key in content if key in filter_keys]
+        keys_to_remove = [key for key in result if key in filter_keys]
 
         # Remove keys
         for key in keys_to_remove:
-            del content[key]
+            del result[key]
 
         # Recursively filter nested dictionaries
-        for key, value in content.items():
+        for key, value in result.items():
             if isinstance(value, dict):
-                self._filter_content_keys(value, filter_keys)
+                result[key] = self._filter_content_keys(value, filter_keys)
             elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        self._filter_content_keys(item, filter_keys)
+                result[key] = [
+                    self._filter_content_keys(item, filter_keys) if isinstance(item, dict) else item
+                    for item in value
+                ]
+
+        return result
 
     def _reduce_numeric_precision(self, obj: Any, precision: int) -> None:
         """Recursively reduce precision of numeric values.
@@ -280,16 +304,14 @@ class AbstractionEngine:
         abstract_entry = copy.deepcopy(memory_entry)
 
         # Extract key fields
-        if "contents" in abstract_entry and isinstance(
-            abstract_entry["contents"], dict
-        ):
+        if "content" in abstract_entry and isinstance(abstract_entry["content"], dict):
             if level == 1:
-                abstract_entry["contents"] = self._light_abstraction(
-                    abstract_entry["contents"]
+                abstract_entry["content"] = self._light_abstraction(
+                    abstract_entry["content"]
                 )
             else:
-                abstract_entry["contents"] = self._heavy_abstraction(
-                    abstract_entry["contents"]
+                abstract_entry["content"] = self._heavy_abstraction(
+                    abstract_entry["content"]
                 )
 
         # Update metadata
@@ -298,65 +320,65 @@ class AbstractionEngine:
 
         return abstract_entry
 
-    def _light_abstraction(self, contents: Dict[str, Any]) -> Dict[str, Any]:
+    def _light_abstraction(self, content: Dict[str, Any]) -> Dict[str, Any]:
         """Create a lightly abstracted version of memory contents.
 
         This preserves most semantic content but removes details.
 
         Args:
-            contents: Memory contents to abstract
+            content: Memory content to abstract
 
         Returns:
-            Abstracted contents
+            Abstracted content
         """
         # Extract a subset of key fields that represent core information
         abstract = {}
 
         # Extract key aspects based on content type
-        if "memory_type" in contents:
-            abstract["memory_type"] = contents["memory_type"]
+        if "memory_type" in content:
+            abstract["memory_type"] = content["memory_type"]
 
         # For state memories
-        if contents.get("memory_type") == "state":
+        if content.get("memory_type") == "state":
             # Extract key state attributes
             for key in ["location", "status", "goals", "resources", "relationships"]:
-                if key in contents:
-                    abstract[key] = contents[key]
+                if key in content:
+                    abstract[key] = content[key]
 
         # For action memories
-        elif contents.get("memory_type") == "action":
+        elif content.get("memory_type") == "action":
             # Extract key action attributes
             for key in ["action_type", "target", "outcome", "success"]:
-                if key in contents:
-                    abstract[key] = contents[key]
+                if key in content:
+                    abstract[key] = content[key]
 
         # For interaction memories
-        elif contents.get("memory_type") == "interaction":
+        elif content.get("memory_type") == "interaction":
             # Extract key interaction attributes
             for key in ["interaction_type", "entities", "dialog", "outcome"]:
-                if key in contents:
-                    abstract[key] = contents[key]
+                if key in content:
+                    abstract[key] = content[key]
 
         # Copy common fields relevant for all types
         for key in ["timestamp", "step_number", "agent_id", "importance"]:
-            if key in contents:
-                abstract[key] = contents[key]
+            if key in content:
+                abstract[key] = content[key]
 
         return abstract
 
-    def _heavy_abstraction(self, contents: Dict[str, Any]) -> Dict[str, Any]:
+    def _heavy_abstraction(self, content: Dict[str, Any]) -> Dict[str, Any]:
         """Create a heavily abstracted version of memory contents.
 
         This preserves only the most essential semantic content.
 
         Args:
-            contents: Memory contents to abstract
+            content: Memory content to abstract
 
         Returns:
-            Heavily abstracted contents
+            Heavily abstracted content
         """
         # Start with light abstraction
-        abstract = self._light_abstraction(contents)
+        abstract = self._light_abstraction(content)
 
         # Further reduce content based on type
         if "memory_type" in abstract:
@@ -389,7 +411,7 @@ class AbstractionEngine:
 
         # Always keep timestamp and step info
         for key in ["timestamp", "step_number"]:
-            if key in contents:
-                abstract[key] = contents[key]
+            if key in content:
+                abstract[key] = content[key]
 
         return abstract

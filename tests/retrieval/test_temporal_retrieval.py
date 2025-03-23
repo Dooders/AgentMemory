@@ -46,35 +46,35 @@ class TestTemporalRetrieval:
                 "step_number": 10,
                 "timestamp": int(time.time()) - 3600,  # 1 hour ago
                 "metadata": {"memory_type": "observation"},
-                "contents": {"text": "Agent observed something"},
+                "content": {"text": "Agent observed something"},
             },
             {
                 "memory_id": "mem2",
                 "step_number": 11,
                 "timestamp": int(time.time()) - 1800,  # 30 minutes ago
                 "metadata": {"memory_type": "action"},
-                "contents": {"text": "Agent did something"},
+                "content": {"text": "Agent did something"},
             },
             {
                 "memory_id": "mem3",
                 "step_number": 12,
                 "timestamp": int(time.time()) - 900,  # 15 minutes ago
                 "metadata": {"memory_type": "reflection"},
-                "contents": {"text": "Agent thought about something"},
+                "content": {"text": "Agent thought about something"},
             },
             {
                 "memory_id": "mem4",
                 "step_number": 13,
                 "timestamp": int(time.time()) - 60,  # 1 minute ago
                 "metadata": {"memory_type": "observation"},
-                "contents": {"text": "Agent observed something else"},
+                "content": {"text": "Agent observed something else"},
             },
             {
                 "memory_id": "mem5",
                 "step_number": 14,
                 "timestamp": int(time.time()),  # Now
                 "metadata": {"memory_type": "action"},
-                "contents": {"text": "Agent did something else"},
+                "content": {"text": "Agent did something else"},
             },
         ]
 
@@ -377,4 +377,73 @@ class TestTemporalRetrieval:
         assert retriever.retrieve_step_range(1, 10) == []
         assert retriever.retrieve_time_range(0, int(time.time())) == []
         assert retriever.retrieve_last_n_minutes(30) == []
-        assert retriever.retrieve_oldest() == [] 
+        assert retriever.retrieve_oldest() == []
+
+    def test_retrieve_recent(self, retriever, sample_memories):
+        """Test retrieving recent memories."""
+        query = {"time_window": 3600}  # Last hour
+        results = retriever.retrieve(sample_memories, query, limit=5)
+
+        # Should retrieve most recent memories
+        assert len(results) == 5
+        # Check that results are sorted by recency (newest first)
+        timestamps = [r["timestamp"] for r in results]
+        assert sorted(timestamps, reverse=True) == timestamps
+        # Check that memory content is preserved
+        assert all("content" in r for r in results)
+
+    def test_retrieve_before_timestamp(self, retriever, sample_memories):
+        """Test retrieving memories before a timestamp."""
+        # Get a timestamp from the middle of our test set
+        middle_index = len(sample_memories) // 2
+        middle_timestamp = sample_memories[middle_index]["timestamp"]
+
+        query = {"before": middle_timestamp}
+        results = retriever.retrieve(sample_memories, query, limit=10)
+
+        # Check that all results are before the timestamp
+        assert all(r["timestamp"] < middle_timestamp for r in results)
+        # Check that memory content is preserved
+        assert all("content" in r for r in results)
+
+    def test_retrieve_after_timestamp(self, retriever, sample_memories):
+        """Test retrieving memories after a timestamp."""
+        # Get a timestamp from the middle of our test set
+        middle_index = len(sample_memories) // 2
+        middle_timestamp = sample_memories[middle_index]["timestamp"]
+
+        query = {"after": middle_timestamp}
+        results = retriever.retrieve(sample_memories, query, limit=10)
+
+        # Check that all results are after the timestamp
+        assert all(r["timestamp"] > middle_timestamp for r in results)
+        # Check that memory content is preserved
+        assert all("content" in r for r in results)
+
+    def test_retrieve_time_range(self, retriever, sample_memories):
+        """Test retrieving memories in a time range."""
+        # Get timestamps from first quarter and third quarter
+        quarter_index = len(sample_memories) // 4
+        third_quarter_index = 3 * quarter_index
+        start_timestamp = sample_memories[quarter_index]["timestamp"]
+        end_timestamp = sample_memories[third_quarter_index]["timestamp"]
+
+        query = {"after": start_timestamp, "before": end_timestamp}
+        results = retriever.retrieve(sample_memories, query, limit=10)
+
+        # Check that all results are within the time range
+        assert all(
+            start_timestamp < r["timestamp"] < end_timestamp for r in results
+        )
+        # Check that memory content is preserved
+        assert all("content" in r for r in results)
+
+    def test_retrieve_by_step_number(self, retriever, sample_memories):
+        """Test retrieving memories by step number."""
+        query = {"step_number": 5}
+        results = retriever.retrieve(sample_memories, query, limit=10)
+
+        # Check that all results have the requested step number
+        assert all(r.get("step_number") == 5 for r in results)
+        # Check that memory content is preserved
+        assert all("content" in r for r in results) 
