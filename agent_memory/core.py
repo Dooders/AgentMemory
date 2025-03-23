@@ -195,53 +195,6 @@ class AgentMemorySystem:
         memory_agent = self.get_memory_agent(agent_id)
         return memory_agent.get_memory_statistics()
 
-    # Add state change tracking methods
-    def get_attribute_change_history(
-        self,
-        agent_id: str,
-        attribute_name: str,
-        start_step: Optional[int] = None,
-        end_step: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
-        """Get history of changes for a specific attribute.
-
-        Args:
-            agent_id: Unique identifier for the agent
-            attribute_name: Name of the attribute to track
-            start_step: Optional start step for filtering
-            end_step: Optional end step for filtering
-
-        Returns:
-            List of change records for the specified attribute
-        """
-        memory_agent = self.get_memory_agent(agent_id)
-        return memory_agent.get_attribute_change_history(
-            attribute_name, start_step, end_step
-        )
-
-    def get_significant_changes(
-        self,
-        agent_id: str,
-        magnitude_threshold: float = 0.3,
-        start_step: Optional[int] = None,
-        end_step: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
-        """Find significant state changes based on magnitude.
-
-        Args:
-            agent_id: Unique identifier for the agent
-            magnitude_threshold: Minimum change magnitude to consider significant
-            start_step: Optional start step for filtering
-            end_step: Optional end step for filtering
-
-        Returns:
-            List of significant change records sorted by time
-        """
-        memory_agent = self.get_memory_agent(agent_id)
-        return memory_agent.get_significant_changes(
-            magnitude_threshold, start_step, end_step
-        )
-
     # Add memory management methods
     def force_memory_maintenance(self, agent_id: Optional[str] = None) -> bool:
         """Force memory tier transitions and cleanup operations.
