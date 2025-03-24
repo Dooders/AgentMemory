@@ -1,116 +1,173 @@
-# AgentMemory System Design
+# AgentMemory: A Comprehensive Architecture for Intelligent Agent Memory Management
 
-## Architecture Overview
+## Core Design Philosophy
+
+AgentMemory is built on the understanding that intelligent agents need memory systems that mimic human cognitive processes while working efficiently within computational constraints. This document explores the key architectural principles that make this system unique.
+
+## Biologically-Inspired Memory Architecture
 
 ```mermaid
 graph TD
-    Agent[Agent] --> |Interacts with| MS[Memory System]
-    
-    subgraph "AgentMemory Architecture"
-        MS --> |Stores/Retrieves| STM[Short-Term Memory]
-        MS --> |Stores/Retrieves| IM[Intermediate Memory]
-        MS --> |Stores/Retrieves| LTM[Long-Term Memory]
-        
-        STM --> |Importance-based transfer| IM
-        IM --> |Age/importance-based transfer| LTM
-    end
-    
-    MS --> |Uses| Redis[Redis Cache]
-    MS --> |Persists to| DB[Persistent Storage]
-    
-    Redis --> |Syncs with| DB
-```
-
-Agents interact with a central Memory System that manages three distinct memory tiers. Short-Term Memory holds recent experiences, Intermediate Memory stores important information for medium-term access, and Long-Term Memory archives historical data. The system uses Redis for fast memory access and syncs important data to permanent storage for analysis.
-
-## Memory Flow
-
-```mermaid
-flowchart LR
     A[New Memory Entry] --> STM[Short-Term Memory]
     STM --> |Low importance| Discard[Discarded]
     STM --> |High importance| IM[Intermediate Memory]
-    IM --> |Low retrieval frequency| Compress[Compressed]
-    Compress --> LTM[Long-Term Memory]
+    IM --> |Low retrieval frequency| LTM[Long-Term Memory]
     IM --> |High retrieval frequency| Retain[Retained in IM]
-    LTM --> |Retrieval request| Decompress[Decompressed]
-    Decompress --> IM
+    LTM --> |Retrieval request| IM
 ```
 
-Memories move through the system similar to human memory processes. New experiences enter Short-Term Memory, where unimportant items are discarded while significant ones advance to Intermediate Memory. Frequently accessed memories remain in Intermediate Memory for quick retrieval. Less-used memories are compressed and moved to Long-Term Memory for efficient storage. When needed again, older memories are restored to Intermediate Memory for easier access.
+Memory flows through the system similar to human memory processes:
 
-# Major Requirements
+1. **Short-Term Memory (STM)**
+   - Implemented with Redis for microsecond access times
+   - Stores complete, uncompressed data (~100 recent steps)
+   - Automatically cleans up based on age and capacity
+   - Preserves critical experiences based on importance scoring
 
-1. **Hierarchical Memory Architecture**
-   - Three-tier system: Short-Term Memory (STM), Intermediate Memory (IM), and Long-Term Memory (LTM)
-   - Efficient memory transition between tiers with progressive compression
-   - Ability to store different memory types (state, action, interaction)
+2. **Intermediate Memory (IM)**
+   - Redis-based with TTL for balanced performance (~1000 steps)
+   - Partially compressed (128-dimensional embeddings)
+   - Balances detail preservation with storage efficiency
+   - Selectively maintains details based on importance
 
-2. **Performance Optimization**
-   - Redis-based caching for high-throughput operations
-   - Batch persistence mechanisms to reduce database load
-   - Optimized indices for efficient retrieval
+3. **Long-Term Memory (LTM)**
+   - SQLite-backed for persistent, efficient storage
+   - Highly compressed (32-dimensional embeddings)
+   - Maintains abstract representations of entire agent history
+   - Optimized for efficient long-term storage and retrieval
 
-3. **Flexible Retrieval System**
-   - Vector similarity search for contextually relevant memories
-   - Attribute-based and temporal retrieval options 
-   - Multi-resolution compression with minimal information loss
+## Progressive Compression System
 
-4. **Integration Capabilities**
-   - Standardized API for agent system integration
-   - Event hooks for automatic memory formation during critical experiences
-   - Compatibility with existing simulation database architecture
+```mermaid
+graph TD
+    subgraph "Raw State Data"
+        RS1[Exact Position]
+        RS2[Resource Levels]
+        RS3[Health Status]
+    end
+    
+    subgraph "Compressed State Data"
+        CS1[Region Only]
+        CS2[Resource Summary]
+        CS3[Health Trend]
+    end
+    
+    subgraph "Abstract State Data"
+        AS1[Area Description]
+        AS2[Resource State]
+        AS3[Overall Condition]
+    end
+    
+    RS1 --> |Spatial Compression| CS1
+    RS2 --> |Numerical Binning| CS2
+    RS3 --> |Trend Analysis| CS3
+    
+    CS1 --> |Semantic Abstraction| AS1
+    CS2 --> |State Classification| AS2
+    CS3 --> |Condition Summary| AS3
+```
 
-# Primary Features
+The system employs neural autoencoder-based compression that:
+- Preserves semantic meaning while reducing dimensionality
+- Tailors compression levels to each memory tier
+- Allows efficient similarity-based retrieval even from compressed states
+- Progressively transforms concrete data into abstract representations
 
-1. **Memory Embedding System**
-   - Neural network-based autoencoder for vector embeddings
-   - Multi-resolution compression for different memory tiers
-   - Semantic preservation during compression
+## Unified Memory Structure
 
-2. **Contextual Memory Retrieval**
-   - Similarity-based retrieval using vector embeddings
-   - Attribute-based and temporal filtering options
-   - Relevance ranking for retrieved memories
+Every memory entry follows a consistent structure:
 
-3. **Memory Transition Management**
-   - Automated maintenance of memory tiers
-   - Importance-based filtering during transitions
-   - Background workers for efficient batch operations
+```json
+{
+  "memory_id": "unique-id",
+  "agent_id": "agent-123",
+  "step_number": 1234,
+  "timestamp": 1679233344,
+  
+  "contents": {
+    "position": [x, y],
+    "resources": 42
+  },
+  
+  "metadata": {
+    "compression_level": 0,
+    "importance_score": 0.75,
+    "retrieval_count": 3
+  },
+  
+  "embeddings": {
+    "full_vector": [...],
+    "compressed_vector": [...]
+  }
+}
+```
 
-4. **State Change Tracking**
-   - Historical tracking of attribute changes
-   - Significant change detection
-   - Statistical analysis of agent changes over time
+This unified approach allows:
+- Seamless processing of different memory types
+- Consistent APIs across memory tiers
+- Efficient filtering and querying
+- Integrated importance scoring
 
-5. **Error Handling and Recovery**
-   - Robust error recovery mechanisms
-   - Graceful degradation strategies
-   - Fallback systems when primary storage fails
+## Memory Importance Prioritization
 
-# Acceptance Criteria
+The system uses sophisticated scoring to determine memory importance:
 
-1. **Performance**
-   - Memory operations must not block simulation progress
-   - Retrieval latency under 10ms for STM, 50ms for IM, 200ms for LTM
-   - Support for high-volume simulations with 100,000+ steps
+```python
+def calculate_importance(memory):
+    """
+    Components:
+    - Reward magnitude (40%)
+    - Retrieval frequency (30%)
+    - Recency (20%)
+    - Surprise factor (10%)
+    """
+    return weighted_score
+```
 
-2. **Storage Efficiency**
-   - Progressive compression with adjustable ratios (typically 3:1 for IM, 10:1 for LTM)
-   - Automatic maintenance of memory tiers based on importance and recency
-   - Efficient Redis schema design with optimized indices
+This importance-based approach ensures:
+- Critical memories are preserved longer
+- Routine experiences naturally fade away
+- Memory transitions reflect meaningful patterns
+- Limited resources focus on valuable information
 
-3. **Retrieval Quality**
-   - Semantically relevant results for similarity searches
-   - Accurate reconstruction of memories from compressed states
-   - Proper weighting of recency vs. importance in results
+## Integration & Flexibility
 
-4. **Integration**
-   - Complete, documented API for agent integration
-   - Compatibility with existing simulation database
-   - Event-driven hooks for key agent experiences
+AgentMemory provides simple yet powerful integration methods:
 
-5. **Reliability**
-   - Robust error handling with graceful degradation
-   - Data consistency across memory tiers
-   - Recovery mechanisms for unexpected failures
+```python
+# Direct API
+memory_system.store_agent_state(
+    agent_id="agent1", 
+    state_data={"position": [0, 0]},
+    step_number=1
+)
+
+# Using hooks
+@install_memory_hooks
+class MyAgent(BaseAgent):
+    def act(self, observation):
+        # Memory hooks automatically store states
+        return super().act(observation)
+```
+
+This flexible architecture allows:
+- Seamless integration with existing agent systems
+- Complete control or automated memory management
+- Extensive configuration options
+- Comprehensive performance monitoring
+
+## Performance & Benchmarking
+
+The system includes sophisticated benchmarking tools to measure:
+- Storage performance across memory tiers
+- Compression effectiveness and retrieval quality
+- Memory transition efficiency
+- Scalability under increasing loads
+
+These tools ensure the system meets its performance targets:
+- STM retrieval under 10ms
+- IM retrieval under 50ms
+- LTM retrieval under 200ms
+- Support for simulations with 100,000+ steps
+
+By combining biological inspiration with practical engineering, AgentMemory provides a comprehensive solution for intelligent agent memory management that balances performance, efficiency, and cognitive realism.

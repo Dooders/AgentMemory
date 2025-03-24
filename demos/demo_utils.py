@@ -5,93 +5,105 @@ This module provides common utilities and helper functions used across
 the various demonstration scripts in the AgentMemory system.
 """
 
+import json
+import logging
 import os
 import sys
 import time
-import logging
-import json
-from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 from pprint import pprint
+from typing import Any, Dict, List, Optional, Union
 
 # Add the project root directory to Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from agent_memory.core import AgentMemorySystem
 from agent_memory.config import (
-    MemoryConfig, 
-    RedisSTMConfig, 
-    RedisIMConfig, 
-    SQLiteLTMConfig
+    MemoryConfig,
+    RedisIMConfig,
+    RedisSTMConfig,
+    SQLiteLTMConfig,
 )
+from agent_memory.core import AgentMemorySystem
 
 # Path constants
 LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../agent_memory.db")
 
+
 def setup_logging(demo_name: str) -> logging.Logger:
     """Set up logging to both console and file.
-    
+
     Args:
         demo_name: Name of the demo for log file naming
-        
+
     Returns:
         Configured logger instance
     """
     # Create logs directory if it doesn't exist
     os.makedirs(LOGS_DIR, exist_ok=True)
-    
-    # Create a unique log filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(LOGS_DIR, f"{demo_name}_{timestamp}.log")
-    
+
+    # Use a fixed log filename based on demo name (without timestamp)
+    log_file = os.path.join(LOGS_DIR, f"{demo_name}.log")
+
+    # Clear the existing log file if it exists
+    with open(log_file, "w") as f:
+        # Empty the file by opening it in write mode
+        pass
+
     # Configure logging
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    
+
     # Clear existing handlers if any
     if logger.handlers:
         logger.handlers.clear()
-    
+
     # File handler for logging to file
     file_handler = logging.FileHandler(log_file)
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(file_formatter)
-    
+
     # Console handler for logging to console
     console_handler = logging.StreamHandler()
-    console_formatter = logging.Formatter('%(message)s')
+    console_formatter = logging.Formatter("%(message)s")
     console_handler.setFormatter(console_formatter)
-    
+
     # Create a filter to exclude embedding-related log messages
     class EmbeddingFilter(logging.Filter):
         def filter(self, record):
             # Skip any log messages containing "embedding" or "vector"
-            return not any(term in record.getMessage().lower() 
-                          for term in ["embedding", "vector", "encoded"])
-    
+            return not any(
+                term in record.getMessage().lower()
+                for term in ["embedding", "vector", "encoded"]
+            )
+
     # Add the filter to both handlers
     embedding_filter = EmbeddingFilter()
     file_handler.addFilter(embedding_filter)
     console_handler.addFilter(embedding_filter)
-    
+
     # Add handlers to logger
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
-    
+
     return logger
+
 
 def log_print(logger: logging.Logger, message: str) -> None:
     """Log a message and print it to console."""
     logger.info(message)
 
+
 def clear_screen() -> None:
     """Clear the terminal screen."""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system("cls" if os.name == "nt" else "clear")
 
-def pretty_print_memories(memories: List[Dict[str, Any]], title: str = "Memories") -> None:
+
+def pretty_print_memories(
+    memories: List[Dict[str, Any]], title: str = "Memories"
+) -> None:
     """Print memories in a readable format.
-    
+
     Args:
         memories: List of memory objects to display
         title: Title to show above the memories
@@ -100,7 +112,7 @@ def pretty_print_memories(memories: List[Dict[str, Any]], title: str = "Memories
     if not memories:
         print("  No memories found.")
         return
-        
+
     for i, memory in enumerate(memories):
         print(f"  Memory {i+1}:")
         # Convert complex nested objects to strings for better display
@@ -110,36 +122,52 @@ def pretty_print_memories(memories: List[Dict[str, Any]], title: str = "Memories
                 formatted_memory[k] = json.dumps(v, indent=2)
             else:
                 formatted_memory[k] = v
-        
+
         for k, v in formatted_memory.items():
             print(f"    {k}: {v}")
         print()  # Extra line for readability
 
-def print_memory_details(memory_system: AgentMemorySystem, agent_id: str, title: str = "Current Memory State") -> None:
+
+def print_memory_details(
+    memory_system: AgentMemorySystem, agent_id: str, title: str = "Current Memory State"
+) -> None:
     """Print detailed memory information across tiers.
-    
+
     Args:
         memory_system: The initialized memory system
         agent_id: ID of the agent to get stats for
         title: Title for the stats display
     """
     stats = memory_system.get_memory_statistics(agent_id)
-    
+
     print(f"\n{title}:")
     print(f"  Total memories: {stats.get('total_memories', 0)}")
-    print(f"  STM count: {stats.get('stm_count', 0)}")
-    print(f"  IM count: {stats.get('im_count', 0)}")
-    print(f"  LTM count: {stats.get('ltm_count', 0)}")
-    
+    print(f"  STM count: {stats.get('tiers', {}).get('stm', {}).get('count', 0)}")
+    print(f"  IM count: {stats.get('tiers', {}).get('im', {}).get('count', 0)}")
+    print(f"  LTM count: {stats.get('tiers', {}).get('ltm', {}).get('count', 0)}")
+
     # Additional statistics if available
-    if 'avg_compression_ratio' in stats:
+    if "avg_compression_ratio" in stats:
         print(f"  Average compression ratio: {stats['avg_compression_ratio']:.2f}x")
-    if 'stm_size_bytes' in stats:
-        print(f"  STM size: {stats['stm_size_bytes'] / 1024:.2f} KB")
-    if 'im_size_bytes' in stats:
-        print(f"  IM size: {stats['im_size_bytes'] / 1024:.2f} KB")
-    if 'ltm_size_bytes' in stats:
-        print(f"  LTM size: {stats['ltm_size_bytes'] / 1024:.2f} KB")
+    if (
+        "tiers" in stats
+        and "stm" in stats["tiers"]
+        and "size_bytes" in stats["tiers"]["stm"]
+    ):
+        print(f"  STM size: {stats['tiers']['stm']['size_bytes'] / 1024:.2f} KB")
+    if (
+        "tiers" in stats
+        and "im" in stats["tiers"]
+        and "size_bytes" in stats["tiers"]["im"]
+    ):
+        print(f"  IM size: {stats['tiers']['im']['size_bytes'] / 1024:.2f} KB")
+    if (
+        "tiers" in stats
+        and "ltm" in stats["tiers"]
+        and "size_bytes" in stats["tiers"]["ltm"]
+    ):
+        print(f"  LTM size: {stats['tiers']['ltm']['size_bytes'] / 1024:.2f} KB")
+
 
 def create_memory_system(
     stm_limit: int = 500,
@@ -148,13 +176,13 @@ def create_memory_system(
     im_compression_level: int = 1,
     ltm_compression_level: int = 2,
     ltm_batch_size: int = 20,
-    logging_level: str = "INFO",
+    logging_level: str = "DEBUG",
     cleanup_interval: int = 10,
     enable_hooks: bool = False,
-    description: str = "demo"
+    description: str = "demo",
 ) -> AgentMemorySystem:
     """Create and configure a memory system with customizable parameters.
-    
+
     Args:
         stm_limit: Memory limit for short-term memory
         stm_ttl: Time-to-live for STM items in seconds
@@ -166,26 +194,30 @@ def create_memory_system(
         cleanup_interval: Interval for memory maintenance in seconds
         enable_hooks: Whether to enable memory event hooks
         description: Description of this memory system instance
-        
+
     Returns:
         Configured AgentMemorySystem instance
     """
     stm_config = RedisSTMConfig(
+        host="127.0.0.1",
+        port=6379,
         memory_limit=stm_limit,
         ttl=stm_ttl,
     )
-    
+
     im_config = RedisIMConfig(
+        host="127.0.0.1",
+        port=6379,
         memory_limit=im_limit,
         compression_level=im_compression_level,
     )
-    
+
     ltm_config = SQLiteLTMConfig(
         db_path=DB_PATH,
         compression_level=ltm_compression_level,
         batch_size=ltm_batch_size,
     )
-    
+
     config = MemoryConfig(
         logging_level=logging_level,
         stm_config=stm_config,
@@ -194,24 +226,38 @@ def create_memory_system(
         enable_memory_hooks=enable_hooks,
         cleanup_interval=cleanup_interval,
     )
-    
+
     memory_system = AgentMemorySystem.get_instance(config)
     print(f"Initialized AgentMemorySystem for {description}")
     
+    # Debug: Check database tables
+    import sqlite3
+    print(f"SQLite database path: {DB_PATH}")
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
+        print(f"SQLite tables: {[table[0] for table in tables]}")
+        conn.close()
+    except Exception as e:
+        print(f"Error checking SQLite database: {e}")
+
     return memory_system
+
 
 def generate_random_state(agent_id: str, step: int) -> Dict[str, Any]:
     """Generate a random agent state for testing.
-    
+
     Args:
         agent_id: ID of the agent
         step: Current time step
-        
+
     Returns:
         Randomly generated state dictionary
     """
     import random
-    
+
     return {
         "agent_id": agent_id,
         "step": step,
@@ -229,4 +275,4 @@ def generate_random_state(agent_id: str, step: int) -> Dict[str, Any]:
             ]
         },
         "status": random.choice(["exploring", "resting", "fighting", "trading"]),
-    } 
+    }
