@@ -2,15 +2,58 @@
 
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
+import time
+import math
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, SubsetRandomSampler
+from sklearn.metrics import r2_score
+from sklearn.model_selection import KFold
 
 logger = logging.getLogger(__name__)
+
+
+class NumericExtractor:
+    """Extract numeric values from agent states."""
+    
+    def extract(self, state: Dict[str, Any]) -> List[float]:
+        """Extract numeric values from a state dictionary.
+        
+        Args:
+            state: Dictionary to extract values from
+            
+        Returns:
+            List of numeric values
+        """
+        # Extract all numeric values from the state dictionary
+        vector = []
+        for key, value in self._flatten_dict(state).items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                vector.append(float(value))
+        return vector
+        
+    def _flatten_dict(self, d: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
+        """Flatten a nested dictionary.
+
+        Args:
+            d: Dictionary to flatten
+            prefix: Key prefix for nested dictionaries
+
+        Returns:
+            Flattened dictionary
+        """
+        result = {}
+        for k, v in d.items():
+            key = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                result.update(self._flatten_dict(v, key))
+            else:
+                result[key] = v
+        return result
 
 
 class StateAutoencoder(nn.Module):
@@ -170,61 +213,62 @@ class StateAutoencoder(nn.Module):
         return decoded, embedding
 
 
-class AgentStateDataset(Dataset):
-    """Dataset for training the autoencoder on agent states."""
+class AgentStateDataset(torch.utils.data.Dataset):
+    """Dataset for agent states."""
 
-    def __init__(self, states: List[Dict[str, Any]]):
-        """Initialize the dataset.
+    def __init__(self, states: List[Dict[str, Any]], processor=None):
+        """Initialize dataset.
 
         Args:
-            states: List of agent state dictionaries
+            states: List of agent states.
+            processor: Processor to use for extracting numeric values from states.
         """
         self.states = states
+        self.processor = processor or NumericExtractor()
         self.vectors = self._prepare_vectors()
 
     def _prepare_vectors(self) -> np.ndarray:
-        """Convert agent states to input vectors.
+        """Extract numeric values from states.
 
         Returns:
-            Numpy array of flattened state vectors
+            Array of vectors.
         """
-        # Extract numeric values from states
+        # Check if all states have "vector" field and use that directly
+        if self.states and "vector" in self.states[0] and isinstance(self.states[0]["vector"], np.ndarray):
+            vectors = [state["vector"] for state in self.states if "vector" in state]
+            if vectors:
+                # Ensure all vectors have the same dimensions
+                # Use the first vector's dimension as the reference
+                first_dim = len(vectors[0])
+                normalized_vectors = []
+                
+                for vec in vectors:
+                    if len(vec) < first_dim:
+                        # Pad shorter vectors
+                        vec = np.pad(vec, (0, first_dim - len(vec)))
+                    elif len(vec) > first_dim:
+                        # Truncate longer vectors
+                        vec = vec[:first_dim]
+                    normalized_vectors.append(vec)
+                
+                return np.array(normalized_vectors)
+            
+        # Fall back to processor extraction if no vectors found
         vectors = []
         for state in self.states:
-            # Extract all numeric values from the state dictionary
-            vector = []
-            for key, value in self._flatten_dict(state).items():
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    vector.append(float(value))
-            vectors.append(vector)
+            try:
+                values = self.processor.extract(state)
+                if values:
+                    vectors.append(values)
+            except Exception as e:
+                logging.warning(f"Failed to extract numeric values from state: {e}")
+                continue
 
-        # Pad to ensure uniform length
-        max_len = max(len(v) for v in vectors)
-        padded_vectors = []
-        for v in vectors:
-            padded = v + [0.0] * (max_len - len(v))
-            padded_vectors.append(padded)
-
-        return np.array(padded_vectors, dtype=np.float32)
-
-    def _flatten_dict(self, d: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
-        """Flatten a nested dictionary.
-
-        Args:
-            d: Dictionary to flatten
-            prefix: Key prefix for nested dictionaries
-
-        Returns:
-            Flattened dictionary
-        """
-        result = {}
-        for k, v in d.items():
-            key = f"{prefix}.{k}" if prefix else k
-            if isinstance(v, dict):
-                result.update(self._flatten_dict(v, key))
-            else:
-                result[key] = v
-        return result
+        if not vectors:
+            # Return empty array with correct shape - assuming dimension 1 if we can't determine
+            return np.array([]).reshape(0, 1)
+            
+        return np.array(vectors)
 
     def __len__(self) -> int:
         """Get the number of samples.
@@ -353,11 +397,13 @@ class AutoencoderEmbeddingEngine:
         Returns:
             Numpy array of state features
         """
-        # Create a dataset with just this state
-        dataset = AgentStateDataset([state])
-
-        # Get the vector
-        vector = dataset.vectors[0]
+        # Special case: if state already has a vector field with a numpy array, use it directly
+        if "vector" in state and isinstance(state["vector"], (np.ndarray, list)):
+            vector = np.asarray(state["vector"], dtype=np.float32)
+        else:
+            # Regular case: create dataset and extract vector
+            dataset = AgentStateDataset([state])
+            vector = dataset.vectors[0]
 
         # Ensure correct dimension
         if len(vector) < self.input_dim:
@@ -373,41 +419,72 @@ class AutoencoderEmbeddingEngine:
         epochs: int = 100,
         batch_size: int = 32,
         learning_rate: float = 0.001,
+        validation_split: float = 0.2,
+        early_stopping_patience: int = 10,
     ) -> Dict[str, List[float]]:
-        """Train the autoencoder on agent states.
+        """Train the autoencoder on agent states with validation.
 
         Args:
             states: List of agent state dictionaries
             epochs: Number of training epochs
             batch_size: Batch size for training
             learning_rate: Learning rate for optimizer
+            validation_split: Fraction of data to use for validation (0.0 to 1.0)
+            early_stopping_patience: Number of epochs to wait for validation improvement before stopping
 
         Returns:
             Dictionary of training metrics
         """
-        # Create dataset and dataloader
-        dataset = AgentStateDataset(states)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        # Create dataset
+        all_dataset = AgentStateDataset(states)
+        
+        # Split into train and validation sets
+        dataset_size = len(all_dataset)
+        val_size = int(validation_split * dataset_size)
+        train_size = dataset_size - val_size
+        
+        # Use random_split for unbiased sampling
+        train_dataset, val_dataset = torch.utils.data.random_split(
+            all_dataset, [train_size, val_size], 
+            generator=torch.Generator().manual_seed(42)  # For reproducibility
+        )
+        
+        logger.info(f"Training on {train_size} samples, validating on {val_size} samples")
+        
+        # Create data loaders
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
         # Set up optimizer and loss
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
         criterion = nn.MSELoss()
 
+        # Initialize metrics dictionary
+        metrics = {
+            "train_loss": [], "train_stm_loss": [], "train_im_loss": [], "train_ltm_loss": [],
+            "val_loss": [], "val_stm_loss": [], "val_im_loss": [], "val_ltm_loss": [],
+            "val_stm_r2": [], "val_im_r2": [], "val_ltm_r2": []
+        }
+        
+        # Early stopping variables
+        best_val_loss = float('inf')
+        patience_counter = 0
+        best_model_state = None
+
         # Training loop
-        self.model.train()
-        metrics = {"loss": [], "stm_loss": [], "im_loss": [], "ltm_loss": []}
-
         for epoch in range(epochs):
-            running_loss = 0.0
-            running_stm_loss = 0.0
-            running_im_loss = 0.0
-            running_ltm_loss = 0.0
-
-            for batch in dataloader:
+            # Training phase
+            self.model.train()
+            train_running_loss = 0.0
+            train_running_stm_loss = 0.0
+            train_running_im_loss = 0.0
+            train_running_ltm_loss = 0.0
+            
+            for batch in train_loader:
                 batch = batch.to(self.device)
                 optimizer.zero_grad()
 
-                # Train on all compression levels
+                # Forward passes at all compression levels
                 stm_output, _ = self.model(batch, level=0)
                 im_output, _ = self.model(batch, level=1)
                 ltm_output, _ = self.model(batch, level=2)
@@ -424,24 +501,141 @@ class AutoencoderEmbeddingEngine:
                 loss.backward()
                 optimizer.step()
 
-                # Update metrics
-                running_loss += loss.item()
-                running_stm_loss += stm_loss.item()
-                running_im_loss += im_loss.item()
-                running_ltm_loss += ltm_loss.item()
+                # Update training metrics
+                train_running_loss += loss.item() * batch.size(0)
+                train_running_stm_loss += stm_loss.item() * batch.size(0)
+                train_running_im_loss += im_loss.item() * batch.size(0)
+                train_running_ltm_loss += ltm_loss.item() * batch.size(0)
+            
+            # Calculate average training losses
+            avg_train_loss = train_running_loss / len(train_dataset)
+            avg_train_stm_loss = train_running_stm_loss / len(train_dataset)
+            avg_train_im_loss = train_running_im_loss / len(train_dataset)
+            avg_train_ltm_loss = train_running_ltm_loss / len(train_dataset)
+            
+            # Record training metrics
+            metrics["train_loss"].append(avg_train_loss)
+            metrics["train_stm_loss"].append(avg_train_stm_loss)
+            metrics["train_im_loss"].append(avg_train_im_loss)
+            metrics["train_ltm_loss"].append(avg_train_ltm_loss)
+            
+            # Validation phase
+            self.model.eval()
+            val_running_loss = 0.0
+            val_running_stm_loss = 0.0
+            val_running_im_loss = 0.0
+            val_running_ltm_loss = 0.0
+            
+            # For R² calculation
+            all_val_targets = []
+            all_val_stm_preds = []
+            all_val_im_preds = []
+            all_val_ltm_preds = []
+            
+            with torch.no_grad():
+                for batch in val_loader:
+                    batch = batch.to(self.device)
+                    
+                    # Forward passes at all compression levels
+                    stm_output, _ = self.model(batch, level=0)
+                    im_output, _ = self.model(batch, level=1)
+                    ltm_output, _ = self.model(batch, level=2)
+                    
+                    # Store predictions and targets for R² calculation
+                    all_val_targets.append(batch.cpu().numpy())
+                    all_val_stm_preds.append(stm_output.cpu().numpy())
+                    all_val_im_preds.append(im_output.cpu().numpy())
+                    all_val_ltm_preds.append(ltm_output.cpu().numpy())
+                    
+                    # Calculate losses
+                    stm_loss = criterion(stm_output, batch)
+                    im_loss = criterion(im_output, batch)
+                    ltm_loss = criterion(ltm_output, batch)
+                    
+                    # Combined loss
+                    loss = stm_loss + 0.5 * im_loss + 0.25 * ltm_loss
+                    
+                    # Update validation metrics
+                    val_running_loss += loss.item() * batch.size(0)
+                    val_running_stm_loss += stm_loss.item() * batch.size(0)
+                    val_running_im_loss += im_loss.item() * batch.size(0)
+                    val_running_ltm_loss += ltm_loss.item() * batch.size(0)
+            
+            # Calculate average validation losses
+            avg_val_loss = val_running_loss / len(val_dataset)
+            avg_val_stm_loss = val_running_stm_loss / len(val_dataset)
+            avg_val_im_loss = val_running_im_loss / len(val_dataset)
+            avg_val_ltm_loss = val_running_ltm_loss / len(val_dataset)
+            
+            # Record validation metrics
+            metrics["val_loss"].append(avg_val_loss)
+            metrics["val_stm_loss"].append(avg_val_stm_loss)
+            metrics["val_im_loss"].append(avg_val_im_loss)
+            metrics["val_ltm_loss"].append(avg_val_ltm_loss)
+            
+            # Calculate R² scores for each compression level
+            all_val_targets = np.vstack(all_val_targets)
+            all_val_stm_preds = np.vstack(all_val_stm_preds)  
+            all_val_im_preds = np.vstack(all_val_im_preds)
+            all_val_ltm_preds = np.vstack(all_val_ltm_preds)
+            
+            # Compute R² for each compression level
+            stm_r2 = r2_score(all_val_targets.reshape(-1), all_val_stm_preds.reshape(-1))
+            im_r2 = r2_score(all_val_targets.reshape(-1), all_val_im_preds.reshape(-1))
+            ltm_r2 = r2_score(all_val_targets.reshape(-1), all_val_ltm_preds.reshape(-1))
+            
+            # Add R² scores to metrics
+            if epoch == 0:
+                metrics["val_stm_r2"] = []
+                metrics["val_im_r2"] = []
+                metrics["val_ltm_r2"] = []
+            
+            metrics["val_stm_r2"].append(stm_r2)
+            metrics["val_im_r2"].append(im_r2)
+            metrics["val_ltm_r2"].append(ltm_r2)
+            
+            # Log progress
+            if (epoch + 1) % 10 == 0 or epoch == 0:
+                logger.info(
+                    f"Epoch {epoch+1}/{epochs}, "
+                    f"Train Loss: {avg_train_loss:.4f}, "
+                    f"Val Loss: {avg_val_loss:.4f}, "
+                    f"STM R²: {stm_r2:.4f}, "
+                    f"IM R²: {im_r2:.4f}, "
+                    f"LTM R²: {ltm_r2:.4f}"
+                )
+            
+            # Early stopping check
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                patience_counter = 0
+                # Save best model state
+                best_model_state = self.model.state_dict().copy()
+            else:
+                patience_counter += 1
+                if patience_counter >= early_stopping_patience:
+                    logger.info(f"Early stopping triggered after {epoch + 1} epochs")
+                    break
+        
+        # Restore best model if early stopping occurred
+        if best_model_state is not None:
+            self.model.load_state_dict(best_model_state)
+            logger.info(f"Restored best model with validation loss: {best_val_loss:.4f}")
 
-            # Record epoch metrics
-            metrics["loss"].append(running_loss / len(dataloader))
-            metrics["stm_loss"].append(running_stm_loss / len(dataloader))
-            metrics["im_loss"].append(running_im_loss / len(dataloader))
-            metrics["ltm_loss"].append(running_ltm_loss / len(dataloader))
-
-            logger.info(
-                f"Epoch {epoch+1}/{epochs}, Loss: {metrics['loss'][-1]:.4f}, "
-                f"STM: {metrics['stm_loss'][-1]:.4f}, "
-                f"IM: {metrics['im_loss'][-1]:.4f}, "
-                f"LTM: {metrics['ltm_loss'][-1]:.4f}"
-            )
+        # Final validation metrics summary
+        if len(metrics["val_loss"]) > 0:
+            best_epoch = np.argmin(metrics["val_loss"])
+            logger.info("=" * 50)
+            logger.info("Final Validation Metrics Summary:")
+            logger.info(f"Best epoch: {best_epoch + 1}")
+            logger.info(f"Validation loss: {metrics['val_loss'][best_epoch]:.6f}")
+            logger.info(f"STM validation loss: {metrics['val_stm_loss'][best_epoch]:.6f}")
+            logger.info(f"IM validation loss: {metrics['val_im_loss'][best_epoch]:.6f}")
+            logger.info(f"LTM validation loss: {metrics['val_ltm_loss'][best_epoch]:.6f}")
+            logger.info(f"STM R²: {metrics['val_stm_r2'][best_epoch]:.6f}")
+            logger.info(f"IM R²: {metrics['val_im_r2'][best_epoch]:.6f}")
+            logger.info(f"LTM R²: {metrics['val_ltm_r2'][best_epoch]:.6f}")
+            logger.info("=" * 50)
 
         return metrics
 
@@ -483,3 +677,240 @@ class AutoencoderEmbeddingEngine:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.eval()
         logger.info("Model loaded from %s", path)
+
+    def train_with_kfold(
+        self,
+        states: List[Dict[str, Any]],
+        epochs: int = 100,
+        batch_size: int = 32,
+        learning_rate: float = 0.001,
+        n_folds: int = 5,
+        early_stopping_patience: int = 10,
+    ) -> Dict[str, Any]:
+        """Train the autoencoder using k-fold cross-validation.
+
+        Args:
+            states: List of agent state dictionaries
+            epochs: Number of training epochs
+            batch_size: Batch size for training
+            learning_rate: Learning rate for optimizer
+            n_folds: Number of folds for cross-validation
+            early_stopping_patience: Number of epochs to wait for validation improvement before stopping
+
+        Returns:
+            Dictionary of training metrics and best fold model
+        """
+        # Create dataset
+        all_dataset = AgentStateDataset(states)
+        dataset_size = len(all_dataset)
+        logger.info(f"Starting {n_folds}-fold cross-validation on {dataset_size} samples")
+        
+        # Initialize k-fold cross validation
+        kfold = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+        
+        # Dictionary to store results from all folds
+        all_fold_results = {
+            "fold_train_loss": [],
+            "fold_val_loss": [],
+            "fold_val_stm_r2": [],
+            "fold_val_im_r2": [],
+            "fold_val_ltm_r2": []
+        }
+        
+        best_val_loss = float('inf')
+        best_model_state = None
+        best_fold = -1
+        
+        # Perform k-fold cross validation
+        for fold, (train_ids, val_ids) in enumerate(kfold.split(all_dataset)):
+            logger.info(f"FOLD {fold+1}/{n_folds}")
+            logger.info(f"Training on {len(train_ids)} samples, validating on {len(val_ids)} samples")
+            
+            # Define samplers for obtaining training and validation batches
+            train_sampler = SubsetRandomSampler(train_ids)
+            val_sampler = SubsetRandomSampler(val_ids)
+            
+            # Prepare data loaders
+            train_loader = DataLoader(all_dataset, batch_size=batch_size, sampler=train_sampler)
+            val_loader = DataLoader(all_dataset, batch_size=batch_size, sampler=val_sampler)
+            
+            # Reset model for each fold
+            self.model = StateAutoencoder(
+                self.input_dim, self.stm_dim, self.im_dim, self.ltm_dim
+            ).to(self.device)
+            
+            # Set up optimizer and loss
+            optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+            criterion = nn.MSELoss()
+            
+            # Training metrics for this fold
+            fold_metrics = {
+                "train_loss": [], 
+                "val_loss": [],
+                "val_stm_r2": [],
+                "val_im_r2": [],
+                "val_ltm_r2": []
+            }
+            
+            # Early stopping variables
+            fold_best_val_loss = float('inf')
+            patience_counter = 0
+            fold_best_model_state = None
+            
+            # Training loop
+            for epoch in range(epochs):
+                # Training phase
+                self.model.train()
+                train_running_loss = 0.0
+                
+                for batch in train_loader:
+                    batch = batch.to(self.device)
+                    optimizer.zero_grad()
+                    
+                    # Forward passes at all compression levels (focusing on STM for training)
+                    stm_output, _ = self.model(batch, level=0)
+                    
+                    # Calculate loss
+                    loss = criterion(stm_output, batch)
+                    
+                    # Backward and optimize
+                    loss.backward()
+                    optimizer.step()
+                    
+                    # Update training metrics
+                    train_running_loss += loss.item() * batch.size(0)
+                
+                # Calculate average training loss
+                avg_train_loss = train_running_loss / len(train_ids)
+                fold_metrics["train_loss"].append(avg_train_loss)
+                
+                # Validation phase
+                self.model.eval()
+                val_running_loss = 0.0
+                
+                # For R² calculation
+                all_val_targets = []
+                all_val_stm_preds = []
+                all_val_im_preds = []
+                all_val_ltm_preds = []
+                
+                with torch.no_grad():
+                    for batch in val_loader:
+                        batch = batch.to(self.device)
+                        
+                        # Forward passes at all compression levels
+                        stm_output, _ = self.model(batch, level=0)
+                        im_output, _ = self.model(batch, level=1)
+                        ltm_output, _ = self.model(batch, level=2)
+                        
+                        # Store predictions and targets for R² calculation
+                        all_val_targets.append(batch.cpu().numpy())
+                        all_val_stm_preds.append(stm_output.cpu().numpy())
+                        all_val_im_preds.append(im_output.cpu().numpy())
+                        all_val_ltm_preds.append(ltm_output.cpu().numpy())
+                        
+                        # Calculate primary loss (STM)
+                        loss = criterion(stm_output, batch)
+                        
+                        # Update validation metrics
+                        val_running_loss += loss.item() * batch.size(0)
+                
+                # Calculate average validation loss
+                avg_val_loss = val_running_loss / len(val_ids)
+                fold_metrics["val_loss"].append(avg_val_loss)
+                
+                # Calculate R² scores for each compression level
+                all_val_targets = np.vstack(all_val_targets)
+                all_val_stm_preds = np.vstack(all_val_stm_preds)  
+                all_val_im_preds = np.vstack(all_val_im_preds)
+                all_val_ltm_preds = np.vstack(all_val_ltm_preds)
+                
+                # Compute R² for each compression level
+                stm_r2 = r2_score(all_val_targets.reshape(-1), all_val_stm_preds.reshape(-1))
+                im_r2 = r2_score(all_val_targets.reshape(-1), all_val_im_preds.reshape(-1))
+                ltm_r2 = r2_score(all_val_targets.reshape(-1), all_val_ltm_preds.reshape(-1))
+                
+                # Add R² scores to metrics
+                fold_metrics["val_stm_r2"].append(stm_r2)
+                fold_metrics["val_im_r2"].append(im_r2)
+                fold_metrics["val_ltm_r2"].append(ltm_r2)
+                
+                # Log progress
+                if (epoch + 1) % 25 == 0 or epoch == 0:
+                    logger.info(
+                        f"Fold {fold+1}, Epoch {epoch+1}/{epochs}, "
+                        f"Train Loss: {avg_train_loss:.4f}, "
+                        f"Val Loss: {avg_val_loss:.4f}, "
+                        f"STM R²: {stm_r2:.4f}"
+                    )
+                
+                # Early stopping check
+                if avg_val_loss < fold_best_val_loss:
+                    fold_best_val_loss = avg_val_loss
+                    patience_counter = 0
+                    # Save best model state for this fold
+                    fold_best_model_state = self.model.state_dict().copy()
+                else:
+                    patience_counter += 1
+                    if patience_counter >= early_stopping_patience:
+                        logger.info(f"Early stopping triggered after {epoch + 1} epochs")
+                        break
+            
+            # Restore best model for this fold
+            if fold_best_model_state is not None:
+                self.model.load_state_dict(fold_best_model_state)
+            
+            # Get final metrics for this fold using best model
+            final_val_loss = min(fold_metrics["val_loss"])
+            best_epoch = np.argmin(fold_metrics["val_loss"])
+            final_stm_r2 = fold_metrics["val_stm_r2"][best_epoch]
+            final_im_r2 = fold_metrics["val_im_r2"][best_epoch]
+            final_ltm_r2 = fold_metrics["val_ltm_r2"][best_epoch]
+            
+            logger.info(f"Fold {fold+1} results: Val Loss={final_val_loss:.6f}, STM R²={final_stm_r2:.4f}")
+            
+            # Add fold results to overall results
+            all_fold_results["fold_train_loss"].append(fold_metrics["train_loss"][best_epoch])
+            all_fold_results["fold_val_loss"].append(final_val_loss)
+            all_fold_results["fold_val_stm_r2"].append(final_stm_r2)
+            all_fold_results["fold_val_im_r2"].append(final_im_r2)
+            all_fold_results["fold_val_ltm_r2"].append(final_ltm_r2)
+            
+            # Check if this fold produced a better model
+            if final_val_loss < best_val_loss:
+                best_val_loss = final_val_loss
+                best_model_state = fold_best_model_state.copy()
+                best_fold = fold
+        
+        # Calculate average metrics across all folds
+        avg_val_loss = np.mean(all_fold_results["fold_val_loss"])
+        avg_stm_r2 = np.mean(all_fold_results["fold_val_stm_r2"])
+        avg_im_r2 = np.mean(all_fold_results["fold_val_im_r2"])
+        avg_ltm_r2 = np.mean(all_fold_results["fold_val_ltm_r2"])
+        
+        logger.info("=" * 50)
+        logger.info(f"Cross-Validation Summary ({n_folds} folds):")
+        logger.info(f"Average validation loss: {avg_val_loss:.6f}")
+        logger.info(f"Average STM R²: {avg_stm_r2:.6f}")
+        logger.info(f"Average IM R²: {avg_im_r2:.6f}")
+        logger.info(f"Average LTM R²: {avg_ltm_r2:.6f}")
+        logger.info(f"Best fold: {best_fold+1}, with validation loss: {best_val_loss:.6f}")
+        logger.info("=" * 50)
+        
+        # Restore the best model across all folds
+        if best_model_state is not None:
+            self.model.load_state_dict(best_model_state)
+            logger.info(f"Restored best model from fold {best_fold+1}")
+        
+        # Return metrics and fold information
+        summary = {
+            "best_fold": best_fold + 1,
+            "best_val_loss": best_val_loss,
+            "avg_val_loss": avg_val_loss,
+            "avg_stm_r2": avg_stm_r2,
+            "avg_im_r2": avg_im_r2,
+            "avg_ltm_r2": avg_ltm_r2,
+            "fold_results": all_fold_results
+        }
+        
+        return summary
