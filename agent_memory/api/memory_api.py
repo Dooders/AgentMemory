@@ -25,6 +25,31 @@ from agent_memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
 
+# Logging context keys
+LOG_CTX_AGENT_ID = "agent_id"
+LOG_CTX_STEP = "step"
+LOG_CTX_MEMORY_ID = "memory_id"
+LOG_CTX_OPERATION = "operation"
+LOG_CTX_TIER = "tier"
+
+
+def log_with_context(level, msg, **context):
+    """Log with standardized context format.
+
+    Args:
+        level: The logging level (e.g., logger.INFO)
+        msg: The log message
+        **context: Additional context key-value pairs
+    """
+    context_str = " ".join(f"{k}={v}" for k, v in context.items() if v is not None)
+    if context_str:
+        full_msg = f"{msg} [{context_str}]"
+    else:
+        full_msg = msg
+
+    level(full_msg)
+
+
 T = TypeVar("T")
 
 
@@ -65,7 +90,11 @@ def cacheable(ttl=60):
             if cache_key in cache:
                 expiry_time = cache_ttl.get(cache_key, 0)
                 if time.time() < expiry_time:
-                    logger.debug(f"Cache hit for {func.__name__}")
+                    log_with_context(
+                        logger.debug,
+                        f"Cache hit for {func.__name__}",
+                        operation=func.__name__,
+                    )
                     return cache[cache_key]
 
             # Call function if not in cache or expired
@@ -85,6 +114,11 @@ def cacheable(ttl=60):
             """Clear the cache for this function."""
             cache.clear()
             cache_ttl.clear()
+            log_with_context(
+                logger.debug,
+                f"Cache cleared for {func.__name__}",
+                operation=func.__name__,
+            )
 
         wrapper.clear_cache = clear_cache
 
@@ -137,20 +171,25 @@ class AgentMemoryAPI:
         Args:
             config: Configuration for the memory system
         """
+        logger.info("Initializing AgentMemoryAPI")
         self.memory_system = AgentMemorySystem.get_instance(config)
         self._default_cache_ttl = 60  # Default TTL in seconds
+        logger.info("AgentMemoryAPI initialized successfully")
 
     def clear_all_caches(self):
         """Clear all caches for all methods in this API."""
+        logger.info("Clearing all API method caches")
         # Clear caches for decorated methods
         if hasattr(self.retrieve_similar_states, "clear_cache"):
             self.retrieve_similar_states.clear_cache()
 
         if hasattr(self.search_by_content, "clear_cache"):
             self.search_by_content.clear_cache()
+        logger.debug("All caches cleared")
 
     def clear_cache(self):
         """Clear the query result cache (alias for clear_all_caches for backward compatibility)."""
+        logger.info("Clearing query result cache (alias method)")
         self.clear_all_caches()
 
     def set_cache_ttl(self, ttl: int):
@@ -160,7 +199,9 @@ class AgentMemoryAPI:
             ttl: Default time-to-live for cache entries in seconds
         """
         if ttl <= 0:
+            logger.error(f"Invalid cache TTL: {ttl}, must be positive")
             raise ValueError("Cache TTL must be positive")
+        logger.info(f"Setting default cache TTL to {ttl} seconds")
         self._default_cache_ttl = ttl
 
     def _merge_sorted_lists(
@@ -326,32 +367,90 @@ class AgentMemoryAPI:
         try:
             # Validate input parameters
             if not agent_id:
+                logger.error("Empty agent_id provided in store_agent_state")
                 raise MemoryStoreException("Agent ID cannot be empty")
+
             if not isinstance(state_data, dict):
+                log_with_context(
+                    logger.error,
+                    f"Invalid state data type: {type(state_data)}",
+                    agent_id=agent_id,
+                    step=step_number,
+                    operation="store_agent_state",
+                )
                 raise MemoryStoreException(
                     f"State data must be a dictionary, got {type(state_data)}"
                 )
+
             if not isinstance(step_number, int) or step_number < 0:
+                log_with_context(
+                    logger.error,
+                    f"Invalid step number: {step_number}",
+                    agent_id=agent_id,
+                    operation="store_agent_state",
+                )
                 raise MemoryStoreException(
                     f"Step number must be a non-negative integer, got {step_number}"
                 )
+
             if (
                 not isinstance(priority, (int, float))
                 or priority < 0.0
                 or priority > 1.0
             ):
+                log_with_context(
+                    logger.error,
+                    f"Invalid priority value: {priority}",
+                    agent_id=agent_id,
+                    step=step_number,
+                    operation="store_agent_state",
+                )
                 raise MemoryStoreException(
                     f"Priority must be a float between 0.0 and 1.0, got {priority}"
                 )
 
-            return self.memory_system.store_agent_state(
+            log_with_context(
+                logger.debug,
+                "Storing agent state",
+                agent_id=agent_id,
+                step=step_number,
+                operation="store_agent_state",
+            )
+
+            result = self.memory_system.store_agent_state(
                 agent_id, state_data, step_number, priority
             )
+
+            if result:
+                log_with_context(
+                    logger.info,
+                    "Successfully stored agent state",
+                    agent_id=agent_id,
+                    step=step_number,
+                    operation="store_agent_state",
+                )
+            else:
+                log_with_context(
+                    logger.warning,
+                    "Failed to store agent state",
+                    agent_id=agent_id,
+                    step=step_number,
+                    operation="store_agent_state",
+                )
+
+            return result
+
         except MemoryStoreException:
             # Re-raise custom exceptions as they're already properly formatted
             raise
         except Exception as e:
-            logger.error(f"Failed to store agent state for agent {agent_id}: {e}")
+            log_with_context(
+                logger.error,
+                f"Failed to store agent state: {e}",
+                agent_id=agent_id,
+                step=step_number,
+                operation="store_agent_state",
+            )
             # Convert to custom exception with context for caller
             raise MemoryStoreException(
                 f"Unexpected error storing agent state: {str(e)}"
@@ -532,13 +631,36 @@ class AgentMemoryAPI:
         try:
             # Validate input parameters
             if not agent_id:
+                logger.error("Empty agent_id provided in retrieve_similar_states")
                 raise MemoryRetrievalException("Agent ID cannot be empty")
+
             if not isinstance(query_state, dict):
+                log_with_context(
+                    logger.error,
+                    f"Invalid query state type: {type(query_state)}",
+                    agent_id=agent_id,
+                    operation="retrieve_similar_states",
+                )
                 raise MemoryRetrievalException(
                     f"Query state must be a dictionary, got {type(query_state)}"
                 )
+
             if not isinstance(k, int) or k <= 0:
+                log_with_context(
+                    logger.error,
+                    f"Invalid k value: {k}",
+                    agent_id=agent_id,
+                    operation="retrieve_similar_states",
+                )
                 raise MemoryRetrievalException(f"k must be a positive integer, got {k}")
+
+            log_with_context(
+                logger.debug,
+                "Retrieving similar states",
+                agent_id=agent_id,
+                operation="retrieve_similar_states",
+                memory_type=memory_type,
+            )
 
             memory_agent = self.memory_system.get_memory_agent(agent_id)
 
@@ -546,14 +668,30 @@ class AgentMemoryAPI:
                 error_msg = (
                     "Vector similarity search requires embedding engine to be enabled"
                 )
-                logger.warning(error_msg)
+                log_with_context(
+                    logger.warning,
+                    error_msg,
+                    agent_id=agent_id,
+                    operation="retrieve_similar_states",
+                )
                 raise MemoryRetrievalException(error_msg)
 
             # Generate embedding for query state
             try:
                 query_embedding = memory_agent.embedding_engine.encode_stm(query_state)
+                log_with_context(
+                    logger.debug,
+                    "Generated embedding for query state",
+                    agent_id=agent_id,
+                    operation="retrieve_similar_states",
+                )
             except Exception as e:
-                logger.error(f"Failed to generate embedding for query state: {e}")
+                log_with_context(
+                    logger.error,
+                    f"Failed to generate embedding for query state: {e}",
+                    agent_id=agent_id,
+                    operation="retrieve_similar_states",
+                )
                 raise MemoryRetrievalException(
                     f"Failed to encode query state: {str(e)}"
                 )
@@ -567,6 +705,15 @@ class AgentMemoryAPI:
                 else:  # ltm_store
                     tier = "ltm"
 
+                log_with_context(
+                    logger.debug,
+                    f"Searching {tier.upper()} tier",
+                    agent_id=agent_id,
+                    operation="retrieve_similar_states",
+                    tier=tier,
+                    memory_type=mem_type,
+                )
+
                 # Convert embedding to appropriate dimensions for this tier
                 try:
                     tier_embedding = (
@@ -575,20 +722,40 @@ class AgentMemoryAPI:
                         )
                     )
                 except Exception as e:
-                    logger.warning(f"Error converting embedding to {tier} format: {e}")
+                    log_with_context(
+                        logger.warning,
+                        f"Error converting embedding to {tier} format: {e}",
+                        agent_id=agent_id,
+                        operation="retrieve_similar_states",
+                        tier=tier,
+                    )
                     # If conversion fails, use original embedding which may not work properly
                     tier_embedding = query_embedding
 
                 try:
-                    return store.search_by_vector(
+                    results = store.search_by_vector(
                         tier_embedding, k=limit, memory_type=mem_type
                     )
+                    log_with_context(
+                        logger.debug,
+                        f"Found {len(results)} results in {tier.upper()} tier",
+                        agent_id=agent_id,
+                        operation="retrieve_similar_states",
+                        tier=tier,
+                    )
+                    return results
                 except Exception as e:
-                    logger.error(f"Error searching the {tier} store: {e}")
+                    log_with_context(
+                        logger.error,
+                        f"Error searching the {tier} store: {e}",
+                        agent_id=agent_id,
+                        operation="retrieve_similar_states",
+                        tier=tier,
+                    )
                     # Return empty list on store search failure
                     return []
 
-            return self._aggregate_results(
+            results = self._aggregate_results(
                 memory_agent,
                 query_function,
                 k=k,
@@ -597,12 +764,25 @@ class AgentMemoryAPI:
                 reverse=True,
                 merge_sorted=True,
             )
+
+            log_with_context(
+                logger.info,
+                f"Retrieved {len(results)} similar states",
+                agent_id=agent_id,
+                operation="retrieve_similar_states",
+            )
+
+            return results
+
         except MemoryRetrievalException:
             # Re-raise custom exceptions
             raise
         except Exception as e:
-            logger.error(
-                f"Unexpected error retrieving similar states for agent {agent_id}: {e}"
+            log_with_context(
+                logger.error,
+                f"Unexpected error retrieving similar states: {e}",
+                agent_id=agent_id,
+                operation="retrieve_similar_states",
             )
             raise MemoryRetrievalException(
                 f"Failed to retrieve similar states: {str(e)}"
@@ -824,65 +1004,148 @@ class AgentMemoryAPI:
             if agent_id:
                 # Validate agent ID
                 if not isinstance(agent_id, str):
+                    log_with_context(
+                        logger.error,
+                        f"Invalid agent ID type: {type(agent_id)}",
+                        operation="force_memory_maintenance",
+                    )
                     raise MemoryMaintenanceException(
                         f"Agent ID must be a string, got {type(agent_id)}"
                     )
+
+                log_with_context(
+                    logger.info,
+                    "Performing memory maintenance for single agent",
+                    agent_id=agent_id,
+                    operation="force_memory_maintenance",
+                )
 
                 # Maintain single agent
                 try:
                     memory_agent = self.memory_system.get_memory_agent(agent_id)
                 except Exception as e:
-                    logger.error(
-                        f"Failed to get memory agent for agent {agent_id}: {e}"
+                    log_with_context(
+                        logger.error,
+                        f"Failed to get memory agent: {e}",
+                        agent_id=agent_id,
+                        operation="force_memory_maintenance",
                     )
                     raise MemoryMaintenanceException(
                         f"Agent {agent_id} not found or error accessing memory agent: {str(e)}"
                     )
 
                 try:
+                    log_with_context(
+                        logger.debug,
+                        "Starting maintenance operation",
+                        agent_id=agent_id,
+                        operation="force_memory_maintenance",
+                    )
+
                     result = memory_agent._perform_maintenance()
+
                     if not result:
-                        logger.error(f"Maintenance failed for agent {agent_id}")
+                        log_with_context(
+                            logger.error,
+                            "Maintenance failed",
+                            agent_id=agent_id,
+                            operation="force_memory_maintenance",
+                        )
                         raise MemoryMaintenanceException(
                             f"Maintenance failed for agent {agent_id}"
                         )
+
+                    log_with_context(
+                        logger.info,
+                        "Maintenance completed successfully",
+                        agent_id=agent_id,
+                        operation="force_memory_maintenance",
+                    )
+
                     return result
                 except Exception as e:
-                    logger.error(f"Error during maintenance for agent {agent_id}: {e}")
+                    log_with_context(
+                        logger.error,
+                        f"Error during maintenance: {e}",
+                        agent_id=agent_id,
+                        operation="force_memory_maintenance",
+                    )
                     raise MemoryMaintenanceException(
                         f"Error during maintenance for agent {agent_id}: {str(e)}"
                     )
             else:
                 # Maintain all agents
+                log_with_context(
+                    logger.info,
+                    f"Performing maintenance for all agents ({len(self.memory_system.agents)} total)",
+                    operation="force_memory_maintenance",
+                )
+
                 success = True
                 failed_agents = []
 
                 for current_agent_id, memory_agent in self.memory_system.agents.items():
                     try:
+                        log_with_context(
+                            logger.debug,
+                            "Starting maintenance operation",
+                            agent_id=current_agent_id,
+                            operation="force_memory_maintenance",
+                        )
+
                         if not memory_agent._perform_maintenance():
-                            logger.error(
-                                f"Maintenance failed for agent {current_agent_id}"
+                            log_with_context(
+                                logger.error,
+                                "Maintenance failed",
+                                agent_id=current_agent_id,
+                                operation="force_memory_maintenance",
                             )
                             success = False
                             failed_agents.append(current_agent_id)
+                        else:
+                            log_with_context(
+                                logger.debug,
+                                "Maintenance completed successfully",
+                                agent_id=current_agent_id,
+                                operation="force_memory_maintenance",
+                            )
                     except Exception as e:
-                        logger.error(
-                            f"Error during maintenance for agent {current_agent_id}: {e}"
+                        log_with_context(
+                            logger.error,
+                            f"Error during maintenance: {e}",
+                            agent_id=current_agent_id,
+                            operation="force_memory_maintenance",
                         )
                         success = False
                         failed_agents.append(current_agent_id)
 
                 if not success:
+                    log_with_context(
+                        logger.error,
+                        f"Maintenance failed for {len(failed_agents)} agents",
+                        operation="force_memory_maintenance",
+                    )
                     raise MemoryMaintenanceException(
                         f"Maintenance failed for agents: {', '.join(failed_agents)}"
                     )
+
+                log_with_context(
+                    logger.info,
+                    "Maintenance completed successfully for all agents",
+                    operation="force_memory_maintenance",
+                )
 
                 return success
         except MemoryMaintenanceException:
             # Re-raise custom exceptions
             raise
         except Exception as e:
-            logger.error(f"Unexpected error during memory maintenance: {e}")
+            log_with_context(
+                logger.error,
+                f"Unexpected error during memory maintenance: {e}",
+                agent_id=agent_id if agent_id else "all",
+                operation="force_memory_maintenance",
+            )
             raise MemoryMaintenanceException(
                 f"Unexpected error during memory maintenance: {str(e)}"
             )
@@ -1070,9 +1333,20 @@ class AgentMemoryAPI:
         """
         try:
             if not isinstance(config, dict):
+                log_with_context(
+                    logger.error,
+                    f"Invalid configuration type: {type(config)}",
+                    operation="configure_memory_system",
+                )
                 raise MemoryConfigException(
                     f"Configuration must be a dictionary, got {type(config)}"
                 )
+
+            log_with_context(
+                logger.info,
+                f"Updating memory system configuration with {len(config)} parameters",
+                operation="configure_memory_system",
+            )
 
             # Convert the current configuration to a dict for Pydantic validation
             current_config: Dict[str, Any] = {
@@ -1143,6 +1417,11 @@ class AgentMemoryAPI:
 
             # Validate with Pydantic
             try:
+                log_with_context(
+                    logger.debug,
+                    "Validating configuration with Pydantic",
+                    operation="configure_memory_system",
+                )
                 validated_model = MemoryConfigModel(**processed_config)
             except ValidationError as e:
                 error_details = []
@@ -1152,15 +1431,36 @@ class AgentMemoryAPI:
                     error_details.append(f"{loc}: {msg}")
 
                 error_msg = f"Invalid configuration: {', '.join(error_details)}"
-                logger.error(error_msg)
+                log_with_context(
+                    logger.error, error_msg, operation="configure_memory_system"
+                )
                 raise MemoryConfigException(error_msg)
 
             # Apply the validated configuration to the actual config object
+            log_with_context(
+                logger.debug,
+                "Applying validated configuration to memory system",
+                operation="configure_memory_system",
+            )
             validated_model.to_config_object(self.memory_system.config)
 
             # Apply configuration to existing memory agents
+            agent_count = len(self.memory_system.agents)
+            log_with_context(
+                logger.info,
+                f"Updating configuration for {agent_count} memory agents",
+                operation="configure_memory_system",
+            )
+
             for agent_id, memory_agent in self.memory_system.agents.items():
                 try:
+                    log_with_context(
+                        logger.debug,
+                        "Updating agent configuration",
+                        agent_id=agent_id,
+                        operation="configure_memory_system",
+                    )
+
                     # Update agent config
                     memory_agent.config = self.memory_system.config
 
@@ -1175,20 +1475,32 @@ class AgentMemoryAPI:
                             self.memory_system.config.autoencoder_config
                         )
                 except Exception as e:
-                    logger.error(
-                        f"Failed to update configuration for agent {agent_id}: {e}"
+                    log_with_context(
+                        logger.error,
+                        f"Failed to update configuration: {e}",
+                        agent_id=agent_id,
+                        operation="configure_memory_system",
                     )
                     raise MemoryConfigException(
                         f"Failed to update configuration for agent {agent_id}: {str(e)}"
                     )
 
+            log_with_context(
+                logger.info,
+                "Memory system configuration updated successfully",
+                operation="configure_memory_system",
+            )
             return True
 
         except MemoryConfigException:
             # Re-raise custom exceptions
             raise
         except Exception as e:
-            logger.error(f"Failed to update configuration: {e}")
+            log_with_context(
+                logger.error,
+                f"Failed to update configuration: {e}",
+                operation="configure_memory_system",
+            )
             raise MemoryConfigException(
                 f"Unexpected error updating configuration: {str(e)}"
             )
