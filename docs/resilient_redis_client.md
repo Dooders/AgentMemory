@@ -83,6 +83,7 @@ Memory access follows a consistent pattern designed for performance and reliabil
 - **Comprehensive Redis Method Coverage**: Full set of Redis operations with error handling
 - **Decorator-Based Error Handling**: Consistent error handling across all operations using decorators
 - **Configurable Exponential Backoff**: Flexible configuration of retry attempts and delays
+- **Modern Redis API Support**: Up-to-date methods aligned with current Redis client practices
 
 ## **5. Class Structure**
 
@@ -138,7 +139,8 @@ All basic Redis operations are wrapped with the `@resilient_operation` decorator
 | `hset(name, key, value)`             | Set hash field                  | HSET           |
 | `hget(name, key)`                    | Get hash field                  | HGET           |
 | `hgetall(name)`                      | Get all hash fields             | HGETALL        |
-| `hmset(name, mapping)`               | Set multiple hash fields        | HSET (mapping) |
+| `hset_dict(name, mapping)`           | Set multiple hash fields        | HSET (mapping) |
+| `hmset(name, mapping)`               | Set multiple hash fields (deprecated) | HSET (mapping) |
 | `hdel(name, *keys)`                  | Delete hash fields              | HDEL           |
 | `zadd(name, mapping, ...)`           | Add to sorted set               | ZADD           |
 | `zrange(name, start, end, ...)`      | Get range from sorted set       | ZRANGE         |
@@ -250,6 +252,13 @@ name = client.get("agent:123:name")
 client.hset("agent:123:state", "health", "100")
 client.hset("agent:123:state", "position", "10,20")
 state = client.hgetall("agent:123:state")
+
+# Set multiple hash fields (recommended way)
+client.hset_dict("agent:123:state", {
+    "health": "100",
+    "position": "10,20",
+    "status": "active"
+})
 ```
 
 ### **9.2 Priority-Based Storage with Retry Configuration**
@@ -259,7 +268,7 @@ def store_agent_state(agent_id, state_data):
     """Store agent state in Redis."""
     key = f"agent:{agent_id}:state"
     try:
-        client.hmset(key, state_data)
+        client.hset_dict(key, state_data)  # Use the recommended method
         return True
     except Exception as e:
         logger.error(f"Failed to store state: {e}")
@@ -362,4 +371,324 @@ client = ResilientRedisClient(
 - [Redis Integration](../../redis_integration.md)
 - [Error Handling Strategy](../../error_handling_strategy.md)
 - [Agent State Redis Schema](../../agent_state_redis_schema.md)
-- [Memory Agent Implementation](../memory_agent.py) 
+- [Memory Agent Implementation](../memory_agent.py)
+
+## **13. AsyncResilientRedisClient**
+
+### **13.1 Overview**
+
+The `AsyncResilientRedisClient` is an asynchronous version of the `ResilientRedisClient`, designed to work with asyncio for I/O-bound applications. It implements the same resilient patterns (circuit breaker, retries) but with async/await syntax for non-blocking operation.
+
+### **13.2 Asynchronous Operation Diagram**
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant ARC as AsyncResilientRedisClient
+    participant CB as AsyncCircuitBreaker
+    participant Redis as Redis Server
+    
+    App->>ARC: await client.get("key")
+    ARC->>CB: await circuit_breaker.execute(operation)
+    
+    alt Circuit Closed
+        CB->>Redis: await redis.get("key")
+        Redis-->>CB: Return result
+        CB-->>ARC: Return result
+        ARC-->>App: Return result
+    else Circuit Open
+        CB-->>ARC: Raise CircuitOpenError
+        ARC-->>App: Raise RedisUnavailableError
+    end
+    
+    Note over App,Redis: For critical operations with retry
+    
+    App->>ARC: await store_with_retry(...)
+    
+    alt First Attempt Succeeds
+        ARC->>Redis: await store_func(...)
+        Redis-->>ARC: Success
+        ARC-->>App: Return true
+    else First Attempt Fails
+        ARC->>Redis: await store_func(...)
+        Redis-->>ARC: Failure
+        
+        alt Critical Priority
+            loop Retry attempts
+                ARC->>ARC: await async_exponential_backoff(...)
+                ARC->>Redis: await store_func(...)
+                Redis-->>ARC: Result
+            end
+            ARC-->>App: Return result
+        else High/Normal Priority
+            ARC->>ARC: Enqueue for background retry
+            ARC-->>App: Return false
+        else Low Priority
+            ARC-->>App: Return false
+        end
+    end
+```
+
+### **13.3 Key Features**
+
+- **Non-blocking I/O**: All Redis operations are fully asynchronous
+- **Asynchronous Circuit Breaker**: Prevents cascading failures with async pattern
+- **Async/Await Pattern**: Modern Python async syntax for better performance
+- **Double Await Handling**: Helper method to simplify working with nested coroutines
+- **Automatic Connection Management**: Explicit `init()` and `close()` methods
+
+### **13.4 Class Structure**
+
+```python
+async def async_exponential_backoff(attempt: int, base_delay: float = 0.5, max_delay: float = 30.0) -> float:
+    """Calculate and sleep for exponential backoff delay."""
+    # ...
+
+def resilient_operation(operation_name: str):
+    """Decorator to wrap Redis operations with circuit breaker pattern."""
+    # ...
+
+class AsyncResilientRedisClient:
+    def __init__(
+        self,
+        client_name: str,
+        host: str = "localhost",
+        port: int = 6379,
+        db: int = 0,
+        password: Optional[str] = None,
+        socket_timeout: float = 2.0,
+        socket_connect_timeout: float = 2.0,
+        retry_policy: Optional[RetryPolicy] = None,
+        circuit_threshold: int = 3,
+        circuit_reset_timeout: int = 300,
+        critical_retry_attempts: int = 3,
+        retry_base_delay: float = 0.5,
+        retry_max_delay: float = 30.0,
+        max_connections: int = 10,
+        health_check_interval: int = 30,
+    ):
+        # ...
+        
+    async def init(self):
+        """Initialize the Redis connection."""
+        # ...
+        
+    async def close(self):
+        """Close the Redis connection."""
+        # ...
+        
+    @staticmethod
+    async def execute_with_double_await(coro: Awaitable[Awaitable[T]]) -> T:
+        """Helper method to handle double awaits from resilient operations."""
+        # ...
+```
+
+### **13.5 Working with Asynchronous Operations**
+
+All Redis operations in `AsyncResilientRedisClient` return coroutines that must be awaited. When using methods decorated with `@resilient_operation`, there are two patterns for handling the nested coroutines:
+
+#### **13.5.1 Double Await Pattern**
+
+```python
+# First await gets the coroutine from the circuit breaker
+coroutine = client.get("key")
+# Second await executes the Redis operation
+intermediate = await coroutine
+result = await intermediate
+
+# Or more concisely:
+result = await (await client.get("key"))
+```
+
+#### **13.5.2 Helper Method**
+
+```python
+# Using the helper method to handle double awaits
+result = await client.execute_with_double_await(client.get("key"))
+```
+
+### **13.6 Usage Examples**
+
+#### **13.6.1 Basic Async Redis Operations**
+
+```python
+# Create and initialize the client
+client = AsyncResilientRedisClient(
+    client_name="agent_stm_async",
+    host="redis.example.com",
+    port=6379,
+    db=0
+)
+await client.init()
+
+try:
+    # Basic operations
+    await client.execute_with_double_await(
+        client.set("agent:123:name", "Agent Smith")
+    )
+    name = await client.execute_with_double_await(
+        client.get("agent:123:name")
+    )
+
+    # Hash operations
+    await client.execute_with_double_await(
+        client.hset_dict("agent:123:state", {
+            "health": "100",
+            "position": "10,20",
+            "status": "active"
+        })
+    )
+    state = await client.execute_with_double_await(
+        client.hgetall("agent:123:state")
+    )
+finally:
+    # Always close the client when done
+    await client.close()
+```
+
+#### **13.6.2 Async Context Manager Pattern**
+
+```python
+# Example showing how you could implement a context manager
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def get_redis_client(client_name="default", host="localhost", port=6379):
+    client = AsyncResilientRedisClient(client_name=client_name, host=host, port=port)
+    await client.init()
+    try:
+        yield client
+    finally:
+        await client.close()
+
+# Usage
+async with get_redis_client("agent_stm_async", "redis.example.com") as client:
+    # Operations within context manager - client will be closed automatically
+    await client.execute_with_double_await(
+        client.set("key", "value")
+    )
+```
+
+#### **13.6.3 Async Store with Retry**
+
+```python
+async def store_agent_state(agent_id, state_data):
+    """Store agent state in Redis asynchronously."""
+    key = f"agent:{agent_id}:state"
+    try:
+        result = await client.execute_with_double_await(
+            client.hset_dict(key, state_data)
+        )
+        return bool(result)
+    except Exception as e:
+        logger.error(f"Failed to store state: {e}")
+        return False
+
+# Store with priority and custom retry parameters
+await client.store_with_retry(
+    agent_id="agent123",
+    state_data={"position": "10,20", "health": "100"},
+    store_func=store_agent_state,
+    priority=Priority.CRITICAL,
+    retry_attempts=5
+)
+```
+
+### **13.7 Integration with Asyncio Applications**
+
+The `AsyncResilientRedisClient` is designed to work well with asyncio-based web frameworks and applications:
+
+#### **13.7.1 FastAPI Integration**
+
+```python
+from fastapi import FastAPI, Depends
+from agent_memory.storage.async_redis_client import AsyncResilientRedisClient
+
+app = FastAPI()
+redis_client = None
+
+@app.on_event("startup")
+async def startup():
+    global redis_client
+    redis_client = AsyncResilientRedisClient(client_name="api_cache")
+    await redis_client.init()
+
+@app.on_event("shutdown")
+async def shutdown():
+    if redis_client:
+        await redis_client.close()
+
+@app.get("/agent/{agent_id}")
+async def get_agent(agent_id: str):
+    key = f"agent:{agent_id}:data"
+    data = await redis_client.execute_with_double_await(
+        redis_client.get(key)
+    )
+    if not data:
+        return {"error": "Agent not found"}
+    return {"agent_id": agent_id, "data": data}
+```
+
+### **13.8 Error Handling in Async Context**
+
+Error handling in the async client follows the same pattern as the synchronous client but within async/await patterns:
+
+```python
+try:
+    result = await client.execute_with_double_await(
+        client.get("key")
+    )
+except RedisUnavailableError:
+    # Handle connection error
+    logger.error("Redis unavailable")
+except RedisTimeoutError:
+    # Handle timeout
+    logger.error("Redis operation timed out")
+except Exception as e:
+    # Handle other errors
+    logger.error(f"Unexpected error: {e}")
+```
+
+### **13.9 Performance Considerations**
+
+- **Connection Pooling**: For high-throughput applications, consider implementing connection pooling
+- **Task Scheduling**: Use `asyncio.gather()` to run multiple Redis operations concurrently
+- **Backpressure Handling**: Implement rate limiting in high-volume write scenarios
+- **Event Loop Management**: Be mindful of the event loop when integrating with web frameworks
+
+### **13.10 Testing Async Redis Operations**
+
+Testing the `AsyncResilientRedisClient` requires asyncio-aware testing frameworks:
+
+```python
+import pytest
+import pytest_asyncio
+from unittest.mock import AsyncMock, patch
+
+@pytest_asyncio.fixture
+async def mock_redis():
+    with patch('redis.asyncio.Redis') as mock:
+        mock_instance = AsyncMock()
+        mock.return_value = mock_instance
+        yield mock, mock_instance
+
+@pytest_asyncio.fixture
+async def async_client(mock_redis):
+    mock_factory, mock_instance = mock_redis
+    client = AsyncResilientRedisClient(client_name="test-client")
+    await client.init()
+    yield client
+    await client.close()
+
+@pytest.mark.asyncio
+async def test_get_operation(async_client, mock_redis):
+    _, mock_redis_instance = mock_redis
+    mock_redis_instance.get.return_value = "value"
+    
+    result = await async_client.execute_with_double_await(
+        async_client.get("key")
+    )
+    
+    assert result == "value"
+    mock_redis_instance.get.assert_called_once_with("key")
+``` 

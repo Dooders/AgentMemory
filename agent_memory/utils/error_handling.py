@@ -9,7 +9,7 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar, Awaitable
 
 logger = logging.getLogger(__name__)
 
@@ -654,3 +654,137 @@ class MemorySystemHealthMonitor:
             Dictionary mapping component names to their health status
         """
         return self.last_status
+
+
+class AsyncCircuitBreaker:
+    """Asynchronous circuit breaker for Redis operations.
+
+    This class implements the circuit breaker pattern to prevent cascading
+    failures by failing fast when a system component is unhealthy.
+
+    Attributes:
+        name: Name of this circuit breaker
+        failure_threshold: Number of failures before circuit opens
+        reset_timeout: Seconds before circuit resets to half-open state
+        state: Current state of the circuit breaker
+        failure_count: Current count of consecutive failures
+        last_failure_time: Timestamp of the last failure
+    """
+
+    def __init__(
+        self, name: str, failure_threshold: int = 3, reset_timeout: int = 300
+    ):
+        """Initialize the circuit breaker.
+
+        Args:
+            name: Name of this circuit breaker
+            failure_threshold: Number of failures before circuit opens
+            reset_timeout: Seconds before circuit resets to half-open state
+        """
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.reset_timeout = reset_timeout
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = 0.0
+
+    async def execute(self, operation: Callable[[], Awaitable[T]]) -> T:
+        """Execute operation with circuit breaker protection.
+
+        Args:
+            operation: Function that returns a coroutine to execute
+
+        Returns:
+            Result of the operation
+
+        Raises:
+            RedisUnavailableError: If circuit is open
+            Exception: Any exception raised by the operation
+        """
+        # Check if circuit is open
+        if self.state == CircuitState.OPEN:
+            # Check if it's time to try again
+            if time.time() - self.last_failure_time > self.reset_timeout:
+                logger.info(f"Circuit {self.name} reset timeout elapsed, setting to half-open")
+                self.state = CircuitState.HALF_OPEN
+            else:
+                logger.warning(f"Circuit {self.name} is open, rejecting operation")
+                raise RedisUnavailableError(f"Circuit {self.name} is open")
+
+        try:
+            # Execute the operation
+            coro = operation()
+            result = await coro
+
+            # If successful and in half-open state, close the circuit
+            if self.state == CircuitState.HALF_OPEN:
+                logger.info(f"Circuit {self.name} test succeeded, closing circuit")
+                self.state = CircuitState.CLOSED
+                self.failure_count = 0
+
+            # Reset failure count on success
+            self.failure_count = 0
+            return result
+
+        except Exception as e:
+            # Increment failure counter
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+
+            if self.state == CircuitState.CLOSED and self.failure_count >= self.failure_threshold:
+                logger.warning(
+                    f"Circuit {self.name} failure threshold reached, opening circuit"
+                )
+                self.state = CircuitState.OPEN
+
+            if self.state == CircuitState.HALF_OPEN:
+                logger.warning(f"Circuit {self.name} test failed, keeping circuit open")
+                self.state = CircuitState.OPEN
+
+            raise e
+
+
+class AsyncStoreOperation:
+    """Asynchronous operation for storing agent state with retry capabilities.
+
+    Attributes:
+        operation_id: Unique ID for this operation
+        agent_id: ID of the agent
+        state_data: Data to store
+        store_function: Function that performs the actual storage
+        created_at: Timestamp when this operation was created
+    """
+
+    def __init__(
+        self,
+        operation_id: str,
+        agent_id: str,
+        state_data: Dict[str, Any],
+        store_function: Callable[[str, Dict[str, Any]], Awaitable[bool]],
+    ):
+        """Initialize the store operation.
+
+        Args:
+            operation_id: Unique ID for this operation
+            agent_id: ID of the agent
+            state_data: Data to store
+            store_function: Async function that performs the actual storage
+        """
+        self.operation_id = operation_id
+        self.agent_id = agent_id
+        self.state_data = state_data
+        self.store_function = store_function
+        self.created_at = time.time()
+
+    async def execute(self) -> bool:
+        """Execute the store operation.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Executing async store operation {self.operation_id} for agent {self.agent_id}")
+            return await self.store_function(self.agent_id, self.state_data)
+        except Exception as e:
+            logger.exception(f"Failed to execute async store operation {self.operation_id}: {str(e)}")
+            return False
