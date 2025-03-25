@@ -11,6 +11,31 @@ logger = logging.getLogger(__name__)
 T = TypeVar('T')
 
 
+class MemoryAPIException(Exception):
+    """Base exception class for all memory API exceptions."""
+    pass
+
+
+class MemoryStoreException(MemoryAPIException):
+    """Exception raised for storage-related errors."""
+    pass
+
+
+class MemoryRetrievalException(MemoryAPIException):
+    """Exception raised for retrieval-related errors."""
+    pass
+
+
+class MemoryMaintenanceException(MemoryAPIException):
+    """Exception raised for maintenance-related errors."""
+    pass
+
+
+class MemoryConfigException(MemoryAPIException):
+    """Exception raised for configuration-related errors."""
+    pass
+
+
 class AgentMemoryAPI:
     """Interface for storing and retrieving agent states in the hierarchical memory system.
 
@@ -92,10 +117,31 @@ class AgentMemoryAPI:
 
         Returns:
             True if storage was successful
+
+        Raises:
+            MemoryStoreException: If there is an error during storage operation
         """
-        return self.memory_system.store_agent_state(
-            agent_id, state_data, step_number, priority
-        )
+        try:
+            # Validate input parameters
+            if not agent_id:
+                raise MemoryStoreException("Agent ID cannot be empty")
+            if not isinstance(state_data, dict):
+                raise MemoryStoreException(f"State data must be a dictionary, got {type(state_data)}")
+            if not isinstance(step_number, int) or step_number < 0:
+                raise MemoryStoreException(f"Step number must be a non-negative integer, got {step_number}")
+            if not isinstance(priority, (int, float)) or priority < 0.0 or priority > 1.0:
+                raise MemoryStoreException(f"Priority must be a float between 0.0 and 1.0, got {priority}")
+                
+            return self.memory_system.store_agent_state(
+                agent_id, state_data, step_number, priority
+            )
+        except MemoryStoreException:
+            # Re-raise custom exceptions as they're already properly formatted
+            raise
+        except Exception as e:
+            logger.error(f"Failed to store agent state for agent {agent_id}: {e}")
+            # Convert to custom exception with context for caller
+            raise MemoryStoreException(f"Unexpected error storing agent state: {str(e)}")
 
     def store_agent_interaction(
         self,
@@ -114,10 +160,31 @@ class AgentMemoryAPI:
 
         Returns:
             True if storage was successful
+            
+        Raises:
+            MemoryStoreException: If there is an error during storage operation
         """
-        return self.memory_system.store_agent_interaction(
-            agent_id, interaction_data, step_number, priority
-        )
+        try:
+            # Validate input parameters
+            if not agent_id:
+                raise MemoryStoreException("Agent ID cannot be empty")
+            if not isinstance(interaction_data, dict):
+                raise MemoryStoreException(f"Interaction data must be a dictionary, got {type(interaction_data)}")
+            if not isinstance(step_number, int) or step_number < 0:
+                raise MemoryStoreException(f"Step number must be a non-negative integer, got {step_number}")
+            if not isinstance(priority, (int, float)) or priority < 0.0 or priority > 1.0:
+                raise MemoryStoreException(f"Priority must be a float between 0.0 and 1.0, got {priority}")
+                
+            return self.memory_system.store_agent_interaction(
+                agent_id, interaction_data, step_number, priority
+            )
+        except MemoryStoreException:
+            # Re-raise custom exceptions as they're already properly formatted
+            raise
+        except Exception as e:
+            logger.error(f"Failed to store agent interaction for agent {agent_id}: {e}")
+            # Convert to custom exception with context for caller
+            raise MemoryStoreException(f"Unexpected error storing agent interaction: {str(e)}")
 
     def store_agent_action(
         self,
@@ -136,10 +203,31 @@ class AgentMemoryAPI:
 
         Returns:
             True if storage was successful
+            
+        Raises:
+            MemoryStoreException: If there is an error during storage operation
         """
-        return self.memory_system.store_agent_action(
-            agent_id, action_data, step_number, priority
-        )
+        try:
+            # Validate input parameters
+            if not agent_id:
+                raise MemoryStoreException("Agent ID cannot be empty")
+            if not isinstance(action_data, dict):
+                raise MemoryStoreException(f"Action data must be a dictionary, got {type(action_data)}")
+            if not isinstance(step_number, int) or step_number < 0:
+                raise MemoryStoreException(f"Step number must be a non-negative integer, got {step_number}")
+            if not isinstance(priority, (int, float)) or priority < 0.0 or priority > 1.0:
+                raise MemoryStoreException(f"Priority must be a float between 0.0 and 1.0, got {priority}")
+                
+            return self.memory_system.store_agent_action(
+                agent_id, action_data, step_number, priority
+            )
+        except MemoryStoreException:
+            # Re-raise custom exceptions as they're already properly formatted
+            raise
+        except Exception as e:
+            logger.error(f"Failed to store agent action for agent {agent_id}: {e}")
+            # Convert to custom exception with context for caller
+            raise MemoryStoreException(f"Unexpected error storing agent action: {str(e)}")
 
     def retrieve_state_by_id(
         self, agent_id: str, memory_id: str
@@ -195,47 +283,73 @@ class AgentMemoryAPI:
 
         Returns:
             List of memory entries sorted by similarity to query state
+            
+        Raises:
+            MemoryRetrievalException: If there is an error during retrieval
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
-
-        if not memory_agent.embedding_engine:
-            logger.warning(
-                "Vector similarity search requires embedding engine to be enabled"
-            )
-            return []
-
-        # Generate embedding for query state
-        query_embedding = memory_agent.embedding_engine.encode_stm(query_state)
-        
-        def query_function(store, limit, mem_type):
-            # Determine which tier this store represents
-            if store == memory_agent.stm_store:
-                tier = "stm"
-            elif store == memory_agent.im_store:
-                tier = "im"
-            else:  # ltm_store
-                tier = "ltm"
+        try:
+            # Validate input parameters
+            if not agent_id:
+                raise MemoryRetrievalException("Agent ID cannot be empty")
+            if not isinstance(query_state, dict):
+                raise MemoryRetrievalException(f"Query state must be a dictionary, got {type(query_state)}")
+            if not isinstance(k, int) or k <= 0:
+                raise MemoryRetrievalException(f"k must be a positive integer, got {k}")
                 
-            # Convert embedding to appropriate dimensions for this tier
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+
+            if not memory_agent.embedding_engine:
+                error_msg = "Vector similarity search requires embedding engine to be enabled"
+                logger.warning(error_msg)
+                raise MemoryRetrievalException(error_msg)
+
+            # Generate embedding for query state
             try:
-                tier_embedding = memory_agent.embedding_engine.ensure_embedding_dimensions(
-                    query_embedding, tier
-                )
+                query_embedding = memory_agent.embedding_engine.encode_stm(query_state)
             except Exception as e:
-                logger.warning(f"Error converting embedding to {tier} format: {e}")
-                # If conversion fails, use original embedding which may not work properly
-                tier_embedding = query_embedding
-                
-            return store.search_by_vector(tier_embedding, k=limit, memory_type=mem_type)
-        
-        return self._aggregate_results(
-            memory_agent,
-            query_function,
-            k=k,
-            memory_type=memory_type,
-            sort_key=lambda x: x.get("_similarity_score", 0),
-            reverse=True
-        )
+                logger.error(f"Failed to generate embedding for query state: {e}")
+                raise MemoryRetrievalException(f"Failed to encode query state: {str(e)}")
+            
+            def query_function(store, limit, mem_type):
+                # Determine which tier this store represents
+                if store == memory_agent.stm_store:
+                    tier = "stm"
+                elif store == memory_agent.im_store:
+                    tier = "im"
+                else:  # ltm_store
+                    tier = "ltm"
+                    
+                # Convert embedding to appropriate dimensions for this tier
+                try:
+                    tier_embedding = memory_agent.embedding_engine.ensure_embedding_dimensions(
+                        query_embedding, tier
+                    )
+                except Exception as e:
+                    logger.warning(f"Error converting embedding to {tier} format: {e}")
+                    # If conversion fails, use original embedding which may not work properly
+                    tier_embedding = query_embedding
+                    
+                try:
+                    return store.search_by_vector(tier_embedding, k=limit, memory_type=mem_type)
+                except Exception as e:
+                    logger.error(f"Error searching the {tier} store: {e}")
+                    # Return empty list on store search failure
+                    return []
+            
+            return self._aggregate_results(
+                memory_agent,
+                query_function,
+                k=k,
+                memory_type=memory_type,
+                sort_key=lambda x: x.get("_similarity_score", 0),
+                reverse=True
+            )
+        except MemoryRetrievalException:
+            # Re-raise custom exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error retrieving similar states for agent {agent_id}: {e}")
+            raise MemoryRetrievalException(f"Failed to retrieve similar states: {str(e)}")
 
     def retrieve_by_time_range(
         self,
@@ -428,19 +542,58 @@ class AgentMemoryAPI:
 
         Returns:
             True if maintenance was successful
+            
+        Raises:
+            MemoryMaintenanceException: If there is an error during maintenance
         """
-        if agent_id:
-            # Maintain single agent
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
-            return memory_agent._perform_maintenance()
-        else:
-            # Maintain all agents
-            success = True
-            for agent_id, memory_agent in self.memory_system.agents.items():
-                if not memory_agent._perform_maintenance():
-                    logger.error(f"Maintenance failed for agent {agent_id}")
-                    success = False
-            return success
+        try:
+            if agent_id:
+                # Validate agent ID
+                if not isinstance(agent_id, str):
+                    raise MemoryMaintenanceException(f"Agent ID must be a string, got {type(agent_id)}")
+                    
+                # Maintain single agent
+                try:
+                    memory_agent = self.memory_system.get_memory_agent(agent_id)
+                except Exception as e:
+                    logger.error(f"Failed to get memory agent for agent {agent_id}: {e}")
+                    raise MemoryMaintenanceException(f"Agent {agent_id} not found or error accessing memory agent: {str(e)}")
+                    
+                try:
+                    result = memory_agent._perform_maintenance()
+                    if not result:
+                        logger.error(f"Maintenance failed for agent {agent_id}")
+                        raise MemoryMaintenanceException(f"Maintenance failed for agent {agent_id}")
+                    return result
+                except Exception as e:
+                    logger.error(f"Error during maintenance for agent {agent_id}: {e}")
+                    raise MemoryMaintenanceException(f"Error during maintenance for agent {agent_id}: {str(e)}")
+            else:
+                # Maintain all agents
+                success = True
+                failed_agents = []
+                
+                for current_agent_id, memory_agent in self.memory_system.agents.items():
+                    try:
+                        if not memory_agent._perform_maintenance():
+                            logger.error(f"Maintenance failed for agent {current_agent_id}")
+                            success = False
+                            failed_agents.append(current_agent_id)
+                    except Exception as e:
+                        logger.error(f"Error during maintenance for agent {current_agent_id}: {e}")
+                        success = False
+                        failed_agents.append(current_agent_id)
+                
+                if not success:
+                    raise MemoryMaintenanceException(f"Maintenance failed for agents: {', '.join(failed_agents)}")
+                
+                return success
+        except MemoryMaintenanceException:
+            # Re-raise custom exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during memory maintenance: {e}")
+            raise MemoryMaintenanceException(f"Unexpected error during memory maintenance: {str(e)}")
 
     def clear_agent_memory(
         self, agent_id: str, memory_tiers: Optional[List[str]] = None
@@ -454,32 +607,87 @@ class AgentMemoryAPI:
 
         Returns:
             True if clearing was successful
+            
+        Raises:
+            MemoryMaintenanceException: If there is an error during memory clearing
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        try:
+            # Validate input parameters
+            if not agent_id:
+                raise MemoryMaintenanceException("Agent ID cannot be empty")
+            if memory_tiers is not None and not isinstance(memory_tiers, list):
+                raise MemoryMaintenanceException(f"Memory tiers must be a list or None, got {type(memory_tiers)}")
+            if memory_tiers is not None:
+                valid_tiers = ["stm", "im", "ltm"]
+                invalid_tiers = [t for t in memory_tiers if t not in valid_tiers]
+                if invalid_tiers:
+                    raise MemoryMaintenanceException(f"Invalid memory tiers: {invalid_tiers}. Valid tiers are: {valid_tiers}")
+            
+            # Get memory agent - this could raise if agent_id doesn't exist
+            try:
+                memory_agent = self.memory_system.get_memory_agent(agent_id)
+            except Exception as e:
+                logger.error(f"Failed to get memory agent for agent {agent_id}: {e}")
+                raise MemoryMaintenanceException(f"Agent {agent_id} not found or error accessing memory agent: {str(e)}")
 
-        if not memory_tiers:
-            # Clear all tiers
-            return memory_agent.clear_memory()
+            if not memory_tiers:
+                # Clear all tiers
+                try:
+                    result = memory_agent.clear_memory()
+                    if not result:
+                        logger.error(f"Failed to clear memory for agent {agent_id}")
+                    return result
+                except Exception as e:
+                    logger.error(f"Error clearing memory for agent {agent_id}: {e}")
+                    raise MemoryMaintenanceException(f"Error clearing memory for agent {agent_id}: {str(e)}")
 
-        success = True
+            success = True
+            failed_tiers = []
 
-        # Clear specified tiers
-        if "stm" in memory_tiers:
-            if not memory_agent.stm_store.clear():
-                logger.error(f"Failed to clear STM for agent {agent_id}")
-                success = False
+            # Clear specified tiers
+            if "stm" in memory_tiers:
+                try:
+                    if not memory_agent.stm_store.clear():
+                        logger.error(f"Failed to clear STM for agent {agent_id}")
+                        success = False
+                        failed_tiers.append("stm")
+                except Exception as e:
+                    logger.error(f"Error clearing STM for agent {agent_id}: {e}")
+                    success = False
+                    failed_tiers.append("stm")
 
-        if "im" in memory_tiers:
-            if not memory_agent.im_store.clear():
-                logger.error(f"Failed to clear IM for agent {agent_id}")
-                success = False
+            if "im" in memory_tiers:
+                try:
+                    if not memory_agent.im_store.clear():
+                        logger.error(f"Failed to clear IM for agent {agent_id}")
+                        success = False
+                        failed_tiers.append("im")
+                except Exception as e:
+                    logger.error(f"Error clearing IM for agent {agent_id}: {e}")
+                    success = False
+                    failed_tiers.append("im")
 
-        if "ltm" in memory_tiers:
-            if not memory_agent.ltm_store.clear():
-                logger.error(f"Failed to clear LTM for agent {agent_id}")
-                success = False
+            if "ltm" in memory_tiers:
+                try:
+                    if not memory_agent.ltm_store.clear():
+                        logger.error(f"Failed to clear LTM for agent {agent_id}")
+                        success = False
+                        failed_tiers.append("ltm")
+                except Exception as e:
+                    logger.error(f"Error clearing LTM for agent {agent_id}: {e}")
+                    success = False
+                    failed_tiers.append("ltm")
 
-        return success
+            if not success:
+                raise MemoryMaintenanceException(f"Failed to clear memory tiers: {', '.join(failed_tiers)}")
+                
+            return success
+        except MemoryMaintenanceException:
+            # Re-raise custom exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error clearing memory for agent {agent_id}: {e}")
+            raise MemoryMaintenanceException(f"Unexpected error clearing memory: {str(e)}")
 
     def set_importance_score(
         self, agent_id: str, memory_id: str, importance_score: float
@@ -552,35 +760,61 @@ class AgentMemoryAPI:
 
         Returns:
             True if configuration was updated successfully
+            
+        Raises:
+            MemoryConfigException: If there is an error during configuration update
         """
         # Update configuration
         try:
+            if not isinstance(config, dict):
+                raise MemoryConfigException(f"Configuration must be a dictionary, got {type(config)}")
+                
+            # Track unknown parameters
+            unknown_params = []
+            
             for key, value in config.items():
                 if hasattr(self.memory_system.config, key):
-                    setattr(self.memory_system.config, key, value)
+                    try:
+                        setattr(self.memory_system.config, key, value)
+                    except Exception as e:
+                        logger.error(f"Failed to set configuration parameter '{key}': {e}")
+                        raise MemoryConfigException(f"Invalid value for configuration parameter '{key}': {str(e)}")
                 else:
+                    unknown_params.append(key)
                     logger.warning(f"Unknown configuration parameter: {key}")
+            
+            # Warn about unknown parameters but don't fail
+            if unknown_params:
+                logger.warning(f"Ignored unknown configuration parameters: {', '.join(unknown_params)}")
 
             # Apply configuration to existing memory agents
             for agent_id, memory_agent in self.memory_system.agents.items():
-                memory_agent.config = self.memory_system.config
+                try:
+                    # Update agent config
+                    memory_agent.config = self.memory_system.config
 
-                # Update store configurations
-                memory_agent.stm_store.config = self.memory_system.config.stm_config
-                memory_agent.im_store.config = self.memory_system.config.im_config
-                memory_agent.ltm_store.config = self.memory_system.config.ltm_config
+                    # Update store configurations
+                    memory_agent.stm_store.config = self.memory_system.config.stm_config
+                    memory_agent.im_store.config = self.memory_system.config.im_config
+                    memory_agent.ltm_store.config = self.memory_system.config.ltm_config
 
-                # Update embedding engine if needed
-                if memory_agent.embedding_engine:
-                    memory_agent.embedding_engine.configure(
-                        self.memory_system.config.autoencoder_config
-                    )
+                    # Update embedding engine if needed
+                    if memory_agent.embedding_engine:
+                        memory_agent.embedding_engine.configure(
+                            self.memory_system.config.autoencoder_config
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to update configuration for agent {agent_id}: {e}")
+                    raise MemoryConfigException(f"Failed to update configuration for agent {agent_id}: {str(e)}")
 
             return True
 
+        except MemoryConfigException:
+            # Re-raise custom exceptions
+            raise
         except Exception as e:
             logger.error(f"Failed to update configuration: {e}")
-            return False
+            raise MemoryConfigException(f"Unexpected error updating configuration: {str(e)}")
 
     def get_attribute_change_history(
         self,

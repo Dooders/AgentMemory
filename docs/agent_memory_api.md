@@ -244,6 +244,76 @@ sequenceDiagram
 
 Memory retrieval employs a parallel search strategy across all tiers. When an agent requests memories, the Query Engine simultaneously searches Short-Term Memory for recent details, Intermediate Memory for relevant medium-term information, and Long-Term Memory for historical context. Results are ranked and merged based on relevance. If detailed information is needed from compressed long-term memories, they're decompressed and restored to Intermediate Memory. When an agent focuses on a specific memory, its retrieval count increases, potentially promoting frequently accessed memories to more accessible tiers.
 
+## Error Handling and Exception Management
+
+The Agent Memory API provides robust error handling through a hierarchy of specialized exceptions. These allow client code to implement specific recovery strategies based on the type and context of failures.
+
+### Exception Hierarchy
+
+```mermaid
+graph TD
+    BaseEx[MemoryAPIException] --> StoreEx[MemoryStoreException]
+    BaseEx --> RetrievalEx[MemoryRetrievalException]
+    BaseEx --> MaintenanceEx[MemoryMaintenanceException]
+    BaseEx --> ConfigEx[MemoryConfigException]
+```
+
+- `MemoryAPIException`: Base class for all memory API-related exceptions
+- `MemoryStoreException`: Raised for storage operation failures (e.g., failed Redis writes)
+- `MemoryRetrievalException`: Raised when memory retrieval operations fail
+- `MemoryMaintenanceException`: Raised when memory maintenance operations fail
+- `MemoryConfigException`: Raised for configuration-related errors
+
+### Error Recovery Strategies
+
+API methods implement several error recovery approaches:
+
+1. **Validation First**: Input parameters are validated before performing operations
+2. **Graceful Degradation**: When a specific memory tier fails, the API attempts to return results from available tiers
+3. **Detailed Logging**: Errors are logged with contextual information for debugging
+4. **Exception Context**: Exception messages include details about what failed and why
+
+### Example Error Handling
+
+```python
+from agent_memory.api.memory_api import AgentMemoryAPI, MemoryStoreException, MemoryRetrievalException
+
+memory_api = AgentMemoryAPI()
+
+try:
+    # Attempt to store a state
+    memory_api.store_agent_state(
+        agent_id="agent-123",
+        state_data={"position": [10, 20], "health": 0.8},
+        step_number=42
+    )
+except MemoryStoreException as e:
+    # Handle storage failure (e.g., retry or log)
+    print(f"Storage failed: {e}")
+    # Implement recovery strategy...
+
+try:
+    # Attempt to retrieve similar states
+    similar_states = memory_api.retrieve_similar_states(
+        agent_id="agent-123",
+        query_state={"position": [12, 22]}
+    )
+except MemoryRetrievalException as e:
+    # Handle retrieval failure (e.g., fallback to non-vector search)
+    print(f"Retrieval failed: {e}")
+    # Implement fallback strategy...
+```
+
+### Recoverable vs. Fatal Errors
+
+The API distinguishes between different types of errors to help client code make appropriate decisions:
+
+- **Recoverable Errors**: Input validation failures, partial tier unavailability
+- **Potentially Recoverable**: Configuration issues, temporary connection failures
+- **Fatal Errors**: Database corruption, persistent connection failures, internal logic errors
+
+Client code should implement appropriate retry and fallback mechanisms based on the exception type and context.
+
 ## API Reference
 
 ### Core Storage Methods
@@ -322,20 +392,6 @@ Each tier has different characteristics:
 | LTM  | SQLite  | Low        | Entire history    | Medium       |
 
 The API automatically queries the appropriate tiers based on the requested information and combines results when needed.
-
-## Error Handling
-
-The API includes robust error handling to ensure operation continuity even when components fail:
-
-- Redis connection errors are caught and logged
-- Invalid parameter types or values are validated
-- Error information includes context for debugging
-
-Error recovery behaviors include:
-
-- Falling back to available tiers when one tier is unavailable
-- Returning partial results when complete results can't be obtained
-- Providing meaningful error information in logs
 
 ## Performance Considerations
 
