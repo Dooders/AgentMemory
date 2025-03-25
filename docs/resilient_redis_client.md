@@ -81,10 +81,24 @@ Memory access follows a consistent pattern designed for performance and reliabil
 - **Recovery Queue**: Enqueues failed operations for later retry based on priority
 - **Priority-Based Operation Handling**: Different handling for critical vs. normal operations
 - **Comprehensive Redis Method Coverage**: Full set of Redis operations with error handling
+- **Decorator-Based Error Handling**: Consistent error handling across all operations using decorators
+- **Configurable Exponential Backoff**: Flexible configuration of retry attempts and delays
 
 ## **5. Class Structure**
 
-### **5.1 ResilientRedisClient**
+### **5.1 Helper Functions**
+
+```python
+def resilient_operation(operation_name: str):
+    """Decorator to wrap Redis operations with circuit breaker pattern."""
+    # ...
+
+def exponential_backoff(attempt: int, base_delay: float = 0.5, max_delay: float = 30.0) -> float:
+    """Calculate delay for exponential backoff strategy."""
+    # ...
+```
+
+### **5.2 ResilientRedisClient**
 
 ```python
 class ResilientRedisClient:
@@ -99,7 +113,10 @@ class ResilientRedisClient:
         socket_connect_timeout: float = 2.0,
         retry_policy: Optional[RetryPolicy] = None,
         circuit_threshold: int = 3,
-        circuit_reset_timeout: int = 300
+        circuit_reset_timeout: int = 300,
+        critical_retry_attempts: int = 3,
+        retry_base_delay: float = 0.5,
+        retry_max_delay: float = 30.0,
     ):
         # ...
 ```
@@ -108,34 +125,35 @@ class ResilientRedisClient:
 
 ### **6.1 Core Redis Operations**
 
-All basic Redis operations are wrapped with circuit breaker pattern:
+All basic Redis operations are wrapped with the `@resilient_operation` decorator for consistent error handling:
 
-| Method | Purpose | Redis Command |
-|--------|---------|---------------|
-| `ping()` | Check connection | PING |
-| `get(key)` | Get value | GET |
-| `set(key, value, ...)` | Set value | SET |
-| `delete(*keys)` | Delete keys | DEL |
-| `exists(*keys)` | Check key existence | EXISTS |
-| `expire(key, time)` | Set key expiry | EXPIRE |
-| `hset(name, key, value)` | Set hash field | HSET |
-| `hget(name, key)` | Get hash field | HGET |
-| `hgetall(name)` | Get all hash fields | HGETALL |
-| `hmset(name, mapping)` | Set multiple hash fields | HSET (mapping) |
-| `hdel(name, *keys)` | Delete hash fields | HDEL |
-| `zadd(name, mapping, ...)` | Add to sorted set | ZADD |
-| `zrange(name, start, end, ...)` | Get range from sorted set | ZRANGE |
-| `zrangebyscore(name, min, max, ...)` | Get score range from sorted set | ZRANGEBYSCORE |
-| `zrem(name, *values)` | Remove from sorted set | ZREM |
-| `zcard(name)` | Count sorted set members | ZCARD |
+| Method                               | Purpose                         | Redis Command  |
+| ------------------------------------ | ------------------------------- | -------------- |
+| `ping()`                             | Check connection                | PING           |
+| `get(key)`                           | Get value                       | GET            |
+| `set(key, value, ...)`               | Set value                       | SET            |
+| `delete(*keys)`                      | Delete keys                     | DEL            |
+| `exists(*keys)`                      | Check key existence             | EXISTS         |
+| `expire(key, time)`                  | Set key expiry                  | EXPIRE         |
+| `hset(name, key, value)`             | Set hash field                  | HSET           |
+| `hget(name, key)`                    | Get hash field                  | HGET           |
+| `hgetall(name)`                      | Get all hash fields             | HGETALL        |
+| `hmset(name, mapping)`               | Set multiple hash fields        | HSET (mapping) |
+| `hdel(name, *keys)`                  | Delete hash fields              | HDEL           |
+| `zadd(name, mapping, ...)`           | Add to sorted set               | ZADD           |
+| `zrange(name, start, end, ...)`      | Get range from sorted set       | ZRANGE         |
+| `zrangebyscore(name, min, max, ...)` | Get score range from sorted set | ZRANGEBYSCORE  |
+| `zrem(name, *values)`                | Remove from sorted set          | ZREM           |
+| `zcard(name)`                        | Count sorted set members        | ZCARD          |
+| `scan_iter(match, count)`            | Scan keys matching pattern      | SCAN           |
 
 ### **6.2 Error Handling Methods**
 
-| Method | Purpose |
-|--------|---------|
-| `_execute_with_circuit_breaker(operation_name, operation)` | Wrap operation with circuit breaker |
-| `_create_redis_client()` | Create Redis client with error handling |
-| `store_with_retry(agent_id, state_data, store_func, priority)` | Store with priority-based retry |
+| Method                                                                                                | Purpose                                  |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `_execute_with_circuit_breaker(operation_name, operation)`                                            | Wrap operation with circuit breaker      |
+| `_create_redis_client()`                                                                              | Create Redis client with error handling  |
+| `store_with_retry(agent_id, state_data, store_func, priority, retry_attempts, base_delay, max_delay)` | Store with configurable retry parameters |
 
 ## **7. Error Handling Strategy**
 
@@ -147,23 +165,51 @@ The client uses a circuit breaker to prevent repeated failed attempts to Redis:
 2. **Open State**: After `circuit_threshold` failures, requests are blocked
 3. **Half-Open State**: After `circuit_reset_timeout` seconds, a test request is allowed
 
-### **7.2 Priority-Based Handling**
+### **7.2 Decorator-Based Protection**
+
+The `@resilient_operation` decorator wraps all Redis operations with circuit breaker protection:
+
+```python
+@resilient_operation("get")
+def get(self, key: str) -> Optional[str]:
+    """Get value from Redis."""
+    return self.client.get(key)
+```
+
+This provides consistent error handling across all operations without code duplication.
+
+### **7.3 Priority-Based Handling**
 
 Operations are handled differently based on priority:
 
-| Priority | Handling on Failure |
-|----------|---------------------|
-| **CRITICAL** | Immediate retry with exponential backoff (3 attempts) |
-| **HIGH/NORMAL** | Enqueue for background retry |
-| **LOW** | Log and continue |
+| Priority        | Handling on Failure                                   |
+| --------------- | ----------------------------------------------------- |
+| **CRITICAL**    | Immediate retry with configurable exponential backoff |
+| **HIGH/NORMAL** | Enqueue for background retry                          |
+| **LOW**         | Log and continue                                      |
 
-### **7.3 Error Categories**
+### **7.4 Exponential Backoff**
 
-| Error | Description | Handling |
-|-------|-------------|----------|
+The `exponential_backoff` function calculates delays between retry attempts:
+
+```python
+def exponential_backoff(attempt: int, base_delay: float = 0.5, max_delay: float = 30.0) -> float:
+    """Calculate delay for exponential backoff strategy."""
+    delay = base_delay * (2**attempt)
+    return min(delay, max_delay)
+```
+
+- `attempt`: Current attempt number (0-based)
+- `base_delay`: Starting delay in seconds
+- `max_delay`: Maximum delay cap in seconds
+
+### **7.5 Error Categories**
+
+| Error                   | Description         | Handling               |
+| ----------------------- | ------------------- | ---------------------- |
 | `RedisUnavailableError` | Connection failures | Circuit breaker, retry |
-| `RedisTimeoutError` | Operation timeouts | Circuit breaker, retry |
-| Other exceptions | Various errors | Logged and propagated |
+| `RedisTimeoutError`     | Operation timeouts  | Circuit breaker, retry |
+| Other exceptions        | Various errors      | Logged and propagated  |
 
 ## **8. Integration with Memory System**
 
@@ -188,7 +234,7 @@ The client facilitates these memory operations:
 ### **9.1 Basic Redis Operations**
 
 ```python
-# Create client
+# Create client with default retry settings
 client = ResilientRedisClient(
     client_name="agent_stm",
     host="redis.example.com",
@@ -206,7 +252,7 @@ client.hset("agent:123:state", "position", "10,20")
 state = client.hgetall("agent:123:state")
 ```
 
-### **9.2 Priority-Based Storage**
+### **9.2 Priority-Based Storage with Retry Configuration**
 
 ```python
 def store_agent_state(agent_id, state_data):
@@ -219,12 +265,34 @@ def store_agent_state(agent_id, state_data):
         logger.error(f"Failed to store state: {e}")
         return False
 
-# Store with priority
+# Store with priority and custom retry parameters
 client.store_with_retry(
     agent_id="agent123",
     state_data={"position": "10,20", "health": "100"},
     store_func=store_agent_state,
-    priority=Priority.CRITICAL
+    priority=Priority.CRITICAL,
+    retry_attempts=5,        # Override default attempts
+    base_delay=0.2,          # Start with shorter delays
+    max_delay=10.0           # Cap maximum delay
+)
+```
+
+### **9.3 Custom Client Configuration**
+
+```python
+# Create client with custom retry/backoff settings
+client = ResilientRedisClient(
+    client_name="critical_operations",
+    host="redis.example.com",
+    port=6379,
+    db=0,
+    # Circuit breaker settings
+    circuit_threshold=5,
+    circuit_reset_timeout=60,
+    # Retry settings
+    critical_retry_attempts=5,
+    retry_base_delay=0.1,
+    retry_max_delay=15.0
 )
 ```
 
@@ -232,29 +300,37 @@ client.store_with_retry(
 
 ### **10.1 Connection Parameters**
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `host` | Redis host | "localhost" |
-| `port` | Redis port | 6379 |
-| `db` | Redis database number | 0 |
-| `password` | Redis password | None |
-| `socket_timeout` | Timeout for operations | 2.0 seconds |
-| `socket_connect_timeout` | Connection timeout | 2.0 seconds |
+| Parameter                | Description            | Default     |
+| ------------------------ | ---------------------- | ----------- |
+| `host`                   | Redis host             | "localhost" |
+| `port`                   | Redis port             | 6379        |
+| `db`                     | Redis database number  | 0           |
+| `password`               | Redis password         | None        |
+| `socket_timeout`         | Timeout for operations | 2.0 seconds |
+| `socket_connect_timeout` | Connection timeout     | 2.0 seconds |
 
 ### **10.2 Circuit Breaker Settings**
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `circuit_threshold` | Failures before circuit opens | 3 |
-| `circuit_reset_timeout` | Seconds before circuit reset | 300 |
+| Parameter               | Description                   | Default |
+| ----------------------- | ----------------------------- | ------- |
+| `circuit_threshold`     | Failures before circuit opens | 3       |
+| `circuit_reset_timeout` | Seconds before circuit reset  | 300     |
 
 ### **10.3 Retry Policy**
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `max_retries` | Maximum retry attempts | 3 |
-| `base_delay` | Base delay between retries | 1.0 second |
-| `backoff_factor` | Multiplier for backoff | 2.0 |
+| Parameter        | Description                | Default    |
+| ---------------- | -------------------------- | ---------- |
+| `max_retries`    | Maximum retry attempts     | 3          |
+| `base_delay`     | Base delay between retries | 1.0 second |
+| `backoff_factor` | Multiplier for backoff     | 2.0        |
+
+### **10.4 Exponential Backoff Settings**
+
+| Parameter                 | Description                            | Default      |
+| ------------------------- | -------------------------------------- | ------------ |
+| `critical_retry_attempts` | Retry attempts for critical operations | 3            |
+| `retry_base_delay`        | Base delay for exponential backoff     | 0.5 seconds  |
+| `retry_max_delay`         | Maximum delay cap                      | 30.0 seconds |
 
 ## **11. Future Enhancements**
 
@@ -266,17 +342,20 @@ client.store_with_retry(
 4. **Lua Script Support**: Add support for Lua script execution with error handling
 5. **Caching Layer**: Add local caching for frequently accessed items
 6. **Tier Fallback Mechanism**: Implement automatic fallback between memory tiers
+7. **Enhanced Retry Strategies**: Support for more retry strategies beyond exponential backoff
+8. **Custom Retry Logic**: Allow custom retry logic for specific operations
 
 ### **11.2 Implementation Roadmap**
 
-| Feature | Priority | Complexity | Status |
-|---------|----------|------------|--------|
-| Health Monitoring | High | Medium | Planned |
-| Metrics Collection | Medium | Low | Planned |
-| Redis Cluster Support | Medium | High | Backlog |
-| Lua Script Support | Low | Medium | Backlog |
-| Local Caching | Medium | Medium | Backlog |
-| Tier Fallback | High | High | Planned |
+| Feature                   | Priority | Complexity | Status  |
+| ------------------------- | -------- | ---------- | ------- |
+| Health Monitoring         | High     | Medium     | Planned |
+| Metrics Collection        | Medium   | Low        | Planned |
+| Redis Cluster Support     | Medium   | High       | Backlog |
+| Lua Script Support        | Low      | Medium     | Backlog |
+| Local Caching             | Medium   | Medium     | Backlog |
+| Tier Fallback             | High     | High       | Planned |
+| Enhanced Retry Strategies | Medium   | Medium     | Planned |
 
 ## **12. Additional Resources**
 

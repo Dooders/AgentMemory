@@ -27,6 +27,44 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
+def resilient_operation(operation_name: str):
+    """Decorator to wrap Redis operations with circuit breaker pattern.
+
+    Args:
+        operation_name: Name of the operation for logging
+
+    Returns:
+        Decorator function that wraps methods with circuit breaker
+    """
+
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        def wrapper(self, *args, **kwargs) -> T:
+            return self._execute_with_circuit_breaker(
+                operation_name, lambda: func(self, *args, **kwargs)
+            )
+
+        return wrapper
+
+    return decorator
+
+
+def exponential_backoff(
+    attempt: int, base_delay: float = 0.5, max_delay: float = 30.0
+) -> float:
+    """Calculate delay for exponential backoff strategy.
+
+    Args:
+        attempt: The current attempt number (0-based)
+        base_delay: Base delay in seconds
+        max_delay: Maximum delay in seconds
+
+    Returns:
+        Delay in seconds for the current attempt
+    """
+    delay = base_delay * (2**attempt)
+    return min(delay, max_delay)
+
+
 class ResilientRedisClient:
     """Redis client with circuit breaker and retry functionality.
 
@@ -41,6 +79,9 @@ class ResilientRedisClient:
         circuit_breaker: Circuit breaker for Redis operations
         recovery_queue: Queue for retrying failed operations
         retry_policy: Policy for automatic retries
+        critical_retry_attempts: Number of immediate retries for critical operations
+        retry_base_delay: Base delay for exponential backoff (seconds)
+        retry_max_delay: Maximum delay for exponential backoff (seconds)
     """
 
     def __init__(
@@ -55,6 +96,9 @@ class ResilientRedisClient:
         retry_policy: Optional[RetryPolicy] = None,
         circuit_threshold: int = 3,
         circuit_reset_timeout: int = 300,
+        critical_retry_attempts: int = 3,
+        retry_base_delay: float = 0.5,
+        retry_max_delay: float = 30.0,
     ):
         """Initialize the Redis client.
 
@@ -69,6 +113,9 @@ class ResilientRedisClient:
             retry_policy: Policy for automatic retries
             circuit_threshold: Failures before circuit breaker opens
             circuit_reset_timeout: Seconds before circuit breaker resets
+            critical_retry_attempts: Number of immediate retries for critical operations
+            retry_base_delay: Base delay for exponential backoff (seconds)
+            retry_max_delay: Maximum delay for exponential backoff (seconds)
         """
         self.client_name = client_name
         self.connection_params = {
@@ -97,12 +144,13 @@ class ResilientRedisClient:
         # Create recovery queue
         self.recovery_queue = RecoveryQueue(retry_policy=self.retry_policy)
 
+        # Configure retry settings
+        self.critical_retry_attempts = critical_retry_attempts
+        self.retry_base_delay = retry_base_delay
+        self.retry_max_delay = retry_max_delay
+
         logger.info(
-            "Initialized Redis client %s (host=%s, port=%d, db=%d)",
-            client_name,
-            host,
-            port,
-            db,
+            f"Initialized Redis client {client_name} (host={host}, port={port}, db={db})"
         )
 
     def _create_redis_client(self) -> redis.Redis:
@@ -115,8 +163,10 @@ class ResilientRedisClient:
             client = redis.Redis(**self.connection_params)
             return client
         except Exception as e:
-            logger.error("Failed to create Redis client: %s", str(e))
-            raise RedisUnavailableError(f"Failed to create Redis client: {str(e)}")
+            logger.exception("Failed to create Redis client")
+            raise RedisUnavailableError(
+                f"Failed to create Redis client: {str(e)}"
+            ) from e
 
     def _execute_with_circuit_breaker(
         self, operation_name: str, operation: Callable[[], T]
@@ -138,22 +188,23 @@ class ResilientRedisClient:
             return self.circuit_breaker.execute(operation)
         except Exception as e:
             if isinstance(e, redis.exceptions.ConnectionError):
-                logger.error("Redis connection error in %s: %s", operation_name, str(e))
-                raise RedisUnavailableError(f"Redis unavailable: {str(e)}")
+                logger.exception(f"Redis connection error in {operation_name}")
+                raise RedisUnavailableError(f"Redis unavailable: {str(e)}") from e
             elif isinstance(e, redis.exceptions.TimeoutError):
-                logger.error("Redis timeout in %s: %s", operation_name, str(e))
-                raise RedisTimeoutError(f"Redis operation timed out: {str(e)}")
+                logger.exception(f"Redis timeout in {operation_name}")
+                raise RedisTimeoutError(f"Redis operation timed out: {str(e)}") from e
             else:
-                logger.error("Redis error in %s: %s", operation_name, str(e))
+                logger.exception(f"Redis error in {operation_name}")
                 raise e
 
+    @resilient_operation("ping")
     def ping(self) -> bool:
         """Ping Redis server to check connection.
 
         Returns:
             True if successful, raises exception otherwise
         """
-        return self._execute_with_circuit_breaker("ping", lambda: self.client.ping())
+        return self.client.ping()
 
     def get_latency(self) -> float:
         """Measure Redis server latency.
@@ -169,6 +220,7 @@ class ResilientRedisClient:
         except Exception:
             return -1  # Return -1 to indicate an error
 
+    @resilient_operation("get")
     def get(self, key: str) -> Optional[str]:
         """Get value from Redis.
 
@@ -178,8 +230,9 @@ class ResilientRedisClient:
         Returns:
             Value or None if not found
         """
-        return self._execute_with_circuit_breaker("get", lambda: self.client.get(key))
+        return self.client.get(key)
 
+    @resilient_operation("set")
     def set(
         self,
         key: str,
@@ -202,10 +255,9 @@ class ResilientRedisClient:
         Returns:
             True if successful
         """
-        return self._execute_with_circuit_breaker(
-            "set", lambda: self.client.set(key, value, ex=ex, px=px, nx=nx, xx=xx)
-        )
+        return self.client.set(key, value, ex=ex, px=px, nx=nx, xx=xx)
 
+    @resilient_operation("delete")
     def delete(self, *keys: str) -> int:
         """Delete keys from Redis.
 
@@ -215,10 +267,9 @@ class ResilientRedisClient:
         Returns:
             Number of keys deleted
         """
-        return self._execute_with_circuit_breaker(
-            "delete", lambda: self.client.delete(*keys)
-        )
+        return self.client.delete(*keys)
 
+    @resilient_operation("exists")
     def exists(self, *keys: str) -> int:
         """Check if keys exist in Redis.
 
@@ -228,10 +279,9 @@ class ResilientRedisClient:
         Returns:
             Number of keys that exist
         """
-        return self._execute_with_circuit_breaker(
-            "exists", lambda: self.client.exists(*keys)
-        )
+        return self.client.exists(*keys)
 
+    @resilient_operation("expire")
     def expire(self, key: str, time: int) -> bool:
         """Set expiry on key.
 
@@ -242,10 +292,9 @@ class ResilientRedisClient:
         Returns:
             True if successful
         """
-        return self._execute_with_circuit_breaker(
-            "expire", lambda: self.client.expire(key, time)
-        )
+        return self.client.expire(key, time)
 
+    @resilient_operation("hset")
     def hset(self, name: str, key: str, value: str) -> int:
         """Set field in hash.
 
@@ -257,10 +306,9 @@ class ResilientRedisClient:
         Returns:
             1 if new field, 0 if field existed
         """
-        return self._execute_with_circuit_breaker(
-            "hset", lambda: self.client.hset(name, key, value)
-        )
+        return self.client.hset(name, key, value)
 
+    @resilient_operation("hget")
     def hget(self, name: str, key: str) -> Optional[str]:
         """Get field from hash.
 
@@ -271,10 +319,9 @@ class ResilientRedisClient:
         Returns:
             Field value or None if not found
         """
-        return self._execute_with_circuit_breaker(
-            "hget", lambda: self.client.hget(name, key)
-        )
+        return self.client.hget(name, key)
 
+    @resilient_operation("hgetall")
     def hgetall(self, name: str) -> Dict[str, str]:
         """Get all fields from hash.
 
@@ -284,10 +331,9 @@ class ResilientRedisClient:
         Returns:
             Dictionary of field names to values
         """
-        return self._execute_with_circuit_breaker(
-            "hgetall", lambda: self.client.hgetall(name)
-        )
+        return self.client.hgetall(name)
 
+    @resilient_operation("hmset")
     def hmset(self, name: str, mapping: Dict[str, str]) -> bool:
         """Set multiple fields in hash.
 
@@ -298,10 +344,9 @@ class ResilientRedisClient:
         Returns:
             True if successful
         """
-        return self._execute_with_circuit_breaker(
-            "hmset", lambda: cast(bool, self.client.hset(name, mapping=mapping))
-        )
+        return cast(bool, self.client.hset(name, mapping=mapping))
 
+    @resilient_operation("hdel")
     def hdel(self, name: str, *keys: str) -> int:
         """Delete fields from hash.
 
@@ -312,10 +357,9 @@ class ResilientRedisClient:
         Returns:
             Number of fields deleted
         """
-        return self._execute_with_circuit_breaker(
-            "hdel", lambda: self.client.hdel(name, *keys)
-        )
+        return self.client.hdel(name, *keys)
 
+    @resilient_operation("zadd")
     def zadd(
         self,
         name: str,
@@ -338,11 +382,9 @@ class ResilientRedisClient:
         Returns:
             Number of elements added or updated
         """
-        return self._execute_with_circuit_breaker(
-            "zadd",
-            lambda: self.client.zadd(name, mapping, nx=nx, xx=xx, ch=ch, incr=incr),
-        )
+        return self.client.zadd(name, mapping, nx=nx, xx=xx, ch=ch, incr=incr)
 
+    @resilient_operation("zrange")
     def zrange(
         self,
         name: str,
@@ -365,18 +407,16 @@ class ResilientRedisClient:
         Returns:
             List of members or (member, score) tuples
         """
-        return self._execute_with_circuit_breaker(
-            "zrange",
-            lambda: self.client.zrange(
-                name,
-                start,
-                end,
-                desc=desc,
-                withscores=withscores,
-                score_cast_func=score_cast_func,
-            ),
+        return self.client.zrange(
+            name,
+            start,
+            end,
+            desc=desc,
+            withscores=withscores,
+            score_cast_func=score_cast_func,
         )
 
+    @resilient_operation("zrangebyscore")
     def zrangebyscore(
         self,
         name: str,
@@ -401,19 +441,17 @@ class ResilientRedisClient:
         Returns:
             List of members or (member, score) tuples
         """
-        return self._execute_with_circuit_breaker(
-            "zrangebyscore",
-            lambda: self.client.zrangebyscore(
-                name,
-                min,
-                max,
-                start=start,
-                num=num,
-                withscores=withscores,
-                score_cast_func=score_cast_func,
-            ),
+        return self.client.zrangebyscore(
+            name,
+            min,
+            max,
+            start=start,
+            num=num,
+            withscores=withscores,
+            score_cast_func=score_cast_func,
         )
 
+    @resilient_operation("zrem")
     def zrem(self, name: str, *values: str) -> int:
         """Remove members from sorted set.
 
@@ -424,10 +462,9 @@ class ResilientRedisClient:
         Returns:
             Number of members removed
         """
-        return self._execute_with_circuit_breaker(
-            "zrem", lambda: self.client.zrem(name, *values)
-        )
+        return self.client.zrem(name, *values)
 
+    @resilient_operation("zcard")
     def zcard(self, name: str) -> int:
         """Get the number of members in a sorted set.
 
@@ -441,10 +478,9 @@ class ResilientRedisClient:
             RedisTimeoutError: If operation times out
             RedisUnavailableError: If Redis is unavailable
         """
-        return self._execute_with_circuit_breaker(
-            "zcard", lambda: self.client.zcard(name)
-        )
+        return self.client.zcard(name)
 
+    @resilient_operation("scan_iter")
     def scan_iter(self, match: Optional[str] = None, count: int = 10) -> list:
         """Iterates over keys in the database matching the pattern.
 
@@ -459,19 +495,16 @@ class ResilientRedisClient:
             RedisTimeoutError: If operation times out
             RedisUnavailableError: If Redis is unavailable
         """
-        def _scan_iter():
-            # Manual implementation using scan instead of scan_iter
-            # as we need to handle the cursor ourselves
-            keys = []
-            cursor = 0
-            while True:
-                cursor, chunk = self.client.scan(cursor, match=match, count=count)
-                keys.extend(chunk)
-                if cursor == 0:
-                    break
-            return keys
-            
-        return self._execute_with_circuit_breaker("scan_iter", _scan_iter)
+        # Manual implementation using scan instead of scan_iter
+        # as we need to handle the cursor ourselves
+        keys = []
+        cursor = 0
+        while True:
+            cursor, chunk = self.client.scan(cursor, match=match, count=count)
+            keys.extend(chunk)
+            if cursor == 0:
+                break
+        return keys
 
     def store_with_retry(
         self,
@@ -479,6 +512,9 @@ class ResilientRedisClient:
         state_data: Dict[str, Any],
         store_func: Callable[[str, Dict[str, Any]], bool],
         priority: Priority = Priority.NORMAL,
+        retry_attempts: Optional[int] = None,
+        base_delay: Optional[float] = None,
+        max_delay: Optional[float] = None,
     ) -> bool:
         """Store data with automatic retry on failure.
 
@@ -490,6 +526,9 @@ class ResilientRedisClient:
             state_data: Data to store
             store_func: Function that performs the actual storage
             priority: Priority level for the operation
+            retry_attempts: Override default retry attempts for this operation
+            base_delay: Override default base delay for this operation
+            max_delay: Override default max delay for this operation
 
         Returns:
             True if the operation succeeded, False if enqueued for retry
@@ -501,29 +540,27 @@ class ResilientRedisClient:
             success = store_func(agent_id, state_data)
             return success
         except (RedisUnavailableError, RedisTimeoutError) as e:
-            logger.warning("Redis operation failed for agent %s: %s", agent_id, str(e))
+            logger.exception(f"Redis operation failed for agent {agent_id}")
 
             if priority == Priority.CRITICAL:
-                # For critical states, we need to retry immediately
-                # with exponential backoff, up to a reasonable limit
-                for attempt in range(3):  # Try 3 times for critical data
+                # For critical states, we need to retry immediately with exponential backoff
+                attempts = retry_attempts or self.critical_retry_attempts
+                base = base_delay or self.retry_base_delay
+                max_d = max_delay or self.retry_max_delay
+
+                for attempt in range(attempts):
                     try:
-                        delay = 0.5 * (2**attempt)  # 0.5, 1, 2 seconds
+                        delay = exponential_backoff(attempt, base, max_d)
                         logger.info(
-                            "Immediate retry %d for critical data after %.1f seconds",
-                            attempt + 1,
-                            delay,
+                            f"Immediate retry {attempt + 1} for critical data after {delay:.1f} seconds"
                         )
                         time.sleep(delay)
                         return store_func(agent_id, state_data)
                     except (RedisUnavailableError, RedisTimeoutError) as e:
-                        logger.warning(
-                            "Immediate retry %d failed: %s", attempt + 1, str(e)
-                        )
+                        logger.exception(f"Immediate retry {attempt + 1} failed")
 
                 logger.error(
-                    "Critical data store failed after immediate retries for agent %s",
-                    agent_id,
+                    f"Critical data store failed after {attempts} immediate retries for agent {agent_id}"
                 )
                 return False
             elif priority == Priority.HIGH or priority == Priority.NORMAL:
@@ -539,16 +576,12 @@ class ResilientRedisClient:
                     priority=4 - priority.value,  # Lower value = higher priority
                 )
                 logger.info(
-                    "Enqueued %s priority store operation for agent %s",
-                    priority.name,
-                    agent_id,
+                    f"Enqueued {priority.name} priority store operation for agent {agent_id}"
                 )
                 return False
             else:
                 # For low priority, just log and continue
                 logger.info(
-                    "Low priority store operation failed for agent %s: %s",
-                    agent_id,
-                    str(e),
+                    f"Low priority store operation failed for agent {agent_id}: {str(e)}"
                 )
                 return False
