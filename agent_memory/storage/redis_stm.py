@@ -162,17 +162,15 @@ class RedisSTMStore:
             Memory entry or None if not found
         """
         try:
+            # Construct the key using agent_id and memory_id
             key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
             data = self.redis.get(key)
-
+            
             if not data:
                 return None
-
+                
             memory_entry = json.loads(data)
-
-            # Update access time
             self._update_access_metadata(agent_id, memory_id, memory_entry)
-
             return memory_entry
 
         except (RedisUnavailableError, RedisTimeoutError) as e:
@@ -183,11 +181,13 @@ class RedisSTMStore:
                 str(e),
             )
             return None
-        except json.JSONDecodeError as e:
-            logger.error("JSON decoding error for memory %s: %s", memory_id, str(e))
-            return None
         except Exception as e:
-            logger.error("Unexpected error retrieving memory %s: %s", memory_id, str(e))
+            logger.error(
+                "Failed to retrieve memory %s for agent %s: %s", 
+                memory_id, 
+                agent_id, 
+                str(e)
+            )
             return None
 
     def _update_access_metadata(
@@ -451,12 +451,18 @@ class RedisSTMStore:
         try:
             ping_result = self.redis.ping()
             return {
-                "status": "ok" if ping_result else "degraded",
+                "status": "healthy" if ping_result else "degraded",
                 "message": "Redis connection successful" if ping_result else "Redis ping failed",
                 "latency_ms": self.redis.get_latency(),
+                "client": "redis-stm"
             }
-        except (RedisTimeoutError, RedisUnavailableError) as e:
-            return {"status": "error", "message": str(e)}
+        except (RedisTimeoutError, RedisUnavailableError, Exception) as e:
+            return {
+                "status": "unhealthy", 
+                "message": str(e),
+                "error": str(e),
+                "client": "redis-stm"
+            }
             
     def get_size(self, agent_id: str) -> int:
         """Get the approximate size in bytes of all memories for an agent.
@@ -510,7 +516,7 @@ class RedisSTMStore:
             # Get each memory
             results = []
             for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
+                memory = self.get(memory_id, agent_id)
                 if memory:
                     results.append(memory)
                     

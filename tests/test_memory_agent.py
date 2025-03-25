@@ -123,6 +123,7 @@ class TestMemoryAgentBasics:
         """Test memory agent initialization."""
         agent_id = "test-agent"
         config = MemoryConfig()
+        config.autoencoder_config.use_neural_embeddings = True
         config.ltm_config.db_path = "test_agent_memory.db"  # Set a valid db path
         
         with mock.patch("agent_memory.memory_agent.RedisSTMStore") as mock_stm, \

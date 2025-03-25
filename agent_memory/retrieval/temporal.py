@@ -45,6 +45,50 @@ class TemporalRetrieval:
         self.im_store = im_store
         self.ltm_store = ltm_store
 
+    def retrieve(
+        self, memories: List[Dict[str, Any]], query: Dict[str, Any], limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Retrieve memories matching temporal query criteria.
+
+        Args:
+            memories: List of memories to filter
+            query: Dictionary with query parameters:
+                - time_window: Number of seconds to look back (e.g., 3600 for last hour)
+                - before: Timestamp to filter memories before this time
+                - after: Timestamp to filter memories after this time
+                - step_number: Specific step number to retrieve
+            limit: Maximum number of results to return
+
+        Returns:
+            List of memories matching the criteria
+        """
+        # Start with all memories
+        results = memories.copy()
+
+        # Apply filters based on query parameters
+        if "time_window" in query:
+            current_time = int(time.time())
+            start_time = current_time - query["time_window"]
+            results = [m for m in results if m.get("timestamp", 0) >= start_time]
+
+        if "before" in query:
+            before_time = query["before"]
+            results = [m for m in results if m.get("timestamp", 0) < before_time]
+
+        if "after" in query:
+            after_time = query["after"]
+            results = [m for m in results if m.get("timestamp", 0) > after_time]
+
+        if "step_number" in query:
+            step = query["step_number"]
+            results = [m for m in results if m.get("step_number") == step]
+
+        # Sort by recency (newest first)
+        results.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+
+        # Limit results
+        return results[:limit]
+
     def retrieve_recent(
         self, count: int = 10, memory_type: Optional[str] = None, tier: str = "stm"
     ) -> List[Dict[str, Any]]:

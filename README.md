@@ -1,6 +1,6 @@
-# Agent Memory System
+# AgentMemory
 
-A hierarchical memory system for intelligent agents that provides efficient storage, retrieval, and compression of agent states and experiences across multiple memory tiers.
+AgentMemory is a hierarchical memory system for intelligent agents that provides efficient storage, retrieval, and compression of agent states and experiences across multiple memory tiers.
 
 ## Overview
 
@@ -178,6 +178,35 @@ similar_states = AgentMemorySystem.get_instance().retrieve_similar_states(
     k=10
 )
 ```
+
+## System Advantages
+
+The Agent Memory System offers several distinct advantages for intelligent agent implementations:
+
+### Performance-Oriented Architecture
+- Optimized database backends (Redis for fast access, SQLite for persistence)
+- Automatic data compression that balances resolution and storage requirements
+- Efficient retrieval mechanisms that scale with growing memory size
+
+### Biologically-Inspired Design
+- Memory organization that mimics human memory consolidation processes
+- Intelligent forgetting mechanisms to prevent information overload
+- Preservation of critical information through importance scoring
+
+### Technical Implementation
+- Unified API across all memory tiers for simplified development
+- Parameter-based transition logic with configurable thresholds
+- Dimensional reduction through neural techniques preserves semantic meaning
+
+### Practical Benefits
+- Reduced memory footprint through progressive compression
+- Improved recall performance for both recent and distant experiences
+- Seamless integration with existing agent frameworks
+
+### Development Advantages
+- Clean separation of memory concerns from agent logic
+- Extensive configuration options without code changes
+- Standardized components that can be extended or replaced
 
 ## Contributing
 

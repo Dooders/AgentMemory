@@ -155,6 +155,20 @@ class ResilientRedisClient:
         """
         return self._execute_with_circuit_breaker("ping", lambda: self.client.ping())
 
+    def get_latency(self) -> float:
+        """Measure Redis server latency.
+
+        Returns:
+            Latency in milliseconds
+        """
+        try:
+            start_time = time.time()
+            self.ping()
+            end_time = time.time()
+            return (end_time - start_time) * 1000  # Convert to milliseconds
+        except Exception:
+            return -1  # Return -1 to indicate an error
+
     def get(self, key: str) -> Optional[str]:
         """Get value from Redis.
 

@@ -154,18 +154,28 @@ class RedisIMStore:
         Returns:
             Memory entry if found, None otherwise
         """
-        key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
         try:
+            # Construct the key using agent_id and memory_id
+            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
             data = self.redis.get(key)
+            
             if not data:
                 return None
-
+                
             memory_entry = json.loads(data)
             self._update_access_metadata(agent_id, memory_id, memory_entry)
             return memory_entry
 
+        except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.warning(
+                "Failed to retrieve memory %s for agent %s: %s",
+                memory_id,
+                agent_id,
+                str(e),
+            )
+            return None
         except Exception as e:
-            logger.error("Failed to retrieve memory entry %s: %s", memory_id, str(e))
+            logger.error("Failed to retrieve memory entry %s for agent %s: %s", memory_id, agent_id, str(e))
             return None
 
     def get_by_timerange(
@@ -297,22 +307,50 @@ class RedisIMStore:
             agent_id: ID of the agent
 
         Returns:
-            True if clearing was successful
+            True if the operation succeeded, False otherwise
         """
         try:
             # Get all memory IDs
             agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
             memory_ids = self.redis.zrange(agent_memories_key, 0, -1)
 
-            # Delete each memory entry
+            # Delete each memory
             for memory_id in memory_ids:
                 self.delete(agent_id, memory_id)
 
-            return True
+            # Delete indexes
+            self.redis.delete(
+                f"{self._key_prefix}:{agent_id}:memories",
+                f"{self._key_prefix}:{agent_id}:timeline",
+                f"{self._key_prefix}:{agent_id}:importance",
+            )
 
+            return True
         except Exception as e:
-            logger.error("Failed to clear memories for agent %s: %s", agent_id, str(e))
+            logger.error("Error clearing memories for agent %s: %s", agent_id, str(e))
             return False
+
+    def check_health(self) -> Dict[str, Any]:
+        """Check the health of the Redis store.
+
+        Returns:
+            Dictionary containing health metrics
+        """
+        try:
+            ping_result = self.redis.ping()
+            return {
+                "status": "healthy" if ping_result else "degraded",
+                "message": "Redis connection successful" if ping_result else "Redis ping failed",
+                "latency_ms": self.redis.get_latency(),
+                "client": "redis-im"
+            }
+        except (RedisTimeoutError, RedisUnavailableError, Exception) as e:
+            return {
+                "status": "unhealthy", 
+                "message": str(e),
+                "error": str(e),
+                "client": "redis-im"
+            }
 
     def _update_access_metadata(
         self, agent_id: str, memory_id: str, memory_entry: Dict[str, Any]
@@ -410,7 +448,7 @@ class RedisIMStore:
             # Get each memory
             results = []
             for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
+                memory = self.get(memory_id, agent_id)
                 if memory:
                     results.append(memory)
                     

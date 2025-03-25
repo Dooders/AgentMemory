@@ -2,6 +2,8 @@
 
 import logging
 from typing import Any, Dict, List, Optional, Union
+import time
+import uuid
 
 from agent_memory.config import MemoryConfig
 from agent_memory.memory_agent import MemoryAgent
@@ -312,3 +314,70 @@ class AgentMemorySystem:
         # Reset agent dictionary
         self.agents = {}
         return success
+
+    def add_memory(self, memory_data: Dict[str, Any]) -> str:
+        """Add a memory entry to the system.
+        
+        Args:
+            memory_data: Dictionary containing memory data
+            
+        Returns:
+            memory_id of the added memory
+        """
+        # Generate memory_id if not provided
+        memory_id = memory_data.get("memory_id", f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}")
+        memory_data["memory_id"] = memory_id
+        
+        # Get agent_id from memory or use a default
+        agent_id = memory_data.get("agent_id", "default_agent")
+        
+        # Get or create memory agent
+        memory_agent = self.get_memory_agent(agent_id)
+        
+        # Store in STM
+        step_number = memory_data.get("step_number", 0)
+        priority = memory_data.get("metadata", {}).get("importance_score", 1.0)
+        memory_type = memory_data.get("type", "generic")
+        
+        # Choose appropriate method based on memory type
+        if memory_type == "state":
+            memory_agent.store_state(memory_data.get("content", {}), step_number, priority)
+        elif memory_type == "interaction":
+            memory_agent.store_interaction(memory_data.get("content", {}), step_number, priority)
+        elif memory_type == "action":
+            memory_agent.store_action(memory_data.get("content", {}), step_number, priority)
+        else:
+            # For generic types, use store_state as a fallback
+            memory_agent.store_state(memory_data.get("content", {}), step_number, priority)
+            
+        return memory_id
+        
+    def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a memory by its memory_id.
+        
+        Args:
+            memory_id: Unique identifier for the memory
+            
+        Returns:
+            Memory entry or None if not found
+        """
+        # Check in all agents
+        for agent_id, memory_agent in self.agents.items():
+            # Try STM first
+            memory = memory_agent.stm_store.get(agent_id, memory_id)
+            if memory:
+                return memory
+                
+            # Try IM next
+            memory = memory_agent.im_store.get(agent_id, memory_id)
+            if memory:
+                return memory
+                
+            # Try LTM last
+            memory = memory_agent.ltm_store.get(memory_id)
+            if memory:
+                return memory
+                
+        # Memory not found
+        logger.warning(f"Memory with ID {memory_id} not found in any agent's stores")
+        return None

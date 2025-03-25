@@ -6,7 +6,18 @@ import time
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
+from pydantic import ValidationError
+
+from agent_memory.api.types import (
+    MemoryChangeRecord,
+    MemoryEntry,
+    MemoryImportanceScore,
+    MemoryStatistics,
+    MemoryTier,
+    MemoryTypeFilter,
+)
 from agent_memory.config import MemoryConfig
+from agent_memory.config.models import MemoryConfigModel
 from agent_memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
@@ -293,7 +304,7 @@ class AgentMemoryAPI:
         agent_id: str,
         state_data: Dict[str, Any],
         step_number: int,
-        priority: float = 1.0,
+        priority: MemoryImportanceScore = 1.0,
     ) -> bool:
         """Store an agent's state in short-term memory.
 
@@ -348,7 +359,7 @@ class AgentMemoryAPI:
         agent_id: str,
         interaction_data: Dict[str, Any],
         step_number: int,
-        priority: float = 1.0,
+        priority: MemoryImportanceScore = 1.0,
     ) -> bool:
         """Store information about an agent's interaction with environment or other agents.
 
@@ -403,7 +414,7 @@ class AgentMemoryAPI:
         agent_id: str,
         action_data: Dict[str, Any],
         step_number: int,
-        priority: float = 1.0,
+        priority: MemoryImportanceScore = 1.0,
     ) -> bool:
         """Store information about an action taken by an agent.
 
@@ -455,7 +466,7 @@ class AgentMemoryAPI:
 
     def retrieve_state_by_id(
         self, agent_id: str, memory_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[MemoryEntry]:
         """Retrieve a specific memory by ID.
 
         Args:
@@ -475,8 +486,11 @@ class AgentMemoryAPI:
         return memory
 
     def retrieve_recent_states(
-        self, agent_id: str, count: int = 10, memory_type: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self,
+        agent_id: str,
+        count: int = 10,
+        memory_type: Optional[MemoryTypeFilter] = None,
+    ) -> List[MemoryEntry]:
         """Retrieve the most recent states for an agent.
 
         Args:
@@ -496,8 +510,8 @@ class AgentMemoryAPI:
         agent_id: str,
         query_state: Dict[str, Any],
         k: int = 5,
-        memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        memory_type: Optional[MemoryTypeFilter] = None,
+    ) -> List[MemoryEntry]:
         """Retrieve states similar to the query state.
 
         Args:
@@ -596,8 +610,8 @@ class AgentMemoryAPI:
         agent_id: str,
         start_step: int,
         end_step: int,
-        memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        memory_type: Optional[MemoryTypeFilter] = None,
+    ) -> List[MemoryEntry]:
         """Retrieve memories within a specific time/step range.
 
         Args:
@@ -627,8 +641,8 @@ class AgentMemoryAPI:
         self,
         agent_id: str,
         attributes: Dict[str, Any],
-        memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        memory_type: Optional[MemoryTypeFilter] = None,
+    ) -> List[MemoryEntry]:
         """Retrieve memories matching specific attribute values.
 
         Args:
@@ -657,8 +671,8 @@ class AgentMemoryAPI:
         agent_id: str,
         query_embedding: List[float],
         k: int = 5,
-        memory_tiers: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
+        memory_tiers: Optional[List[MemoryTier]] = None,
+    ) -> List[MemoryEntry]:
         """Find memories by raw embedding vector similarity.
 
         Args:
@@ -722,7 +736,7 @@ class AgentMemoryAPI:
     @cacheable(ttl=60)
     def search_by_content(
         self, agent_id: str, content_query: Union[str, Dict[str, Any]], k: int = 5
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories based on content text/attributes.
 
         Args:
@@ -748,7 +762,7 @@ class AgentMemoryAPI:
             memory_agent, query_function, k=k, merge_sorted=True
         )
 
-    def get_memory_statistics(self, agent_id: str) -> Dict[str, Any]:
+    def get_memory_statistics(self, agent_id: str) -> MemoryStatistics:
         """Get statistics about an agent's memory usage.
 
         Args:
@@ -857,7 +871,7 @@ class AgentMemoryAPI:
             )
 
     def clear_agent_memory(
-        self, agent_id: str, memory_tiers: Optional[List[str]] = None
+        self, agent_id: str, memory_tiers: Optional[List[MemoryTier]] = None
     ) -> bool:
         """Clear an agent's memory in specified tiers.
 
@@ -963,7 +977,7 @@ class AgentMemoryAPI:
             )
 
     def set_importance_score(
-        self, agent_id: str, memory_id: str, importance_score: float
+        self, agent_id: str, memory_id: str, importance_score: MemoryImportanceScore
     ) -> bool:
         """Update the importance score for a specific memory.
 
@@ -998,7 +1012,7 @@ class AgentMemoryAPI:
 
     def get_memory_snapshots(
         self, agent_id: str, steps: List[int]
-    ) -> Dict[int, Dict[str, Any]]:
+    ) -> Dict[int, Optional[MemoryEntry]]:
         """Get agent memory snapshots at specific steps.
 
         Args:
@@ -1037,36 +1051,88 @@ class AgentMemoryAPI:
         Raises:
             MemoryConfigException: If there is an error during configuration update
         """
-        # Update configuration
         try:
             if not isinstance(config, dict):
                 raise MemoryConfigException(
                     f"Configuration must be a dictionary, got {type(config)}"
                 )
 
-            # Track unknown parameters
-            unknown_params = []
+            # Convert the current configuration to a dict for Pydantic validation
+            current_config = {
+                "cleanup_interval": self.memory_system.config.cleanup_interval,
+                "memory_priority_decay": self.memory_system.config.memory_priority_decay,
+            }
+
+            # Add tier configurations
+            if hasattr(self.memory_system.config, "stm_config"):
+                stm_config = self.memory_system.config.stm_config
+                current_config["stm_config"] = {
+                    attr: getattr(stm_config, attr)
+                    for attr in ["host", "port", "memory_limit", "ttl"]
+                    if hasattr(stm_config, attr)
+                }
+
+            if hasattr(self.memory_system.config, "im_config"):
+                im_config = self.memory_system.config.im_config
+                current_config["im_config"] = {
+                    attr: getattr(im_config, attr)
+                    for attr in ["host", "port", "memory_limit", "ttl"]
+                    if hasattr(im_config, attr)
+                }
+
+            if hasattr(self.memory_system.config, "ltm_config"):
+                ltm_config = self.memory_system.config.ltm_config
+                current_config["ltm_config"] = {
+                    attr: getattr(ltm_config, attr)
+                    for attr in ["db_path"]
+                    if hasattr(ltm_config, attr)
+                }
+
+            if hasattr(self.memory_system.config, "autoencoder_config"):
+                ac_config = self.memory_system.config.autoencoder_config
+                current_config["autoencoder_config"] = {
+                    attr: getattr(ac_config, attr)
+                    for attr in ["stm_dim", "im_dim", "ltm_dim"]
+                    if hasattr(ac_config, attr)
+                }
+
+            # Handle nested configuration updates (e.g., 'stm_config.memory_limit')
+            processed_config = current_config.copy()
+            flat_updates = {}
+            nested_updates = {}
 
             for key, value in config.items():
-                if hasattr(self.memory_system.config, key):
-                    try:
-                        setattr(self.memory_system.config, key, value)
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to set configuration parameter '{key}': {e}"
-                        )
-                        raise MemoryConfigException(
-                            f"Invalid value for configuration parameter '{key}': {str(e)}"
-                        )
+                if "." in key:
+                    # Nested configuration like 'stm_config.memory_limit'
+                    main_key, sub_key = key.split(".", 1)
+                    if main_key not in nested_updates:
+                        nested_updates[main_key] = {}
+                    nested_updates[main_key][sub_key] = value
                 else:
-                    unknown_params.append(key)
-                    logger.warning(f"Unknown configuration parameter: {key}")
+                    # Top-level configuration
+                    flat_updates[key] = value
 
-            # Warn about unknown parameters but don't fail
-            if unknown_params:
-                logger.warning(
-                    f"Ignored unknown configuration parameters: {', '.join(unknown_params)}"
-                )
+            # Apply nested updates
+            for main_key, sub_dict in nested_updates.items():
+                if main_key in processed_config and isinstance(
+                    processed_config[main_key], dict
+                ):
+                    processed_config[main_key].update(sub_dict)
+                else:
+                    processed_config[main_key] = sub_dict
+
+            # Apply flat updates
+            processed_config.update(flat_updates)
+
+            # Validate with Pydantic
+            try:
+                validated_model = MemoryConfigModel(**processed_config)
+            except ValidationError as e:
+                logger.error(f"Configuration validation failed: {e}")
+                raise MemoryConfigException(f"Invalid configuration: {str(e)}")
+
+            # Apply the validated configuration to the actual config object
+            validated_model.to_config_object(self.memory_system.config)
 
             # Apply configuration to existing memory agents
             for agent_id, memory_agent in self.memory_system.agents.items():
@@ -1109,7 +1175,7 @@ class AgentMemoryAPI:
         attribute_name: str,
         start_step: Optional[int] = None,
         end_step: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryChangeRecord]:
         """Get history of changes for a specific attribute.
 
         Args:

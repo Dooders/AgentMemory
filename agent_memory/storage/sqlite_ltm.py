@@ -478,11 +478,12 @@ class SQLiteLTMStore:
             logger.error("Unexpected error storing batch of memories: %s", str(e))
             return False
 
-    def get(self, memory_id: str) -> Optional[Dict[str, Any]]:
+    def get(self, memory_id: str, agent_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Retrieve a memory entry by its ID.
 
         Args:
             memory_id: ID of the memory to retrieve
+            agent_id: Optional agent ID to search for (defaults to self.agent_id)
 
         Returns:
             Memory entry or None if not found
@@ -490,22 +491,27 @@ class SQLiteLTMStore:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-
-                # Get the memory entry
+                
+                # Use provided agent_id or the default one
+                search_agent_id = agent_id if agent_id is not None else self.agent_id
+                
+                # Get the memory entry with the specified agent_id
                 cursor.execute(
                     f"""
                 SELECT * FROM {self.memory_table}
                 WHERE memory_id = ? AND agent_id = ?
                 """,
-                    (memory_id, self.agent_id),
+                    (memory_id, search_agent_id),
                 )
 
                 row = cursor.fetchone()
+                
                 if not row:
                     return None
 
                 # Convert row to dict
                 memory_data = dict(row)
+                actual_agent_id = memory_data["agent_id"]
 
                 # Parse JSON fields
                 content = json.loads(memory_data["content_json"])
@@ -514,7 +520,7 @@ class SQLiteLTMStore:
                 # Construct memory entry
                 memory_entry = {
                     "memory_id": memory_data["memory_id"],
-                    "agent_id": memory_data["agent_id"],
+                    "agent_id": actual_agent_id,
                     "step_number": memory_data["step_number"],
                     "timestamp": memory_data["timestamp"],
                     "type": memory_data["memory_type"],
@@ -528,7 +534,7 @@ class SQLiteLTMStore:
                 SELECT vector_blob, vector_dim FROM {self.embeddings_table}
                 WHERE memory_id = ? AND agent_id = ?
                 """,
-                    (memory_id, self.agent_id),
+                    (memory_id, actual_agent_id),
                 )
 
                 vector_row = cursor.fetchone()
