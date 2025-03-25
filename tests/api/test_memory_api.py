@@ -153,8 +153,10 @@ class TestAgentMemoryAPI:
         # Setup mocks
         mock_instance.get_memory_agent.return_value = mock_memory_agent
         mock_memory_agent.embedding_engine.encode_stm.return_value = [0.1, 0.2, 0.3]
-        mock_memory_agent.embedding_engine.encode_im.return_value = [0.1, 0.2]
-        mock_memory_agent.embedding_engine.encode_ltm.return_value = [0.1]
+        
+        # Mock the new ensure_embedding_dimensions to return the same embedding
+        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.return_value = [0.1, 0.2, 0.3]
+        
         mock_memory_agent.stm_store.search_by_vector.return_value = expected_results
         mock_memory_agent.im_store.search_by_vector.return_value = []
         mock_memory_agent.ltm_store.search_by_vector.return_value = []
@@ -165,6 +167,11 @@ class TestAgentMemoryAPI:
         
         mock_instance.get_memory_agent.assert_called_once_with("agent1")
         mock_memory_agent.embedding_engine.encode_stm.assert_called_once_with(query_state)
+        
+        # Verify the conversion is called for each store
+        assert mock_memory_agent.embedding_engine.ensure_embedding_dimensions.call_count == 3
+        
+        # Verify search_by_vector is called with the converted embedding
         mock_memory_agent.stm_store.search_by_vector.assert_called_once_with(
             [0.1, 0.2, 0.3], k=5, memory_type=None
         )
@@ -241,6 +248,12 @@ class TestAgentMemoryAPI:
         # Setup mocks
         mock_instance.get_memory_agent.return_value = mock_memory_agent
         
+        # Mock the embedding engine existence 
+        mock_memory_agent.embedding_engine = Mock()
+        
+        # Mock the ensure_embedding_dimensions to return the same embedding
+        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.return_value = query_embedding
+        
         # Setup embedding engine with correct configuration
         mock_config = MagicMock()
         mock_config.autoencoder_config.im_dim = 4  # Match query_embedding length
@@ -258,6 +271,12 @@ class TestAgentMemoryAPI:
         assert result == expected
         
         mock_instance.get_memory_agent.assert_called_once_with("agent1")
+        
+        # Verify ensure_embedding_dimensions is called for each tier
+        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.assert_any_call(query_embedding, "stm")
+        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.assert_any_call(query_embedding, "im")
+        
+        # Verify search_by_vector is called with the converted embedding
         mock_memory_agent.stm_store.search_by_vector.assert_called_once_with(query_embedding, k=5)
         mock_memory_agent.im_store.search_by_vector.assert_called_once_with(query_embedding, k=4)
 

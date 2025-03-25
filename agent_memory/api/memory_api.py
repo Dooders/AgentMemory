@@ -1,12 +1,14 @@
 """API interface for the agent memory system."""
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Callable, TypeVar
 
 from agent_memory.config import MemoryConfig
 from agent_memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar('T')
 
 
 class AgentMemoryAPI:
@@ -24,6 +26,54 @@ class AgentMemoryAPI:
             config: Configuration for the memory system
         """
         self.memory_system = AgentMemorySystem.get_instance(config)
+        
+    def _aggregate_results(
+        self,
+        memory_agent,
+        query_fn: Callable,
+        k: int = None,
+        memory_type: Optional[str] = None,
+        sort_key: Optional[Callable] = None,
+        reverse: bool = False
+    ) -> List[Dict[str, Any]]:
+        """Aggregate results across memory tiers using the provided query function.
+        
+        Args:
+            memory_agent: The memory agent to query
+            query_fn: Function that takes (store, k, memory_type) and returns results
+            k: Maximum number of results to return
+            memory_type: Optional filter for specific memory types
+            sort_key: Optional function for sorting results
+            reverse: Whether to reverse sort order (default: False)
+            
+        Returns:
+            List of aggregated results, optionally sorted
+        """
+        results = []
+        
+        # If k is None, we're not limiting results
+        remaining = float('inf') if k is None else k
+        
+        for store in [memory_agent.stm_store, memory_agent.im_store, memory_agent.ltm_store]:
+            if remaining <= 0:
+                break
+                
+            store_limit = None if k is None else remaining
+            partial_results = query_fn(store, store_limit, memory_type)
+            results.extend(partial_results)
+            
+            if k is not None:
+                remaining = k - len(results)
+        
+        # Sort results if a sort key was provided
+        if sort_key and results:
+            results.sort(key=sort_key, reverse=reverse)
+            
+            # Limit to k results if specified
+            if k is not None:
+                results = results[:k]
+                
+        return results
 
     def store_agent_state(
         self,
@@ -156,35 +206,35 @@ class AgentMemoryAPI:
 
         # Generate embedding for query state
         query_embedding = memory_agent.embedding_engine.encode_stm(query_state)
-
-        # Search in STM first (most detailed matches)
-        results = memory_agent.stm_store.search_by_vector(
-            query_embedding, k=k, memory_type=memory_type
-        )
-
-        # If we didn't get enough results, try IM
-        if len(results) < k:
-            # Get IM-level embedding
-            query_embedding_im = memory_agent.embedding_engine.encode_im(query_state)
-
-            im_results = memory_agent.im_store.search_by_vector(
-                query_embedding_im, k=k - len(results), memory_type=memory_type
-            )
-            results.extend(im_results)
-
-        # If we still don't have enough, try LTM
-        if len(results) < k:
-            # Get LTM-level embedding
-            query_embedding_ltm = memory_agent.embedding_engine.encode_ltm(query_state)
-
-            ltm_results = memory_agent.ltm_store.search_by_vector(
-                query_embedding_ltm, k=k - len(results), memory_type=memory_type
-            )
-            results.extend(ltm_results)
-
-        # Sort by similarity score
-        return sorted(
-            results, key=lambda x: x.get("_similarity_score", 0), reverse=True
+        
+        def query_function(store, limit, mem_type):
+            # Determine which tier this store represents
+            if store == memory_agent.stm_store:
+                tier = "stm"
+            elif store == memory_agent.im_store:
+                tier = "im"
+            else:  # ltm_store
+                tier = "ltm"
+                
+            # Convert embedding to appropriate dimensions for this tier
+            try:
+                tier_embedding = memory_agent.embedding_engine.ensure_embedding_dimensions(
+                    query_embedding, tier
+                )
+            except Exception as e:
+                logger.warning(f"Error converting embedding to {tier} format: {e}")
+                # If conversion fails, use original embedding which may not work properly
+                tier_embedding = query_embedding
+                
+            return store.search_by_vector(tier_embedding, k=limit, memory_type=mem_type)
+        
+        return self._aggregate_results(
+            memory_agent,
+            query_function,
+            k=k,
+            memory_type=memory_type,
+            sort_key=lambda x: x.get("_similarity_score", 0),
+            reverse=True
         )
 
     def retrieve_by_time_range(
@@ -207,22 +257,15 @@ class AgentMemoryAPI:
         """
         memory_agent = self.memory_system.get_memory_agent(agent_id)
 
-        # Search in each tier and combine results
-        stm_results = memory_agent.stm_store.get_by_step_range(
-            start_step, end_step, memory_type
+        def query_function(store, _, mem_type):
+            return store.get_by_step_range(start_step, end_step, mem_type)
+        
+        return self._aggregate_results(
+            memory_agent,
+            query_function,
+            memory_type=memory_type,
+            sort_key=lambda x: x.get("step_number", 0)
         )
-
-        im_results = memory_agent.im_store.get_by_step_range(
-            start_step, end_step, memory_type
-        )
-
-        ltm_results = memory_agent.ltm_store.get_by_step_range(
-            start_step, end_step, memory_type
-        )
-
-        # Combine and sort by step number
-        all_results = stm_results + im_results + ltm_results
-        return sorted(all_results, key=lambda x: x.get("step_number", 0))
 
     def retrieve_by_attributes(
         self,
@@ -242,16 +285,16 @@ class AgentMemoryAPI:
         """
         memory_agent = self.memory_system.get_memory_agent(agent_id)
 
-        # Search in each tier and combine results
-        stm_results = memory_agent.stm_store.get_by_attributes(attributes, memory_type)
-
-        im_results = memory_agent.im_store.get_by_attributes(attributes, memory_type)
-
-        ltm_results = memory_agent.ltm_store.get_by_attributes(attributes, memory_type)
-
-        # Combine and sort by recency (step number)
-        all_results = stm_results + im_results + ltm_results
-        return sorted(all_results, key=lambda x: x.get("step_number", 0), reverse=True)
+        def query_function(store, _, mem_type):
+            return store.get_by_attributes(attributes, mem_type)
+        
+        return self._aggregate_results(
+            memory_agent,
+            query_function,
+            memory_type=memory_type,
+            sort_key=lambda x: x.get("step_number", 0),
+            reverse=True
+        )
 
     def search_by_embedding(
         self,
@@ -277,46 +320,41 @@ class AgentMemoryAPI:
         tiers = memory_tiers or ["stm", "im", "ltm"]
         results = []
 
-        # Search in each tier
-        if "stm" in tiers:
-            stm_results = memory_agent.stm_store.search_by_vector(query_embedding, k=k)
-            results.extend(stm_results)
-
-        if "im" in tiers and len(results) < k:
-            # Adjust query embedding dimensions if needed for IM tier
-            if (
-                memory_agent.embedding_engine
-                and len(query_embedding)
-                != memory_agent.config.autoencoder_config.im_dim
-            ):
-                # This assumes the query embedding is STM-sized
-                # Could add dimension checking and appropriate compression
-                logger.warning(
-                    "Query embedding dimensions don't match IM tier, skipping IM search"
-                )
-            else:
-                im_results = memory_agent.im_store.search_by_vector(
-                    query_embedding, k=k - len(results)
-                )
-                results.extend(im_results)
-
-        if "ltm" in tiers and len(results) < k:
-            # Adjust query embedding dimensions if needed for LTM tier
-            if (
-                memory_agent.embedding_engine
-                and len(query_embedding)
-                != memory_agent.config.autoencoder_config.ltm_dim
-            ):
-                # This assumes the query embedding is STM-sized
-                # Could add dimension checking and appropriate compression
-                logger.warning(
-                    "Query embedding dimensions don't match LTM tier, skipping LTM search"
-                )
-            else:
-                ltm_results = memory_agent.ltm_store.search_by_vector(
-                    query_embedding, k=k - len(results)
-                )
-                results.extend(ltm_results)
+        tier_stores = {
+            "stm": memory_agent.stm_store,
+            "im": memory_agent.im_store,
+            "ltm": memory_agent.ltm_store
+        }
+        
+        # Check if embedding engine is available for conversion
+        has_embedding_engine = memory_agent.embedding_engine is not None
+        
+        for tier in tiers:
+            if len(results) >= k:
+                break
+                
+            store = tier_stores.get(tier)
+            if not store:
+                continue
+                
+            # Ensure embedding has the right dimensions for this tier
+            tier_embedding = query_embedding
+            
+            if has_embedding_engine:
+                try:
+                    # Automatically convert the embedding to the target tier format
+                    tier_embedding = memory_agent.embedding_engine.ensure_embedding_dimensions(
+                        query_embedding, tier
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Error converting embedding for {tier.upper()} tier: {str(e)}. "
+                        f"Using original embedding with potential dimension mismatch."
+                    )
+            
+            # Search with the properly dimensioned embedding
+            tier_results = store.search_by_vector(tier_embedding, k=k-len(results))
+            results.extend(tier_results)
 
         # Sort by similarity score
         return sorted(
@@ -344,22 +382,14 @@ class AgentMemoryAPI:
         else:
             query_dict = content_query
 
-        # Search in each tier
-        stm_results = memory_agent.stm_store.search_by_content(query_dict, k=k)
-
-        if len(stm_results) < k:
-            im_results = memory_agent.im_store.search_by_content(
-                query_dict, k=k - len(stm_results)
-            )
-            stm_results.extend(im_results)
-
-        if len(stm_results) < k:
-            ltm_results = memory_agent.ltm_store.search_by_content(
-                query_dict, k=k - len(stm_results)
-            )
-            stm_results.extend(ltm_results)
-
-        return stm_results[:k]
+        def query_function(store, limit, _):
+            return store.search_by_content(query_dict, k=limit)
+        
+        return self._aggregate_results(
+            memory_agent,
+            query_function,
+            k=k
+        )
 
     def get_memory_statistics(self, agent_id: str) -> Dict[str, Any]:
         """Get statistics about an agent's memory usage.
