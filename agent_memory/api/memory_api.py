@@ -4,17 +4,20 @@ import heapq
 import logging
 import time
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union, overload
 
 from pydantic import ValidationError
 
 from agent_memory.api.types import (
+    ConfigUpdate,
     MemoryChangeRecord,
     MemoryEntry,
     MemoryImportanceScore,
     MemoryStatistics,
     MemoryTier,
     MemoryTypeFilter,
+    QueryResult,
+    SimilaritySearchResult,
 )
 from agent_memory.config import MemoryConfig
 from agent_memory.config.models import MemoryConfigModel
@@ -511,7 +514,7 @@ class AgentMemoryAPI:
         query_state: Dict[str, Any],
         k: int = 5,
         memory_type: Optional[MemoryTypeFilter] = None,
-    ) -> List[MemoryEntry]:
+    ) -> List[SimilaritySearchResult]:
         """Retrieve states similar to the query state.
 
         Args:
@@ -604,6 +607,20 @@ class AgentMemoryAPI:
             raise MemoryRetrievalException(
                 f"Failed to retrieve similar states: {str(e)}"
             )
+
+    @overload
+    def retrieve_by_time_range(
+        self, agent_id: str, start_step: int, end_step: int, memory_type: None = None
+    ) -> List[MemoryEntry]: ...
+
+    @overload
+    def retrieve_by_time_range(
+        self,
+        agent_id: str,
+        start_step: int,
+        end_step: int,
+        memory_type: MemoryTypeFilter,
+    ) -> List[MemoryEntry]: ...
 
     def retrieve_by_time_range(
         self,
@@ -736,7 +753,7 @@ class AgentMemoryAPI:
     @cacheable(ttl=60)
     def search_by_content(
         self, agent_id: str, content_query: Union[str, Dict[str, Any]], k: int = 5
-    ) -> List[MemoryEntry]:
+    ) -> List[QueryResult]:
         """Search for memories based on content text/attributes.
 
         Args:
@@ -1039,7 +1056,7 @@ class AgentMemoryAPI:
 
         return result
 
-    def configure_memory_system(self, config: Dict[str, Any]) -> bool:
+    def configure_memory_system(self, config: ConfigUpdate) -> bool:
         """Update configuration parameters for the memory system.
 
         Args:
@@ -1058,7 +1075,7 @@ class AgentMemoryAPI:
                 )
 
             # Convert the current configuration to a dict for Pydantic validation
-            current_config = {
+            current_config: Dict[str, Any] = {
                 "cleanup_interval": self.memory_system.config.cleanup_interval,
                 "memory_priority_decay": self.memory_system.config.memory_priority_decay,
             }
@@ -1098,8 +1115,8 @@ class AgentMemoryAPI:
 
             # Handle nested configuration updates (e.g., 'stm_config.memory_limit')
             processed_config = current_config.copy()
-            flat_updates = {}
-            nested_updates = {}
+            flat_updates: Dict[str, Any] = {}
+            nested_updates: Dict[str, Dict[str, Any]] = {}
 
             for key, value in config.items():
                 if "." in key:
@@ -1128,8 +1145,15 @@ class AgentMemoryAPI:
             try:
                 validated_model = MemoryConfigModel(**processed_config)
             except ValidationError as e:
-                logger.error(f"Configuration validation failed: {e}")
-                raise MemoryConfigException(f"Invalid configuration: {str(e)}")
+                error_details = []
+                for error in e.errors():
+                    loc = ".".join(str(l) for l in error["loc"])
+                    msg = error["msg"]
+                    error_details.append(f"{loc}: {msg}")
+
+                error_msg = f"Invalid configuration: {', '.join(error_details)}"
+                logger.error(error_msg)
+                raise MemoryConfigException(error_msg)
 
             # Apply the validated configuration to the actual config object
             validated_model.to_config_object(self.memory_system.config)
