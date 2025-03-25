@@ -174,6 +174,12 @@ class TestMemoryHooks:
             ({"val": 100}, {"val": 101}, (0.0, 0.1)),  # Small relative change
             ({}, {}, (0.4, 0.6)),  # Empty states
             ({"val": 0}, {"val": 0}, (0.0, 0.1)),  # No change
+            ({"val": -1}, {"val": 1}, (1.0, 1.0)),  # Sign change
+            ({"val": 0.1}, {"val": 0.2}, (0.0, 0.2)),  # Small relative change with decimals
+            ({"val": 1000}, {"val": 2000}, (0.9, 1.0)),  # Large absolute change
+            ({"a": 1, "b": 2}, {"a": 2, "b": 3}, (0.7, 0.8)),  # Multiple values
+            ({"a": 1}, {"b": 1}, (0.4, 0.6)),  # Different keys
+            ({"val": "string"}, {"val": "string"}, (0.4, 0.6)),  # Non-numeric values
         ],
     )
     def test_state_difference_scenarios(
@@ -184,3 +190,80 @@ class TestMemoryHooks:
         diff = decorated_agent._calculate_state_difference(state_before, state_after)
 
         assert expected_range[0] <= diff <= expected_range[1]
+
+    @pytest.mark.parametrize(
+        "state,expected_importance_range",
+        [
+            ({"health": 1.0, "reward": 0.0}, (0.5, 1.0)),  # Default case
+            ({"health": 0.1, "reward": 0.0}, (0.8, 1.0)),  # Low health
+            ({"health": 1.0, "reward": 10.0}, (0.8, 1.0)),  # High reward
+            ({"health": 0.1, "reward": 10.0}, (0.8, 1.0)),  # Both low health and high reward
+            ({"health": 0.5, "reward": 5.0}, (0.8, 1.0)),  # Moderate changes
+            ({"health": 0.8, "reward": -5.0}, (0.8, 1.0)),  # Negative reward
+            ({}, (0.5, 1.0)),  # Empty state
+        ],
+    )
+    def test_importance_calculation_scenarios(
+        self, test_agent, mock_memory_system, state, expected_importance_range
+    ):
+        """Test importance score calculation for different state scenarios."""
+        decorated_agent = install_memory_hooks(TestAgent)(test_agent.config)
+        test_agent.get_state = lambda: state
+        decorated_agent.get_state()
+
+        last_call = mock_memory_system.store_agent_state.call_args
+        assert expected_importance_range[0] <= last_call[1]["priority"] <= expected_importance_range[1]
+
+    def test_with_memory_error_handling(self, test_agent):
+        """Test error handling in with_memory decorator."""
+        # Create a fresh agent to avoid interference from other tests
+        fresh_agent = TestAgent(config=Mock(memory_config=MemoryConfig(enable_memory_hooks=True)))
+        
+        # Need to patch at module level to catch the decorator's call to get_instance
+        with patch('agent_memory.api.hooks.AgentMemorySystem') as mock_cls:
+            mock_cls.get_instance.side_effect = Exception("Test error")
+            
+            try:
+                decorated_agent = with_memory(fresh_agent)
+                # The implementation should handle errors gracefully
+                assert decorated_agent.__class__.__name__.endswith("WithMemory")
+            except Exception:
+                # If we reach here, the error handling failed
+                pytest.fail("with_memory should handle memory errors gracefully")
+
+    def test_execution_time_recording(self, test_agent, mock_memory_system):
+        """Test execution time recording in act method."""
+        # Create a decorated agent
+        decorated_agent = install_memory_hooks(TestAgent)(test_agent.config)
+        
+        # Call the act method without any special timing
+        decorated_agent.act()
+        
+        # Verify that an action was stored
+        mock_memory_system.store_agent_action.assert_called_once()
+        
+        # Check that execution_time field exists in the stored data
+        action_data = mock_memory_system.store_agent_action.call_args[0][1]
+        assert "execution_time" in action_data
+        assert isinstance(action_data["execution_time"], float)
+        assert action_data["execution_time"] >= 0.0
+
+    def test_step_number_tracking(self, test_agent, mock_memory_system):
+        """Test step number tracking in state storage."""
+        # Create decorated agent with our mocked memory system
+        decorated_agent = install_memory_hooks(TestAgent)(test_agent.config)
+        decorated_agent.step_number = 0  # Reset step number to start clean
+        
+        # Act once and check that step number is 1 in the call to store_agent_action
+        decorated_agent.act()
+        
+        # The original should have incremented step_number
+        assert decorated_agent.step_number == 1
+        
+        # Check the exact function arguments to store_agent_action
+        mock_memory_system.store_agent_action.assert_called()
+        
+        # Use a simpler test approach: just check that step_number was passed to the memory system
+        # through the action_data
+        action_data = mock_memory_system.store_agent_action.call_args[0][1]
+        assert action_data["step_number"] == 0  # The step_number before act was called
