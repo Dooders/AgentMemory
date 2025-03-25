@@ -5,7 +5,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from agent_memory.api.hooks import ActionResult, BaseAgent, install_memory_hooks, with_memory
+from agent_memory.api.hooks import (
+    ActionResult,
+    BaseAgent,
+    get_memory_config,
+    install_memory_hooks,
+    with_memory
+)
 from agent_memory.config import MemoryConfig
 from agent_memory.core import AgentMemorySystem
 
@@ -49,6 +55,40 @@ class TestMemoryHooks:
         """Create a test agent with memory config."""
         agent = TestAgent(config=Mock(memory_config=memory_config))
         return agent
+
+    def test_get_memory_config_none(self):
+        """Test get_memory_config with None input."""
+        result = get_memory_config(None)
+        assert result is None
+
+    def test_get_memory_config_dict(self):
+        """Test get_memory_config with dictionary config."""
+        config_dict = {"memory_config": {"enable_memory_hooks": True}}
+        result = get_memory_config(config_dict)
+        assert isinstance(result, MemoryConfig)
+        assert result.enable_memory_hooks is True
+
+    def test_get_memory_config_object(self):
+        """Test get_memory_config with object config."""
+        config_obj = Mock()
+        config_obj.memory_config = MemoryConfig(enable_memory_hooks=False)
+        result = get_memory_config(config_obj)
+        assert isinstance(result, MemoryConfig)
+        assert result.enable_memory_hooks is False
+
+    def test_get_memory_config_nested_dict(self):
+        """Test get_memory_config with nested dictionary config."""
+        config_obj = Mock()
+        config_obj.memory_config = {"enable_memory_hooks": True}
+        result = get_memory_config(config_obj)
+        assert isinstance(result, MemoryConfig)
+        assert result.enable_memory_hooks is True
+
+    def test_get_memory_config_missing(self):
+        """Test get_memory_config with config missing memory_config."""
+        config_dict = {"other_config": "value"}
+        result = get_memory_config(config_dict)
+        assert result is None
 
     def test_install_memory_hooks_initialization(self, test_agent, mock_memory_system):
         """Test memory hooks installation during initialization."""

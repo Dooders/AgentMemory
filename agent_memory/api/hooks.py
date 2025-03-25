@@ -3,12 +3,40 @@
 import functools
 import logging
 import time
-from typing import Any, Dict, Type
+from typing import Any, Dict, Optional, Type, Union
 
 from agent_memory.config import MemoryConfig
 from agent_memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
+
+
+def get_memory_config(config: Any) -> Optional[MemoryConfig]:
+    """Retrieve memory configuration from agent config.
+    
+    Handles both dictionary-style and object-style configurations.
+    
+    Args:
+        config: Agent configuration (dict or object)
+        
+    Returns:
+        MemoryConfig object or None if not found
+    """
+    if config is None:
+        return None
+        
+    # Try attribute-style access first
+    memory_config = getattr(config, "memory_config", None)
+    
+    # Fall back to dictionary-style access
+    if memory_config is None and isinstance(config, dict):
+        memory_config = config.get("memory_config")
+        
+    # Convert dict to MemoryConfig object
+    if isinstance(memory_config, dict):
+        memory_config = MemoryConfig(**memory_config)
+        
+    return memory_config
 
 
 class BaseAgent:
@@ -90,9 +118,7 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
         original_init(self, *args, **kwargs)
 
         # Get memory system
-        memory_config = getattr(self.config, "memory_config", None)
-        if isinstance(memory_config, dict):
-            memory_config = MemoryConfig(**memory_config)
+        memory_config = get_memory_config(self.config)
 
         # Early return if memory hooks are disabled
         if memory_config and not memory_config.enable_memory_hooks:
@@ -276,15 +302,12 @@ def with_memory(agent_instance: BaseAgent) -> BaseAgent:
         The agent with memory capabilities
     """
     # Skip if memory hooks are disabled in config
-    memory_config = getattr(agent_instance.config, "memory_config", None)
-    if memory_config:
-        if isinstance(memory_config, dict):
-            memory_config = MemoryConfig(**memory_config)
-        if not memory_config.enable_memory_hooks:
-            logger.info(
-                f"Memory hooks disabled for agent {getattr(agent_instance, 'agent_id', 'unknown')}"
-            )
-            return agent_instance
+    memory_config = get_memory_config(agent_instance.config)
+    if memory_config and not memory_config.enable_memory_hooks:
+        logger.info(
+            f"Memory hooks disabled for agent {getattr(agent_instance, 'agent_id', 'unknown')}"
+        )
+        return agent_instance
 
     # Create a dynamic subclass with memory hooks
     agent_class = type(agent_instance)
