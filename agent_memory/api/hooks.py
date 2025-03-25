@@ -39,6 +39,19 @@ def get_memory_config(config: Any) -> Optional[MemoryConfig]:
     return memory_config
 
 
+def _log_throttled_error(self, message: str, throttle_seconds: int = 60) -> None:
+    """Log errors with throttling to avoid log spam.
+    
+    Args:
+        message: Error message to log
+        throttle_seconds: Minimum seconds between logging the same error
+    """
+    current_time = time.time()
+    if current_time - getattr(self, "_memory_last_error_time", 0) > throttle_seconds:
+        logger.exception(message)
+        self._memory_last_error_time = current_time
+
+
 class BaseAgent:
     """Base agent class with core functionality required for memory hooks."""
 
@@ -111,18 +124,6 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
     original_init = agent_class.__init__
     original_act = agent_class.act
     original_get_state = agent_class.get_state
-
-    def _log_throttled_error(self, message: str, throttle_seconds: int = 60) -> None:
-        """Log errors with throttling to avoid log spam.
-        
-        Args:
-            message: Error message to log
-            throttle_seconds: Minimum seconds between logging the same error
-        """
-        current_time = time.time()
-        if current_time - getattr(self, "_memory_last_error_time", 0) > throttle_seconds:
-            logger.exception(message)
-            self._memory_last_error_time = current_time
 
     @functools.wraps(original_init)
     def init_with_memory(self, *args, **kwargs):
@@ -337,5 +338,24 @@ def with_memory(agent_instance: BaseAgent) -> BaseAgent:
 
     # Update the instance's class
     agent_instance.__class__ = memory_class
+
+    # Explicitly initialize memory attributes since changing __class__ doesn't call __init__
+    if not hasattr(agent_instance, "memory_system") or agent_instance.memory_system is None:
+        try:
+            agent_instance.memory_system = AgentMemorySystem.get_instance(memory_config)
+            agent_instance._memory_last_error_time = 0
+            agent_instance._memory_recording = False
+        except Exception as e:
+            # Add the _log_throttled_error method if needed
+            try:
+                if not hasattr(agent_instance, "_log_throttled_error"):
+                    agent_instance._log_throttled_error = _log_throttled_error.__get__(agent_instance, type(agent_instance))
+                agent_instance._log_throttled_error(f"Failed to initialize memory system: {e}")
+            except (AttributeError, TypeError):
+                # Fallback for tests or when method binding fails
+                logger.exception(f"Failed to initialize memory system: {e}")
+                agent_instance._memory_last_error_time = time.time()
+            # Create a dummy memory system to avoid attribute errors
+            agent_instance.memory_system = None
 
     return agent_instance

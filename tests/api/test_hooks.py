@@ -307,3 +307,35 @@ class TestMemoryHooks:
         # through the action_data
         action_data = mock_memory_system.store_agent_action.call_args[0][1]
         assert action_data["step_number"] == 0  # The step_number before act was called
+
+    def test_with_memory_initialization(self, test_agent, mock_memory_system):
+        """Test memory attribute initialization with with_memory decorator."""
+        # Create a fresh agent without memory attributes
+        with patch('agent_memory.api.hooks.AgentMemorySystem') as mock_system:
+            # Configure the mock to not automatically set memory_system
+            # so we can test that with_memory properly sets it
+            fresh_agent = TestAgent(config=Mock(memory_config=MemoryConfig(enable_memory_hooks=True)))
+            
+            # Manually remove memory attributes if they exist
+            for attr in ["memory_system", "_memory_recording", "_memory_last_error_time"]:
+                if hasattr(fresh_agent, attr):
+                    delattr(fresh_agent, attr)
+                    
+            assert not hasattr(fresh_agent, "memory_system")
+            assert not hasattr(fresh_agent, "_memory_recording")
+            assert not hasattr(fresh_agent, "_memory_last_error_time")
+            
+            # Set up mock for with_memory
+            mock_instance = Mock()
+            mock_system.get_instance.return_value = mock_instance
+            
+            # Apply with_memory to add memory capabilities
+            decorated_agent = with_memory(fresh_agent)
+            
+            # Verify memory attributes are properly initialized
+            assert hasattr(decorated_agent, "memory_system")
+            assert decorated_agent.memory_system is not None
+            assert hasattr(decorated_agent, "_memory_recording")
+            assert decorated_agent._memory_recording is False
+            assert hasattr(decorated_agent, "_memory_last_error_time")
+            assert decorated_agent._memory_last_error_time == 0
