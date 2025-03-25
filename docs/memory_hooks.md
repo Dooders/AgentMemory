@@ -105,6 +105,31 @@ agent_config = {
 agent = MyAgent(agent_config)
 ```
 
+### Configuration Formats
+
+The memory system supports multiple configuration formats, handled by the `get_memory_config` helper function:
+
+```python
+# Object-style configuration 
+class Config:
+    def __init__(self):
+        self.memory_config = MemoryConfig(enable_memory_hooks=True)
+
+# Dictionary-style configuration
+config = {
+    "memory_config": {
+        "enable_memory_hooks": True
+    }
+}
+
+# Nested configuration
+config = {
+    "memory_config": MemoryConfig(enable_memory_hooks=True)
+}
+```
+
+The `get_memory_config` function handles all these formats consistently, enabling flexible configuration options while maintaining internal type safety.
+
 ## Usage Examples
 
 ### Basic Integration with Existing Agents
@@ -271,7 +296,7 @@ class MemoryAwareCombatant(MemoryAwareAgent, CombatAgent):
 Memory hooks are designed to fail gracefully:
 
 1. If the memory system initialization fails, agents will continue to function without memory capabilities
-2. Errors during state/action storage are caught and logged, falling back to original agent behavior
+2. Errors during state/action storage are caught and logged with full stack traces using `logger.exception()`, falling back to original agent behavior
 3. Rate limiting prevents error log flooding when the memory system is unavailable
 
 ## Related Documentation
@@ -514,7 +539,7 @@ def _process_hook_result(
 try:
     result = hook["function"](event_data, self)
 except Exception as e:
-    logger.error(f"Hook execution failed: {e}")
+    logger.exception(f"Hook execution failed: {e}")
     return False
 ```
 

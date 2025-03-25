@@ -112,6 +112,18 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
     original_act = agent_class.act
     original_get_state = agent_class.get_state
 
+    def _log_throttled_error(self, message: str, throttle_seconds: int = 60) -> None:
+        """Log errors with throttling to avoid log spam.
+        
+        Args:
+            message: Error message to log
+            throttle_seconds: Minimum seconds between logging the same error
+        """
+        current_time = time.time()
+        if current_time - getattr(self, "_memory_last_error_time", 0) > throttle_seconds:
+            logger.exception(message)
+            self._memory_last_error_time = current_time
+
     @functools.wraps(original_init)
     def init_with_memory(self, *args, **kwargs):
         """Initialize with memory system support."""
@@ -134,7 +146,15 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
             # Track if we're currently recording to prevent duplicate stores
             self._memory_recording = False
         except Exception as e:
-            logger.error(f"Failed to initialize memory system: {e}")
+            # Add the method to the instance if not already present
+            try:
+                if not hasattr(self, "_log_throttled_error"):
+                    self._log_throttled_error = _log_throttled_error.__get__(self, type(self))
+                self._log_throttled_error(f"Failed to initialize memory system: {e}")
+            except (AttributeError, TypeError):
+                # Fallback for tests or when method binding fails
+                logger.exception(f"Failed to initialize memory system: {e}")
+                self._memory_last_error_time = time.time()
             # Create a dummy memory system to avoid attribute errors
             self.memory_system = None
 
@@ -188,13 +208,16 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
             return result
 
         except Exception as e:
-            # Avoid spamming logs with memory errors
-            current_time = time.time()
-            if current_time - getattr(self, "_memory_last_error_time", 0) > 60:
-                logger.error(f"Memory error in act_with_memory: {e}")
-                self._memory_last_error_time = current_time
-
-            # Reset recording flag and fall back to original behavior
+            # Add the method to the instance if not already present
+            try:
+                if not hasattr(self, "_log_throttled_error"):
+                    self._log_throttled_error = _log_throttled_error.__get__(self, type(self))
+                # Log with throttling and fall back to original behavior
+                self._log_throttled_error(f"Memory error in act_with_memory: {e}")
+            except (AttributeError, TypeError):
+                # Fallback for tests or when method binding fails
+                logger.exception(f"Memory error in act_with_memory: {e}")
+                self._memory_last_error_time = time.time()
             self._memory_recording = False
             return original_act(self, *args, **kwargs)
 
@@ -232,11 +255,15 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
                     self.agent_id, state, step_number, priority=importance
                 )
             except Exception as e:
-                # Avoid spamming logs with memory errors
-                current_time = time.time()
-                if current_time - getattr(self, "_memory_last_error_time", 0) > 60:
-                    logger.error(f"Memory error in get_state_with_memory: {e}")
-                    self._memory_last_error_time = current_time
+                # Add the method to the instance if not already present
+                try:
+                    if not hasattr(self, "_log_throttled_error"):
+                        self._log_throttled_error = _log_throttled_error.__get__(self, type(self))
+                    self._log_throttled_error(f"Memory error in get_state_with_memory: {e}")
+                except (AttributeError, TypeError):
+                    # Fallback for tests or when method binding fails
+                    logger.exception(f"Memory error in get_state_with_memory: {e}")
+                    self._memory_last_error_time = time.time()
 
         return state
 
@@ -259,27 +286,18 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
         if not state_before or not state_after:
             return 1.0  # Maximum difference when one state is empty
 
-        # Track differences in numeric values
-        diff_sum = 0
-        diff_count = 0
-
-        # Compare common numeric keys
-        for key in set(state_before.keys()) & set(state_after.keys()):
-            before_val = state_before[key]
-            after_val = state_after[key]
-
-            # Only compare numeric values
-            if isinstance(before_val, (int, float)) and isinstance(
-                after_val, (int, float)
-            ):
-                # Normalize difference based on value scale
-                value_scale = max(1.0, abs(before_val))
-                diff = abs(after_val - before_val) / value_scale
-                diff_sum += min(1.0, diff)  # Cap at 1.0
-                diff_count += 1
-
+        # Find common keys with numeric values in both states
+        common_keys = set(state_before.keys()) & set(state_after.keys())
+        
+        # Calculate normalized differences using list comprehension
+        differences = [
+            min(1.0, abs(state_after[key] - state_before[key]) / max(1.0, abs(state_before[key])))
+            for key in common_keys
+            if isinstance(state_before[key], (int, float)) and isinstance(state_after[key], (int, float))
+        ]
+        
         # Return average difference, defaulting to 0.5 if no comparable values
-        return diff_sum / diff_count if diff_count > 0 else 0.5
+        return sum(differences) / len(differences) if differences else 0.5
 
     # Replace methods only if this is the first time applying hooks to this class
     if not hasattr(agent_class, "_memory_hooks_installed"):
@@ -287,6 +305,7 @@ def install_memory_hooks(agent_class: Type[BaseAgent]) -> Type[BaseAgent]:
         agent_class.act = act_with_memory
         agent_class.get_state = get_state_with_memory
         agent_class._calculate_state_difference = _calculate_state_difference
+        agent_class._log_throttled_error = _log_throttled_error
         agent_class._memory_hooks_installed = True
 
     return agent_class
