@@ -13,6 +13,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, SubsetRandomSampler
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
+from agent_memory.config import AutoencoderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -342,6 +343,45 @@ class AutoencoderEmbeddingEngine:
             logger.info("Loaded autoencoder model from %s", model_path)
         else:
             logger.warning("No pre-trained model found. Using untrained model.")
+            
+    def configure(self, config: AutoencoderConfig) -> None:
+        """Update the embedding engine configuration.
+        
+        Args:
+            config: New configuration object for the autoencoder
+        """
+        # Update dimension settings if they've changed
+        needs_new_model = False
+        if self.input_dim != config.input_dim:
+            self.input_dim = config.input_dim
+            needs_new_model = True
+            
+        if self.stm_dim != config.stm_dim:
+            self.stm_dim = config.stm_dim
+            needs_new_model = True
+            
+        if self.im_dim != config.im_dim:
+            self.im_dim = config.im_dim
+            needs_new_model = True
+            
+        if self.ltm_dim != config.ltm_dim:
+            self.ltm_dim = config.ltm_dim
+            needs_new_model = True
+            
+        # If dimensions changed, we need to reinitialize the model
+        if needs_new_model:
+            logger.info("Reinitializing autoencoder model with new dimensions")
+            self.model = StateAutoencoder(
+                self.input_dim, self.stm_dim, self.im_dim, self.ltm_dim
+            ).to(self.device)
+            
+            # Try to load model from the path specified in config
+            if config.model_path and os.path.exists(config.model_path):
+                try:
+                    self.load_model(config.model_path)
+                    logger.info("Loaded model from %s after configuration update", config.model_path)
+                except Exception as e:
+                    logger.error("Failed to load model after configuration update: %s", str(e))
 
     def encode_stm(self, state: Dict[str, Any]) -> List[float]:
         """Encode state to STM embedding space.
@@ -387,6 +427,144 @@ class AutoencoderEmbeddingEngine:
             x = torch.tensor(vector, dtype=torch.float32).to(self.device)
             embedding = self.model.encode_ltm(x)
         return embedding.cpu().numpy().tolist()
+
+    def convert_embedding(self, embedding: List[float], source_tier: str, target_tier: str) -> List[float]:
+        """Convert an embedding from one memory tier to another.
+        
+        Args:
+            embedding: The source embedding to convert
+            source_tier: The source tier ('stm', 'im', or 'ltm')
+            target_tier: The target tier ('stm', 'im', or 'ltm')
+            
+        Returns:
+            The converted embedding
+            
+        Raises:
+            ValueError: If source or target tier is invalid, or if attempting to convert
+                       to a higher-dimension tier (which would lose information)
+        """
+        valid_tiers = {'stm', 'im', 'ltm'}
+        if source_tier not in valid_tiers or target_tier not in valid_tiers:
+            raise ValueError(f"Invalid tier specified. Must be one of: {valid_tiers}")
+            
+        # If source and target are the same, return the embedding unchanged
+        if source_tier == target_tier:
+            return embedding
+            
+        # Convert to PyTorch tensor
+        embedding_tensor = torch.tensor(embedding, dtype=torch.float32).to(self.device)
+        
+        # Define tier hierarchy and dimensions
+        tier_levels = {'stm': 0, 'im': 1, 'ltm': 2}
+        tier_dims = {'stm': self.stm_dim, 'im': self.im_dim, 'ltm': self.ltm_dim}
+        
+        # Verify dimensions
+        if len(embedding) != tier_dims[source_tier]:
+            logger.warning(
+                f"Source embedding dimension {len(embedding)} doesn't match expected {tier_dims[source_tier]} for {source_tier.upper()} tier. Attempting to adjust."
+            )
+            # Pad or truncate to match expected dimension
+            if len(embedding) < tier_dims[source_tier]:
+                embedding_tensor = torch.nn.functional.pad(
+                    embedding_tensor, (0, tier_dims[source_tier] - len(embedding))
+                )
+            else:
+                embedding_tensor = embedding_tensor[:tier_dims[source_tier]]
+        
+        # If converting to a higher dimension tier, we need to use the decoder/encoder path
+        # (STM->LTM is going to lower dimension, LTM->STM is going to higher dimension)
+        source_level = tier_levels[source_tier]
+        target_level = tier_levels[target_tier]
+        
+        with torch.no_grad():
+            # Converting to lower dimension (e.g., STM to IM, IM to LTM, or STM to LTM)
+            if target_level > source_level:
+                if source_tier == 'stm' and target_tier == 'im':
+                    result = self.model.im_bottleneck(embedding_tensor)
+                elif source_tier == 'im' and target_tier == 'ltm':
+                    result = self.model.ltm_bottleneck(embedding_tensor)
+                elif source_tier == 'stm' and target_tier == 'ltm':
+                    # First convert to IM, then to LTM
+                    im_embedding = self.model.im_bottleneck(embedding_tensor)
+                    result = self.model.ltm_bottleneck(im_embedding)
+            
+            # Converting to higher dimension (e.g., LTM to IM, IM to STM, or LTM to STM)
+            elif target_level < source_level:
+                if source_tier == 'im' and target_tier == 'stm':
+                    result = self.model.im_to_stm(embedding_tensor)
+                elif source_tier == 'ltm' and target_tier == 'im':
+                    result = self.model.ltm_to_im(embedding_tensor)
+                elif source_tier == 'ltm' and target_tier == 'stm':
+                    # First convert to IM, then to STM
+                    im_embedding = self.model.ltm_to_im(embedding_tensor)
+                    result = self.model.im_to_stm(im_embedding)
+            else:
+                # Should never reach here due to the equality check at the beginning
+                result = embedding_tensor
+                
+        # Convert back to list
+        return result.cpu().numpy().tolist()
+    
+    def ensure_embedding_dimensions(self, embedding: List[float], target_tier: str) -> List[float]:
+        """Automatically detect embedding dimensions and convert to the target tier if needed.
+        
+        This method identifies the source tier based on the embedding dimension and
+        converts it to the requested target tier format.
+        
+        Args:
+            embedding: The embedding vector to convert
+            target_tier: The target memory tier ('stm', 'im', or 'ltm')
+            
+        Returns:
+            The correctly dimensioned embedding for the target tier
+            
+        Raises:
+            ValueError: If target tier is invalid or embedding dimensions don't match any known tier
+        """
+        valid_tiers = {'stm', 'im', 'ltm'}
+        if target_tier not in valid_tiers:
+            raise ValueError(f"Invalid target tier. Must be one of: {valid_tiers}")
+            
+        # Detect source tier based on dimension
+        embedding_dim = len(embedding)
+        tier_dims = {'stm': self.stm_dim, 'im': self.im_dim, 'ltm': self.ltm_dim}
+        
+        # Check if embedding dimensions match any tier
+        source_tier = None
+        tolerance = 1  # Allow for slight dimension differences
+        
+        for tier, dim in tier_dims.items():
+            if abs(embedding_dim - dim) <= tolerance:
+                source_tier = tier
+                break
+                
+        # If we couldn't identify the source tier, try to determine the closest one
+        if source_tier is None:
+            # Find the closest matching tier
+            diffs = [(tier, abs(embedding_dim - dim)) for tier, dim in tier_dims.items()]
+            source_tier, _ = min(diffs, key=lambda x: x[1])
+            
+            logger.warning(
+                f"Embedding dimension {embedding_dim} doesn't exactly match any tier. "
+                f"Assuming {source_tier.upper()} tier (dimension {tier_dims[source_tier]})."
+            )
+        
+        # Convert to target tier if needed
+        if source_tier != target_tier:
+            return self.convert_embedding(embedding, source_tier, target_tier)
+        else:
+            # If dimensions don't exactly match, pad or truncate
+            if embedding_dim != tier_dims[target_tier]:
+                embedding_tensor = torch.tensor(embedding, dtype=torch.float32).to(self.device)
+                if embedding_dim < tier_dims[target_tier]:
+                    embedding_tensor = torch.nn.functional.pad(
+                        embedding_tensor, (0, tier_dims[target_tier] - embedding_dim)
+                    )
+                else:
+                    embedding_tensor = embedding_tensor[:tier_dims[target_tier]]
+                return embedding_tensor.cpu().numpy().tolist()
+            
+            return embedding
 
     def _state_to_vector(self, state: Dict[str, Any]) -> np.ndarray:
         """Convert a state dictionary to a vector.
