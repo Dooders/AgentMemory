@@ -57,6 +57,7 @@ The memory system maintains five specialized indices for efficient retrieval ope
 - **Memory Management**: Configure and maintain the memory system
 - **State Change Tracking**: Track attribute changes over time
 - **Memory Statistics**: Get insights about memory usage and distribution
+- **Performance Optimizations**: Efficient merge sorting and caching mechanisms for improved query performance
 
 ## Installation
 
@@ -172,6 +173,12 @@ memory_system.force_memory_maintenance(agent_id="agent-123")
 stats = memory_system.get_memory_statistics(agent_id="agent-123")
 print(f"Total memories: {stats['total_memories']}")
 print(f"Memory distribution: {stats['memory_type_distribution']}")
+
+# Clear the cache to free up memory and ensure fresh results
+memory_system.clear_cache()
+
+# Configure cache TTL for balancing memory usage and performance
+memory_system.set_cache_ttl(300)  # 5 minutes
 ```
 
 ## Advanced Usage
@@ -243,6 +250,74 @@ sequenceDiagram
 ```
 
 Memory retrieval employs a parallel search strategy across all tiers. When an agent requests memories, the Query Engine simultaneously searches Short-Term Memory for recent details, Intermediate Memory for relevant medium-term information, and Long-Term Memory for historical context. Results are ranked and merged based on relevance. If detailed information is needed from compressed long-term memories, they're decompressed and restored to Intermediate Memory. When an agent focuses on a specific memory, its retrieval count increases, potentially promoting frequently accessed memories to more accessible tiers.
+
+## Performance Optimizations
+
+The API includes several optimizations to improve query performance and reduce resource usage:
+
+### Efficient Merge Sorting
+
+When querying across memory tiers, the system uses an efficient merging algorithm to combine sorted results from different stores without resorting the entire dataset. This optimization is particularly beneficial for:
+
+- Temporal queries (`retrieve_by_time_range`)
+- Similarity searches (`retrieve_similar_states`)
+- Queries that return large result sets
+
+The merge sorting algorithm:
+1. Recognizes when individual store results are already sorted
+2. Uses a heap-based approach for O(n log k) performance where k is the number of lists
+3. Avoids unnecessary full sorts of the combined results
+
+```python
+# The merge_sorted parameter is enabled by default for appropriate methods
+memories = memory_agent.retrieve_by_time_range(
+    agent_id="agent-123",
+    start_step=1000,
+    end_step=2000
+)  # Uses efficient merge sort internally
+```
+
+### Result Caching
+
+Expensive operations like semantic similarity searches can be automatically cached to improve performance for repeated queries:
+
+```python
+# This query will cache results (using lru_cache)
+similar_states = memory_agent.retrieve_similar_states(
+    agent_id="agent-123",
+    query_state=current_state,
+    k=5
+)
+
+# Subsequent identical calls will use the cached result
+similar_states_again = memory_agent.retrieve_similar_states(
+    agent_id="agent-123",
+    query_state=current_state,
+    k=5
+)  # Returns cached result without recomputing
+```
+
+The caching system provides:
+- Configurable time-to-live (TTL) for cached results
+- LRU (Least Recently Used) eviction policy
+- Manual cache clearing when needed
+
+```python
+# Configure the default cache TTL
+memory_agent.set_cache_ttl(300)  # 5 minutes
+
+# Clear the entire cache
+memory_agent.clear_cache()
+```
+
+### When to Use Caching
+
+Caching is most effective when:
+- The same query is executed multiple times
+- The underlying data changes infrequently
+- Query computation is expensive (e.g., embedding generation, cross-tier searches)
+
+For rapidly changing data or single-use queries, caching may not provide significant benefits.
 
 ## Error Handling and Exception Management
 
@@ -339,6 +414,8 @@ Client code should implement appropriate retry and fallback mechanisms based on 
 | `get_memory_agent(agent_id)` | Get a MemoryAgent instance for more specialized operations |
 | `force_memory_maintenance(agent_id=None)` | Force tier transitions and cleanup |
 | `get_memory_statistics(agent_id)` | Get statistics about memory usage |
+| `clear_cache()` | Clear the query result cache |
+| `set_cache_ttl(ttl)` | Set the default cache time-to-live in seconds |
 
 ## Memory Structure
 
@@ -402,6 +479,29 @@ When using the Agent Memory API, consider these performance factors:
 - **Cross-Tier Queries**: Queries spanning multiple tiers incur additional overhead
 - **Redis Capacity**: Monitor Redis memory usage, especially with many agents
 - **Tier Maintenance**: Regular maintenance (automatic or via `force_memory_maintenance`) helps manage memory growth
+- **Caching Strategy**: Configure appropriate cache TTLs based on data change frequency
+- **Query Patterns**: Consider how to structure queries to leverage the merge sorting optimization
+
+### Performance Tuning Tips
+
+For optimal performance:
+
+1. **Use Specific Tiers**: When possible, specify which memory tiers to search instead of searching all tiers
+2. **Be Specific with Filters**: Add memory_type filters to narrow search space
+3. **Batch Operations**: Group related operations to minimize round trips
+4. **Monitor Cache Size**: Be aware of memory usage from caching frequently used results
+5. **Tune Cache TTL**: Adjust cache time-to-live based on data update frequency
+
+Example of tier-specific querying:
+
+```python
+# Search only STM and IM (faster than searching all tiers)
+results = memory_agent.search_by_embedding(
+    query_embedding=embedding,
+    k=10,
+    memory_tiers=["stm", "im"]  # Skip LTM for faster results
+)
+```
 
 ## Configuration Options
 

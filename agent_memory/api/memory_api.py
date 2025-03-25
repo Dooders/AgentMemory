@@ -1,38 +1,111 @@
 """API interface for the agent memory system."""
 
+import heapq
 import logging
-from typing import Any, Dict, List, Optional, Union, Callable, TypeVar
+import time
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 from agent_memory.config import MemoryConfig
 from agent_memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
+
+
+# Module-level caching decorator that doesn't rely on instance state
+def cacheable(ttl=60):
+    """Decorator to cache function results with TTL.
+
+    Args:
+        ttl: Time-to-live in seconds (default: 60)
+
+    Returns:
+        Decorated function with caching
+    """
+    cache = {}
+    cache_ttl = {}
+
+    def make_hashable(obj):
+        """Convert unhashable types to hashable for cache keys."""
+        if isinstance(obj, dict):
+            return frozenset((k, make_hashable(v)) for k, v in sorted(obj.items()))
+        elif isinstance(obj, (list, tuple)):
+            return tuple(make_hashable(x) for x in obj)
+        elif isinstance(obj, set):
+            return frozenset(make_hashable(x) for x in obj)
+        return obj
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Create hashable versions of arguments
+            hashable_args = tuple(make_hashable(arg) for arg in args)
+            hashable_kwargs = {k: make_hashable(v) for k, v in kwargs.items()}
+
+            # Create cache key
+            cache_key = f"{func.__name__}:{hash(hashable_args)}:{hash(frozenset(hashable_kwargs.items()))}"
+
+            # Check cache
+            if cache_key in cache:
+                expiry_time = cache_ttl.get(cache_key, 0)
+                if time.time() < expiry_time:
+                    logger.debug(f"Cache hit for {func.__name__}")
+                    return cache[cache_key]
+
+            # Call function if not in cache or expired
+            result = func(*args, **kwargs)
+
+            # Store in cache
+            cache[cache_key] = result
+            cache_ttl[cache_key] = time.time() + ttl
+
+            return result
+
+        # Attach cache management methods to the function
+        wrapper.cache = cache
+        wrapper.cache_ttl = cache_ttl
+
+        def clear_cache():
+            """Clear the cache for this function."""
+            cache.clear()
+            cache_ttl.clear()
+
+        wrapper.clear_cache = clear_cache
+
+        return wrapper
+
+    return decorator
 
 
 class MemoryAPIException(Exception):
     """Base exception class for all memory API exceptions."""
+
     pass
 
 
 class MemoryStoreException(MemoryAPIException):
     """Exception raised for storage-related errors."""
+
     pass
 
 
 class MemoryRetrievalException(MemoryAPIException):
     """Exception raised for retrieval-related errors."""
+
     pass
 
 
 class MemoryMaintenanceException(MemoryAPIException):
     """Exception raised for maintenance-related errors."""
+
     pass
 
 
 class MemoryConfigException(MemoryAPIException):
     """Exception raised for configuration-related errors."""
+
     pass
 
 
@@ -51,7 +124,102 @@ class AgentMemoryAPI:
             config: Configuration for the memory system
         """
         self.memory_system = AgentMemorySystem.get_instance(config)
-        
+        self._default_cache_ttl = 60  # Default TTL in seconds
+
+    def clear_all_caches(self):
+        """Clear all caches for all methods in this API."""
+        # Clear caches for decorated methods
+        if hasattr(self.retrieve_similar_states, "clear_cache"):
+            self.retrieve_similar_states.clear_cache()
+
+        if hasattr(self.search_by_content, "clear_cache"):
+            self.search_by_content.clear_cache()
+
+    def clear_cache(self):
+        """Clear the query result cache (alias for clear_all_caches for backward compatibility)."""
+        self.clear_all_caches()
+
+    def set_cache_ttl(self, ttl: int):
+        """Set the default cache TTL.
+
+        Args:
+            ttl: Default time-to-live for cache entries in seconds
+        """
+        if ttl <= 0:
+            raise ValueError("Cache TTL must be positive")
+        self._default_cache_ttl = ttl
+
+    def _merge_sorted_lists(
+        self,
+        lists: List[List[Dict[str, Any]]],
+        key_fn: Callable[[Dict[str, Any]], Any],
+        reverse: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Efficiently merge multiple sorted lists.
+
+        Args:
+            lists: List of sorted lists to merge
+            key_fn: Function to extract the sort key from each element
+            reverse: Whether the lists are sorted in descending order
+
+        Returns:
+            A single merged and sorted list
+        """
+        # Filter out empty lists
+        lists = [lst for lst in lists if lst]
+        if not lists:
+            return []
+
+        # If only one list, return it directly
+        if len(lists) == 1:
+            return lists[0]
+
+        # For ascending order
+        if not reverse:
+            # Create iterators for each list
+            iterators = [iter(lst) for lst in lists]
+            # Get the first element from each iterator
+            current_items = []
+            for i, it in enumerate(iterators):
+                try:
+                    item = next(it)
+                    # Store (key value, original item, iterator index)
+                    current_items.append((key_fn(item), item, i))
+                except StopIteration:
+                    pass
+
+            # Create a min heap for efficient merging
+            heapq.heapify(current_items)
+
+            # Merge the lists
+            result = []
+            while current_items:
+                # Get the smallest item
+                _, item, iterator_idx = heapq.heappop(current_items)
+                result.append(item)
+
+                # Get the next item from the same iterator
+                try:
+                    next_item = next(iterators[iterator_idx])
+                    heapq.heappush(
+                        current_items, (key_fn(next_item), next_item, iterator_idx)
+                    )
+                except StopIteration:
+                    pass
+
+            return result
+        else:
+            # For descending order, invert the key function
+            def inverted_key_fn(item):
+                return (
+                    -key_fn(item)
+                    if isinstance(key_fn(item), (int, float))
+                    else key_fn(item)
+                )
+
+            # Use the same algorithm but with the inverted key function
+            return self._merge_sorted_lists(lists, inverted_key_fn, reverse=False)
+
     def _aggregate_results(
         self,
         memory_agent,
@@ -59,10 +227,11 @@ class AgentMemoryAPI:
         k: int = None,
         memory_type: Optional[str] = None,
         sort_key: Optional[Callable] = None,
-        reverse: bool = False
+        reverse: bool = False,
+        merge_sorted: bool = False,
     ) -> List[Dict[str, Any]]:
         """Aggregate results across memory tiers using the provided query function.
-        
+
         Args:
             memory_agent: The memory agent to query
             query_fn: Function that takes (store, k, memory_type) and returns results
@@ -70,35 +239,54 @@ class AgentMemoryAPI:
             memory_type: Optional filter for specific memory types
             sort_key: Optional function for sorting results
             reverse: Whether to reverse sort order (default: False)
-            
+            merge_sorted: Whether to use merge sort for already sorted results
+
         Returns:
             List of aggregated results, optionally sorted
         """
-        results = []
-        
         # If k is None, we're not limiting results
-        remaining = float('inf') if k is None else k
-        
-        for store in [memory_agent.stm_store, memory_agent.im_store, memory_agent.ltm_store]:
+        remaining = float("inf") if k is None else k
+
+        # Collect results from each store
+        all_results = []
+        store_results = []
+
+        for store in [
+            memory_agent.stm_store,
+            memory_agent.im_store,
+            memory_agent.ltm_store,
+        ]:
             if remaining <= 0:
                 break
-                
+
             store_limit = None if k is None else remaining
             partial_results = query_fn(store, store_limit, memory_type)
-            results.extend(partial_results)
-            
-            if k is not None:
-                remaining = k - len(results)
-        
-        # Sort results if a sort key was provided
-        if sort_key and results:
-            results.sort(key=sort_key, reverse=reverse)
-            
+
+            if partial_results:
+                store_results.append(partial_results)
+                all_results.extend(partial_results)
+
+                if k is not None:
+                    remaining = k - len(all_results)
+
+        # If no results, return empty list
+        if not all_results:
+            return []
+
+        # If sorting is needed and results exist
+        if sort_key:
+            if merge_sorted and len(store_results) > 1:
+                # Use efficient merge algorithm if results are already sorted
+                return self._merge_sorted_lists(store_results, sort_key, reverse)
+            else:
+                # Fall back to regular sort
+                all_results.sort(key=sort_key, reverse=reverse)
+
             # Limit to k results if specified
             if k is not None:
-                results = results[:k]
-                
-        return results
+                all_results = all_results[:k]
+
+        return all_results
 
     def store_agent_state(
         self,
@@ -126,12 +314,22 @@ class AgentMemoryAPI:
             if not agent_id:
                 raise MemoryStoreException("Agent ID cannot be empty")
             if not isinstance(state_data, dict):
-                raise MemoryStoreException(f"State data must be a dictionary, got {type(state_data)}")
+                raise MemoryStoreException(
+                    f"State data must be a dictionary, got {type(state_data)}"
+                )
             if not isinstance(step_number, int) or step_number < 0:
-                raise MemoryStoreException(f"Step number must be a non-negative integer, got {step_number}")
-            if not isinstance(priority, (int, float)) or priority < 0.0 or priority > 1.0:
-                raise MemoryStoreException(f"Priority must be a float between 0.0 and 1.0, got {priority}")
-                
+                raise MemoryStoreException(
+                    f"Step number must be a non-negative integer, got {step_number}"
+                )
+            if (
+                not isinstance(priority, (int, float))
+                or priority < 0.0
+                or priority > 1.0
+            ):
+                raise MemoryStoreException(
+                    f"Priority must be a float between 0.0 and 1.0, got {priority}"
+                )
+
             return self.memory_system.store_agent_state(
                 agent_id, state_data, step_number, priority
             )
@@ -141,7 +339,9 @@ class AgentMemoryAPI:
         except Exception as e:
             logger.error(f"Failed to store agent state for agent {agent_id}: {e}")
             # Convert to custom exception with context for caller
-            raise MemoryStoreException(f"Unexpected error storing agent state: {str(e)}")
+            raise MemoryStoreException(
+                f"Unexpected error storing agent state: {str(e)}"
+            )
 
     def store_agent_interaction(
         self,
@@ -160,7 +360,7 @@ class AgentMemoryAPI:
 
         Returns:
             True if storage was successful
-            
+
         Raises:
             MemoryStoreException: If there is an error during storage operation
         """
@@ -169,12 +369,22 @@ class AgentMemoryAPI:
             if not agent_id:
                 raise MemoryStoreException("Agent ID cannot be empty")
             if not isinstance(interaction_data, dict):
-                raise MemoryStoreException(f"Interaction data must be a dictionary, got {type(interaction_data)}")
+                raise MemoryStoreException(
+                    f"Interaction data must be a dictionary, got {type(interaction_data)}"
+                )
             if not isinstance(step_number, int) or step_number < 0:
-                raise MemoryStoreException(f"Step number must be a non-negative integer, got {step_number}")
-            if not isinstance(priority, (int, float)) or priority < 0.0 or priority > 1.0:
-                raise MemoryStoreException(f"Priority must be a float between 0.0 and 1.0, got {priority}")
-                
+                raise MemoryStoreException(
+                    f"Step number must be a non-negative integer, got {step_number}"
+                )
+            if (
+                not isinstance(priority, (int, float))
+                or priority < 0.0
+                or priority > 1.0
+            ):
+                raise MemoryStoreException(
+                    f"Priority must be a float between 0.0 and 1.0, got {priority}"
+                )
+
             return self.memory_system.store_agent_interaction(
                 agent_id, interaction_data, step_number, priority
             )
@@ -184,7 +394,9 @@ class AgentMemoryAPI:
         except Exception as e:
             logger.error(f"Failed to store agent interaction for agent {agent_id}: {e}")
             # Convert to custom exception with context for caller
-            raise MemoryStoreException(f"Unexpected error storing agent interaction: {str(e)}")
+            raise MemoryStoreException(
+                f"Unexpected error storing agent interaction: {str(e)}"
+            )
 
     def store_agent_action(
         self,
@@ -203,7 +415,7 @@ class AgentMemoryAPI:
 
         Returns:
             True if storage was successful
-            
+
         Raises:
             MemoryStoreException: If there is an error during storage operation
         """
@@ -212,12 +424,22 @@ class AgentMemoryAPI:
             if not agent_id:
                 raise MemoryStoreException("Agent ID cannot be empty")
             if not isinstance(action_data, dict):
-                raise MemoryStoreException(f"Action data must be a dictionary, got {type(action_data)}")
+                raise MemoryStoreException(
+                    f"Action data must be a dictionary, got {type(action_data)}"
+                )
             if not isinstance(step_number, int) or step_number < 0:
-                raise MemoryStoreException(f"Step number must be a non-negative integer, got {step_number}")
-            if not isinstance(priority, (int, float)) or priority < 0.0 or priority > 1.0:
-                raise MemoryStoreException(f"Priority must be a float between 0.0 and 1.0, got {priority}")
-                
+                raise MemoryStoreException(
+                    f"Step number must be a non-negative integer, got {step_number}"
+                )
+            if (
+                not isinstance(priority, (int, float))
+                or priority < 0.0
+                or priority > 1.0
+            ):
+                raise MemoryStoreException(
+                    f"Priority must be a float between 0.0 and 1.0, got {priority}"
+                )
+
             return self.memory_system.store_agent_action(
                 agent_id, action_data, step_number, priority
             )
@@ -227,7 +449,9 @@ class AgentMemoryAPI:
         except Exception as e:
             logger.error(f"Failed to store agent action for agent {agent_id}: {e}")
             # Convert to custom exception with context for caller
-            raise MemoryStoreException(f"Unexpected error storing agent action: {str(e)}")
+            raise MemoryStoreException(
+                f"Unexpected error storing agent action: {str(e)}"
+            )
 
     def retrieve_state_by_id(
         self, agent_id: str, memory_id: str
@@ -266,6 +490,7 @@ class AgentMemoryAPI:
         memory_agent = self.memory_system.get_memory_agent(agent_id)
         return memory_agent.stm_store.get_recent(count, memory_type)
 
+    @cacheable(ttl=60)
     def retrieve_similar_states(
         self,
         agent_id: str,
@@ -283,7 +508,7 @@ class AgentMemoryAPI:
 
         Returns:
             List of memory entries sorted by similarity to query state
-            
+
         Raises:
             MemoryRetrievalException: If there is an error during retrieval
         """
@@ -292,14 +517,18 @@ class AgentMemoryAPI:
             if not agent_id:
                 raise MemoryRetrievalException("Agent ID cannot be empty")
             if not isinstance(query_state, dict):
-                raise MemoryRetrievalException(f"Query state must be a dictionary, got {type(query_state)}")
+                raise MemoryRetrievalException(
+                    f"Query state must be a dictionary, got {type(query_state)}"
+                )
             if not isinstance(k, int) or k <= 0:
                 raise MemoryRetrievalException(f"k must be a positive integer, got {k}")
-                
+
             memory_agent = self.memory_system.get_memory_agent(agent_id)
 
             if not memory_agent.embedding_engine:
-                error_msg = "Vector similarity search requires embedding engine to be enabled"
+                error_msg = (
+                    "Vector similarity search requires embedding engine to be enabled"
+                )
                 logger.warning(error_msg)
                 raise MemoryRetrievalException(error_msg)
 
@@ -308,8 +537,10 @@ class AgentMemoryAPI:
                 query_embedding = memory_agent.embedding_engine.encode_stm(query_state)
             except Exception as e:
                 logger.error(f"Failed to generate embedding for query state: {e}")
-                raise MemoryRetrievalException(f"Failed to encode query state: {str(e)}")
-            
+                raise MemoryRetrievalException(
+                    f"Failed to encode query state: {str(e)}"
+                )
+
             def query_function(store, limit, mem_type):
                 # Determine which tier this store represents
                 if store == memory_agent.stm_store:
@@ -318,38 +549,47 @@ class AgentMemoryAPI:
                     tier = "im"
                 else:  # ltm_store
                     tier = "ltm"
-                    
+
                 # Convert embedding to appropriate dimensions for this tier
                 try:
-                    tier_embedding = memory_agent.embedding_engine.ensure_embedding_dimensions(
-                        query_embedding, tier
+                    tier_embedding = (
+                        memory_agent.embedding_engine.ensure_embedding_dimensions(
+                            query_embedding, tier
+                        )
                     )
                 except Exception as e:
                     logger.warning(f"Error converting embedding to {tier} format: {e}")
                     # If conversion fails, use original embedding which may not work properly
                     tier_embedding = query_embedding
-                    
+
                 try:
-                    return store.search_by_vector(tier_embedding, k=limit, memory_type=mem_type)
+                    return store.search_by_vector(
+                        tier_embedding, k=limit, memory_type=mem_type
+                    )
                 except Exception as e:
                     logger.error(f"Error searching the {tier} store: {e}")
                     # Return empty list on store search failure
                     return []
-            
+
             return self._aggregate_results(
                 memory_agent,
                 query_function,
                 k=k,
                 memory_type=memory_type,
                 sort_key=lambda x: x.get("_similarity_score", 0),
-                reverse=True
+                reverse=True,
+                merge_sorted=True,
             )
         except MemoryRetrievalException:
             # Re-raise custom exceptions
             raise
         except Exception as e:
-            logger.error(f"Unexpected error retrieving similar states for agent {agent_id}: {e}")
-            raise MemoryRetrievalException(f"Failed to retrieve similar states: {str(e)}")
+            logger.error(
+                f"Unexpected error retrieving similar states for agent {agent_id}: {e}"
+            )
+            raise MemoryRetrievalException(
+                f"Failed to retrieve similar states: {str(e)}"
+            )
 
     def retrieve_by_time_range(
         self,
@@ -373,12 +613,14 @@ class AgentMemoryAPI:
 
         def query_function(store, _, mem_type):
             return store.get_by_step_range(start_step, end_step, mem_type)
-        
+
+        # Use merge sort since results from each store are already sorted by step number
         return self._aggregate_results(
             memory_agent,
             query_function,
             memory_type=memory_type,
-            sort_key=lambda x: x.get("step_number", 0)
+            sort_key=lambda x: x.get("step_number", 0),
+            merge_sorted=True,
         )
 
     def retrieve_by_attributes(
@@ -401,13 +643,13 @@ class AgentMemoryAPI:
 
         def query_function(store, _, mem_type):
             return store.get_by_attributes(attributes, mem_type)
-        
+
         return self._aggregate_results(
             memory_agent,
             query_function,
             memory_type=memory_type,
             sort_key=lambda x: x.get("step_number", 0),
-            reverse=True
+            reverse=True,
         )
 
     def search_by_embedding(
@@ -437,37 +679,39 @@ class AgentMemoryAPI:
         tier_stores = {
             "stm": memory_agent.stm_store,
             "im": memory_agent.im_store,
-            "ltm": memory_agent.ltm_store
+            "ltm": memory_agent.ltm_store,
         }
-        
+
         # Check if embedding engine is available for conversion
         has_embedding_engine = memory_agent.embedding_engine is not None
-        
+
         for tier in tiers:
             if len(results) >= k:
                 break
-                
+
             store = tier_stores.get(tier)
             if not store:
                 continue
-                
+
             # Ensure embedding has the right dimensions for this tier
             tier_embedding = query_embedding
-            
+
             if has_embedding_engine:
                 try:
                     # Automatically convert the embedding to the target tier format
-                    tier_embedding = memory_agent.embedding_engine.ensure_embedding_dimensions(
-                        query_embedding, tier
+                    tier_embedding = (
+                        memory_agent.embedding_engine.ensure_embedding_dimensions(
+                            query_embedding, tier
+                        )
                     )
                 except Exception as e:
                     logger.warning(
                         f"Error converting embedding for {tier.upper()} tier: {str(e)}. "
                         f"Using original embedding with potential dimension mismatch."
                     )
-            
+
             # Search with the properly dimensioned embedding
-            tier_results = store.search_by_vector(tier_embedding, k=k-len(results))
+            tier_results = store.search_by_vector(tier_embedding, k=k - len(results))
             results.extend(tier_results)
 
         # Sort by similarity score
@@ -475,6 +719,7 @@ class AgentMemoryAPI:
             results, key=lambda x: x.get("_similarity_score", 0), reverse=True
         )
 
+    @cacheable(ttl=60)
     def search_by_content(
         self, agent_id: str, content_query: Union[str, Dict[str, Any]], k: int = 5
     ) -> List[Dict[str, Any]]:
@@ -498,11 +743,9 @@ class AgentMemoryAPI:
 
         def query_function(store, limit, _):
             return store.search_by_content(query_dict, k=limit)
-        
+
         return self._aggregate_results(
-            memory_agent,
-            query_function,
-            k=k
+            memory_agent, query_function, k=k, merge_sorted=True
         )
 
     def get_memory_statistics(self, agent_id: str) -> Dict[str, Any]:
@@ -542,7 +785,7 @@ class AgentMemoryAPI:
 
         Returns:
             True if maintenance was successful
-            
+
         Raises:
             MemoryMaintenanceException: If there is an error during maintenance
         """
@@ -550,50 +793,68 @@ class AgentMemoryAPI:
             if agent_id:
                 # Validate agent ID
                 if not isinstance(agent_id, str):
-                    raise MemoryMaintenanceException(f"Agent ID must be a string, got {type(agent_id)}")
-                    
+                    raise MemoryMaintenanceException(
+                        f"Agent ID must be a string, got {type(agent_id)}"
+                    )
+
                 # Maintain single agent
                 try:
                     memory_agent = self.memory_system.get_memory_agent(agent_id)
                 except Exception as e:
-                    logger.error(f"Failed to get memory agent for agent {agent_id}: {e}")
-                    raise MemoryMaintenanceException(f"Agent {agent_id} not found or error accessing memory agent: {str(e)}")
-                    
+                    logger.error(
+                        f"Failed to get memory agent for agent {agent_id}: {e}"
+                    )
+                    raise MemoryMaintenanceException(
+                        f"Agent {agent_id} not found or error accessing memory agent: {str(e)}"
+                    )
+
                 try:
                     result = memory_agent._perform_maintenance()
                     if not result:
                         logger.error(f"Maintenance failed for agent {agent_id}")
-                        raise MemoryMaintenanceException(f"Maintenance failed for agent {agent_id}")
+                        raise MemoryMaintenanceException(
+                            f"Maintenance failed for agent {agent_id}"
+                        )
                     return result
                 except Exception as e:
                     logger.error(f"Error during maintenance for agent {agent_id}: {e}")
-                    raise MemoryMaintenanceException(f"Error during maintenance for agent {agent_id}: {str(e)}")
+                    raise MemoryMaintenanceException(
+                        f"Error during maintenance for agent {agent_id}: {str(e)}"
+                    )
             else:
                 # Maintain all agents
                 success = True
                 failed_agents = []
-                
+
                 for current_agent_id, memory_agent in self.memory_system.agents.items():
                     try:
                         if not memory_agent._perform_maintenance():
-                            logger.error(f"Maintenance failed for agent {current_agent_id}")
+                            logger.error(
+                                f"Maintenance failed for agent {current_agent_id}"
+                            )
                             success = False
                             failed_agents.append(current_agent_id)
                     except Exception as e:
-                        logger.error(f"Error during maintenance for agent {current_agent_id}: {e}")
+                        logger.error(
+                            f"Error during maintenance for agent {current_agent_id}: {e}"
+                        )
                         success = False
                         failed_agents.append(current_agent_id)
-                
+
                 if not success:
-                    raise MemoryMaintenanceException(f"Maintenance failed for agents: {', '.join(failed_agents)}")
-                
+                    raise MemoryMaintenanceException(
+                        f"Maintenance failed for agents: {', '.join(failed_agents)}"
+                    )
+
                 return success
         except MemoryMaintenanceException:
             # Re-raise custom exceptions
             raise
         except Exception as e:
             logger.error(f"Unexpected error during memory maintenance: {e}")
-            raise MemoryMaintenanceException(f"Unexpected error during memory maintenance: {str(e)}")
+            raise MemoryMaintenanceException(
+                f"Unexpected error during memory maintenance: {str(e)}"
+            )
 
     def clear_agent_memory(
         self, agent_id: str, memory_tiers: Optional[List[str]] = None
@@ -607,7 +868,7 @@ class AgentMemoryAPI:
 
         Returns:
             True if clearing was successful
-            
+
         Raises:
             MemoryMaintenanceException: If there is an error during memory clearing
         """
@@ -616,19 +877,25 @@ class AgentMemoryAPI:
             if not agent_id:
                 raise MemoryMaintenanceException("Agent ID cannot be empty")
             if memory_tiers is not None and not isinstance(memory_tiers, list):
-                raise MemoryMaintenanceException(f"Memory tiers must be a list or None, got {type(memory_tiers)}")
+                raise MemoryMaintenanceException(
+                    f"Memory tiers must be a list or None, got {type(memory_tiers)}"
+                )
             if memory_tiers is not None:
                 valid_tiers = ["stm", "im", "ltm"]
                 invalid_tiers = [t for t in memory_tiers if t not in valid_tiers]
                 if invalid_tiers:
-                    raise MemoryMaintenanceException(f"Invalid memory tiers: {invalid_tiers}. Valid tiers are: {valid_tiers}")
-            
+                    raise MemoryMaintenanceException(
+                        f"Invalid memory tiers: {invalid_tiers}. Valid tiers are: {valid_tiers}"
+                    )
+
             # Get memory agent - this could raise if agent_id doesn't exist
             try:
                 memory_agent = self.memory_system.get_memory_agent(agent_id)
             except Exception as e:
                 logger.error(f"Failed to get memory agent for agent {agent_id}: {e}")
-                raise MemoryMaintenanceException(f"Agent {agent_id} not found or error accessing memory agent: {str(e)}")
+                raise MemoryMaintenanceException(
+                    f"Agent {agent_id} not found or error accessing memory agent: {str(e)}"
+                )
 
             if not memory_tiers:
                 # Clear all tiers
@@ -639,7 +906,9 @@ class AgentMemoryAPI:
                     return result
                 except Exception as e:
                     logger.error(f"Error clearing memory for agent {agent_id}: {e}")
-                    raise MemoryMaintenanceException(f"Error clearing memory for agent {agent_id}: {str(e)}")
+                    raise MemoryMaintenanceException(
+                        f"Error clearing memory for agent {agent_id}: {str(e)}"
+                    )
 
             success = True
             failed_tiers = []
@@ -679,15 +948,19 @@ class AgentMemoryAPI:
                     failed_tiers.append("ltm")
 
             if not success:
-                raise MemoryMaintenanceException(f"Failed to clear memory tiers: {', '.join(failed_tiers)}")
-                
+                raise MemoryMaintenanceException(
+                    f"Failed to clear memory tiers: {', '.join(failed_tiers)}"
+                )
+
             return success
         except MemoryMaintenanceException:
             # Re-raise custom exceptions
             raise
         except Exception as e:
             logger.error(f"Unexpected error clearing memory for agent {agent_id}: {e}")
-            raise MemoryMaintenanceException(f"Unexpected error clearing memory: {str(e)}")
+            raise MemoryMaintenanceException(
+                f"Unexpected error clearing memory: {str(e)}"
+            )
 
     def set_importance_score(
         self, agent_id: str, memory_id: str, importance_score: float
@@ -760,32 +1033,40 @@ class AgentMemoryAPI:
 
         Returns:
             True if configuration was updated successfully
-            
+
         Raises:
             MemoryConfigException: If there is an error during configuration update
         """
         # Update configuration
         try:
             if not isinstance(config, dict):
-                raise MemoryConfigException(f"Configuration must be a dictionary, got {type(config)}")
-                
+                raise MemoryConfigException(
+                    f"Configuration must be a dictionary, got {type(config)}"
+                )
+
             # Track unknown parameters
             unknown_params = []
-            
+
             for key, value in config.items():
                 if hasattr(self.memory_system.config, key):
                     try:
                         setattr(self.memory_system.config, key, value)
                     except Exception as e:
-                        logger.error(f"Failed to set configuration parameter '{key}': {e}")
-                        raise MemoryConfigException(f"Invalid value for configuration parameter '{key}': {str(e)}")
+                        logger.error(
+                            f"Failed to set configuration parameter '{key}': {e}"
+                        )
+                        raise MemoryConfigException(
+                            f"Invalid value for configuration parameter '{key}': {str(e)}"
+                        )
                 else:
                     unknown_params.append(key)
                     logger.warning(f"Unknown configuration parameter: {key}")
-            
+
             # Warn about unknown parameters but don't fail
             if unknown_params:
-                logger.warning(f"Ignored unknown configuration parameters: {', '.join(unknown_params)}")
+                logger.warning(
+                    f"Ignored unknown configuration parameters: {', '.join(unknown_params)}"
+                )
 
             # Apply configuration to existing memory agents
             for agent_id, memory_agent in self.memory_system.agents.items():
@@ -804,8 +1085,12 @@ class AgentMemoryAPI:
                             self.memory_system.config.autoencoder_config
                         )
                 except Exception as e:
-                    logger.error(f"Failed to update configuration for agent {agent_id}: {e}")
-                    raise MemoryConfigException(f"Failed to update configuration for agent {agent_id}: {str(e)}")
+                    logger.error(
+                        f"Failed to update configuration for agent {agent_id}: {e}"
+                    )
+                    raise MemoryConfigException(
+                        f"Failed to update configuration for agent {agent_id}: {str(e)}"
+                    )
 
             return True
 
@@ -814,7 +1099,9 @@ class AgentMemoryAPI:
             raise
         except Exception as e:
             logger.error(f"Failed to update configuration: {e}")
-            raise MemoryConfigException(f"Unexpected error updating configuration: {str(e)}")
+            raise MemoryConfigException(
+                f"Unexpected error updating configuration: {str(e)}"
+            )
 
     def get_attribute_change_history(
         self,
