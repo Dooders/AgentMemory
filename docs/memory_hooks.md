@@ -9,36 +9,32 @@ The Agent Memory Hooks system provides a non-intrusive way to add memory capabil
 ```mermaid
 graph TB
     subgraph "Main Components"
-        AS[Agent State Storage]
-        MA[Memory Agent]
+        AS[Agent with Memory Hooks]
+        AMS[AgentMemorySystem]
         RC[Redis Cache]
     end
     
-    AS --> |State updates| UMS[Unified Memory System]
-    MA --> |Memory operations| UMS
-    RC --> |Caching layer| UMS
+    AS --> |State & Action updates| AMS
+    AMS --> |Storage operations| RC
     
-    subgraph "Unified Memory System"
+    subgraph "Agent Memory System"
         SM[State Management]
-        MM[Memory Management]
-        QE[Query Engine]
-        PM[Persistence Manager]
+        MM[Memory Storage]
+        PM[Persistence]
     end
     
-    UMS --> SM
-    UMS --> MM
-    UMS --> QE
-    UMS --> PM
+    AMS --> SM
+    AMS --> MM
+    AMS --> PM
     
     SM --> |Uses| Redis[Redis]
     MM --> |Uses| Redis
-    QE --> |Queries| Redis
     PM --> |Persists| DB[Database/File Storage]
     
     Redis --> |Syncs with| DB
 ```
 
-Memory hooks function as connectors between agents and the memory architecture. They transparently intercept agent lifecycle events and state changes, forwarding this information to the Agent State Storage component. This component interfaces with the Unified Memory System, which distributes data to four specialized subsystems: State Management for handling state data, Memory Management for tier transitions, Query Engine for retrieval operations, and Persistence Manager for long-term storage. The hooks create a seamless integration layer that enables memory capabilities without modifying agent implementation logic.
+Memory hooks function as connectors between agents and the memory architecture. They transparently intercept agent lifecycle events and state changes, forwarding this information to the AgentMemorySystem. The hooks create a seamless integration layer that enables memory capabilities without modifying agent implementation logic.
 
 ## Features
 
@@ -84,16 +80,11 @@ agent_with_memory = with_memory(agent)
 Memory hooks can be configured through the agent's configuration:
 
 ```python
-from memory.agent_memory.config import MemoryConfig, RedisSTMConfig
+from agent_memory.config import MemoryConfig
 
 # Create memory configuration
 memory_config = MemoryConfig(
-    enable_memory_hooks=True,  # Enable/disable hooks globally
-    stm_config=RedisSTMConfig(
-        host="redis.example.com",
-        port=6379,
-        ttl=3600  # 1 hour TTL for short-term memory
-    )
+    enable_memory_hooks=True  # Enable/disable hooks globally
 )
 
 # Pass to agent
@@ -130,19 +121,67 @@ config = {
 
 The `get_memory_config` function handles all these formats consistently, enabling flexible configuration options while maintaining internal type safety.
 
+## Core Functions
+
+### get_memory_config
+
+```python
+def get_memory_config(config: Any) -> Optional[MemoryConfig]:
+    """Retrieve memory configuration from agent config.
+
+    Handles both dictionary-style and object-style configurations.
+
+    Args:
+        config: Agent configuration (dict or object)
+
+    Returns:
+        MemoryConfig object or None if not found
+    """
+```
+
+### install_memory_hooks
+
+```python
+def install_memory_hooks(agent_class: Type[T]) -> Type[T]:
+    """Install memory hooks on an agent class.
+
+    This is a class decorator that adds memory hooks to BaseAgent subclasses.
+    Hooks are only installed if enable_memory_hooks is True in the memory config.
+
+    Args:
+        agent_class: The agent class to install hooks on
+
+    Returns:
+        The modified agent class
+    """
+```
+
+### with_memory
+
+```python
+def with_memory(agent_instance: T) -> T:
+    """Add memory capabilities to an existing agent instance.
+
+    Args:
+        agent_instance: The agent instance to add memory to
+
+    Returns:
+        The agent with memory capabilities
+    """
+```
+
 ## Usage Examples
 
 ### Basic Integration with Existing Agents
 
 ```python
-from farm.agents import ExplorerAgent
-from memory.agent_memory.api.hooks import install_memory_hooks
-from memory.agent_memory.config import MemoryConfig
+from agent_memory.api.hooks import install_memory_hooks
+from agent_memory.config import MemoryConfig
+from my_project.agents import ExplorerAgent
 
 # Configure memory system
 memory_config = MemoryConfig(
-    cleanup_interval=50,  # Check for cleanup every 50 insertions
-    memory_priority_decay=0.9  # Slightly slower priority decay
+    enable_memory_hooks=True
 )
 
 # Apply hooks to agent class
@@ -164,8 +203,8 @@ action_result = agent.act()  # Action is recorded with states before/after
 ### Retrieving Memories from the Agent
 
 ```python
-from farm.agents import SimpleAgent
-from memory.agent_memory.api.hooks import with_memory
+from agent_memory.api.hooks import with_memory
+from my_project.agents import SimpleAgent
 
 # Create and enhance agent
 agent = with_memory(SimpleAgent({"agent_id": "agent-1"}))
@@ -189,17 +228,14 @@ action_history = agent.memory_system.retrieve_by_time_range(
     end_step=10,
     memory_type="action"
 )
-
-# Calculate average reward
-avg_reward = sum(a["contents"]["reward"] for a in action_history) / len(action_history)
 ```
 
 ### Disabling Memory for Specific Agents
 
 ```python
-from farm.agents import SimpleAgent
-from memory.agent_memory.api.hooks import install_memory_hooks
-from memory.agent_memory.config import MemoryConfig
+from agent_memory.api.hooks import install_memory_hooks
+from agent_memory.config import MemoryConfig
+from my_project.agents import SimpleAgent
 
 @install_memory_hooks
 class MemoryAwareAgent(SimpleAgent):
@@ -214,373 +250,131 @@ agent_no_memory = MemoryAwareAgent({
 # Memory operations will be skipped for this agent
 ```
 
-### Adding Custom Memory Entries
+## Internal Functions
+
+### _log_throttled_error
 
 ```python
-from farm.agents import SimpleAgent
-from memory.agent_memory.api.hooks import with_memory
+def _log_throttled_error(self: Any, message: str, throttle_seconds: int = 60) -> None:
+    """Log errors with throttling to avoid log spam.
 
-agent = with_memory(SimpleAgent({"agent_id": "agent-1"}))
-
-# Store custom interaction data
-agent.memory_system.store_agent_interaction(
-    agent.agent_id,
-    {
-        "interaction_type": "conversation",
-        "other_agent_id": "agent-2",
-        "content": "Hello, how are you?",
-        "sentiment": 0.8
-    },
-    step_number=agent.step_number,
-    priority=0.7  # Custom importance score
-)
+    Args:
+        message: Error message to log
+        throttle_seconds: Minimum seconds between logging the same error
+    """
 ```
 
-## Advanced Usage
-
-### Custom State Difference Calculation
+### _initialize_memory_attributes
 
 ```python
-from farm.agents import SimpleAgent
-from memory.agent_memory.api.hooks import install_memory_hooks
+def _initialize_memory_attributes(obj: Any, memory_config: Optional[MemoryConfig]) -> None:
+    """Initialize memory-related attributes on an object.
 
-@install_memory_hooks
-class CustomDiffAgent(SimpleAgent):
-    # Override the default state difference calculation
-    def _calculate_state_difference(self, state_before, state_after):
-        """Custom implementation focusing on position changes"""
-        if not state_before or not state_after:
-            return 1.0
-            
-        # Calculate distance moved
-        pos_before = (state_before.get("position_x", 0), state_before.get("position_y", 0))
-        pos_after = (state_after.get("position_x", 0), state_after.get("position_y", 0))
-        
-        # Euclidean distance
-        distance = ((pos_after[0] - pos_before[0])**2 + 
-                   (pos_after[1] - pos_before[1])**2)**0.5
-                   
-        # Normalize by maximum expected movement distance
-        max_distance = 10.0  # Maximum expected movement in one step
-        return min(1.0, distance / max_distance)
+    Args:
+        obj: Object to initialize attributes on
+        memory_config: Memory configuration
+    """
 ```
 
-### Integration with Multiple Agent Types
+### _handle_memory_error
 
 ```python
-from farm.agents import BaseAgent, ExplorerAgent, CombatAgent
-from memory.agent_memory.api.hooks import install_memory_hooks
+def _handle_memory_error(obj: Any, error_message: str) -> None:
+    """Handle memory-related errors with proper logging and error management.
 
-# Create a common memory-aware base class
-@install_memory_hooks
-class MemoryAwareAgent(BaseAgent):
-    pass
-
-# Extend different agent types with memory capabilities
-class MemoryAwareExplorer(MemoryAwareAgent, ExplorerAgent):
-    pass
-    
-class MemoryAwareCombatant(MemoryAwareAgent, CombatAgent):
-    pass
+    Args:
+        obj: Object where the error occurred
+        error_message: Error message to log
+    """
 ```
 
-## Performance Considerations
+### _calculate_state_difference
 
-- **Memory Usage**: The hooks store agent states and actions, which can consume significant memory in Redis. Configure TTL and memory limits appropriately.
-- **Error Rate Limiting**: Errors are logged at most once per minute to avoid log flooding.
-- **Compression**: States are stored with importance scores, allowing the memory system to compress or discard less important memories.
-- **Hook Avoidance**: Set `enable_memory_hooks=False` for high-performance critical agents.
+```python
+def _calculate_state_difference(self: T, state_before: Dict[str, Any], state_after: Dict[str, Any]) -> float:
+    """Calculate a normalized difference between two states.
+
+    Args:
+        state_before: State before action
+        state_after: State after action
+
+    Returns:
+        Normalized difference score (0.0-1.0)
+    """
+```
+
+### _calculate_state_importance
+
+```python
+def _calculate_state_importance(state: Dict[str, Any]) -> float:
+    """Calculate an importance score for a state.
+
+    Args:
+        state: Agent state dictionary
+
+    Returns:
+        Importance score (0.0-1.0)
+    """
+```
+
+## State and Action Recording
+
+### State Recording
+
+When the agent's `get_state` method is called, the memory hooks:
+
+1. Call the original `get_state` method to retrieve the agent's state
+2. Calculate an importance score for the state based on factors like health and reward
+3. Store the state in the memory system with the calculated importance score
+4. Return the original state unmodified
+
+### Action Recording
+
+When the agent's `act` method is called, the memory hooks:
+
+1. Record the state before the action
+2. Execute the original action, measuring execution time
+3. Record the state after the action
+4. Calculate importance based on state differences and reward
+5. Store the action data along with before/after states in memory
+6. Return the original action result
 
 ## Error Handling
 
 Memory hooks are designed to fail gracefully:
 
 1. If the memory system initialization fails, agents will continue to function without memory capabilities
-2. Errors during state/action storage are caught and logged with full stack traces using `logger.exception()`, falling back to original agent behavior
-3. Rate limiting prevents error log flooding when the memory system is unavailable
-
-## Related Documentation
-
-- [Core Concepts](../../../core_concepts.md): Fundamental architecture and data structures
-- [AgentMemory API](../../../agent_memory_api.md): Full API specification
-- [Redis Integration](../../../redis_integration.md): Redis backend details
-- [Memory Agent](../../../memory_agent.md): Memory agent implementation
-
-# Memory Hooks Documentation
-
-## Overview
-
-Memory hooks provide a flexible event-based system for customizing memory formation and processing. They allow the agent memory system to automatically respond to important events and modify memory storage behavior based on custom rules.
-
-## Hook System Architecture
-
-### Event Types
-
-The system supports several built-in event types:
-
-```python
-EVENT_TYPES = {
-    "critical_resource_change",  # Significant resource level changes
-    "health_threshold",         # Health crosses important thresholds
-    "novel_observation",        # New or unexpected observations
-    "goal_achievement",         # Goal-related milestones
-    "unexpected_outcome",       # Outcomes differing from predictions
-    "agent_interaction",        # Interactions with other agents
-    "environment_change"        # Significant environmental changes
-}
-```
-
-### Hook Registration
-
-```python
-def register_hook(
-    event_type: str,
-    hook_function: callable,
-    priority: int = 5
-) -> bool:
-    """
-    Register a new hook function for a specific event type.
-    
-    Args:
-        event_type: Type of event to monitor
-        hook_function: Function to call when event occurs
-        priority: Execution priority (1-10, 10 highest)
-        
-    Returns:
-        True if registration successful
-    """
-```
-
-### Hook Function Interface
-
-Hook functions must follow this interface:
-
-```python
-def hook_function(
-    event_data: Dict[str, Any],
-    memory_agent: MemoryAgent
-) -> Union[bool, Dict[str, Any]]:
-    """
-    Process a memory event.
-    
-    Args:
-        event_data: Data related to the event
-        memory_agent: Reference to the memory agent
-        
-    Returns:
-        bool: True if event is critical
-        dict: Configuration for memory storage
-    """
-```
-
-## Built-in Hooks
-
-### 1. Resource Change Hook
-
-```python
-def _hook_significant_resource_change(
-    event_data: Dict[str, Any],
-    memory_agent: MemoryAgent
-) -> Dict[str, Any]:
-    """Monitor significant resource level changes."""
-    resource_delta = event_data.get("resource_delta", 0)
-    
-    return {
-        "store_memory": abs(resource_delta) > RESOURCE_THRESHOLD,
-        "importance": min(1.0, abs(resource_delta) / MAX_RESOURCE_DELTA),
-        "memory_data": event_data
-    }
-```
-
-### 2. Health Critical Hook
-
-```python
-def _hook_health_critical(
-    event_data: Dict[str, Any],
-    memory_agent: MemoryAgent
-) -> Dict[str, Any]:
-    """Monitor critical health state changes."""
-    health = event_data.get("health", 1.0)
-    
-    return {
-        "store_memory": health < HEALTH_CRITICAL_THRESHOLD,
-        "importance": 1.0 - health,  # Lower health = higher importance
-        "memory_data": event_data
-    }
-```
-
-### 3. Novelty Detection Hook
-
-```python
-def _hook_novelty_detection(
-    event_data: Dict[str, Any],
-    memory_agent: MemoryAgent
-) -> Dict[str, Any]:
-    """Detect novel or unexpected observations."""
-    novelty_score = _calculate_novelty(event_data, memory_agent)
-    
-    return {
-        "store_memory": novelty_score > NOVELTY_THRESHOLD,
-        "importance": novelty_score,
-        "memory_data": event_data
-    }
-```
-
-## Custom Hook Examples
-
-### Goal Achievement Hook
-
-```python
-def custom_goal_hook(
-    event_data: Dict[str, Any],
-    memory_agent: MemoryAgent
-) -> Dict[str, Any]:
-    """Track progress towards goals."""
-    goal_progress = event_data.get("goal_progress", 0)
-    goal_achieved = event_data.get("goal_achieved", False)
-    
-    return {
-        "store_memory": goal_achieved or goal_progress > 0.8,
-        "importance": goal_progress,
-        "memory_data": {
-            **event_data,
-            "achievement_time": time.time()
-        }
-    }
-```
-
-### Interaction Pattern Hook
-
-```python
-def interaction_pattern_hook(
-    event_data: Dict[str, Any],
-    memory_agent: MemoryAgent
-) -> Dict[str, Any]:
-    """Monitor patterns in agent interactions."""
-    interaction_type = event_data.get("interaction_type")
-    interaction_result = event_data.get("result")
-    
-    # Check if this interaction pattern is novel
-    pattern_score = _analyze_interaction_pattern(
-        interaction_type,
-        interaction_result,
-        memory_agent
-    )
-    
-    return {
-        "store_memory": pattern_score > PATTERN_THRESHOLD,
-        "importance": pattern_score,
-        "memory_data": event_data
-    }
-```
-
-## Hook Execution Flow
-
-1. **Event Triggering**
-```python
-memory_agent.trigger_event(
-    event_type="critical_resource_change",
-    event_data={
-        "resource_type": "energy",
-        "previous_value": 100,
-        "new_value": 20,
-        "resource_delta": -80
-    }
-)
-```
-
-2. **Hook Processing**
-```python
-def trigger_event(
-    self,
-    event_type: str,
-    event_data: Dict[str, Any]
-) -> bool:
-    """
-    1. Validate event type and data
-    2. Sort hooks by priority
-    3. Execute hooks in priority order
-    4. Process hook results
-    5. Store memories if needed
-    """
-```
+2. Errors during state/action storage are caught and logged with full stack traces using `logger.exception()`
+3. Error logging is rate-limited to prevent log flooding (at most once per minute for the same error type)
+4. All memory operations occur in a try/except block to ensure the original agent behavior continues even when memory operations fail
 
 ## Performance Considerations
 
-### Hook Execution
-- Hooks are executed asynchronously
-- Priority system prevents bottlenecks
-- Timeout mechanism for long-running hooks
+- **Memory Usage**: The hooks store agent states and actions, which can consume significant memory in Redis.
+- **Error Rate Limiting**: Errors are logged at most once per minute to avoid log flooding.
+- **Importance Calculation**: States and actions are stored with importance scores, allowing the memory system to prioritize significant memories.
+- **Hook Avoidance**: Set `enable_memory_hooks=False` for high-performance critical agents.
 
-### Memory Impact
+## BaseAgent
+
+The module includes a minimal `BaseAgent` class that defines the core interface required for memory hooks:
+
 ```python
-def _process_hook_result(
-    self,
-    result: Dict[str, Any],
-    event_data: Dict[str, Any]
-) -> None:
-    """
-    1. Check result validity
-    2. Apply importance threshold
-    3. Merge with event data
-    4. Store if criteria met
-    """
-```
+class BaseAgent:
+    """Base agent class with core functionality required for memory hooks."""
 
-### Optimization Strategies
-- Hook result caching
-- Batch processing of similar events
-- Periodic hook cleanup
+    def __init__(self, config=None, agent_id=None, **kwargs):
+        """Initialize a base agent."""
+        self.config = config or {}
+        self.agent_id = agent_id or f"agent_{id(self)}"
+        self.step_number = 0
 
-## Error Handling
+    def act(self, observation=None, **kwargs):
+        """Perform an agent action based on observation."""
+        self.step_number += 1
+        return ActionResult(action_type="noop")
 
-### Hook Execution Errors
-```python
-try:
-    result = hook["function"](event_data, self)
-except Exception as e:
-    logger.exception(f"Hook execution failed: {e}")
-    return False
-```
-
-### Data Validation
-```python
-def _validate_hook_result(
-    self,
-    result: Dict[str, Any]
-) -> bool:
-    """
-    1. Check required fields
-    2. Validate data types
-    3. Verify importance range
-    4. Ensure memory data integrity
-    """
-```
-
-## Configuration
-
-### Hook Settings
-```python
-HookConfig(
-    execution_timeout=1.0,  # seconds
-    max_hooks_per_event=10,
-    min_priority_threshold=3,
-    async_execution=True
-)
-```
-
-### Priority Levels
-```python
-PRIORITY_LEVELS = {
-    "CRITICAL": 10,  # System-critical events
-    "HIGH": 7,      # Important agent states
-    "MEDIUM": 5,    # Regular interactions
-    "LOW": 3,       # Background events
-    "TRACE": 1      # Debug/monitoring
-}
-```
-
-## See Also
-- [Agent Memory System](agent_memory_system.md)
-- [Memory Tiers](memory_tiers.md)
-- [Agent Memory API](agent_memory_api.md) 
+    def get_state(self) -> AgentState:
+        """Get the current agent state."""
+        return AgentState(agent_id=self.agent_id, step_number=self.step_number)
+``` 
