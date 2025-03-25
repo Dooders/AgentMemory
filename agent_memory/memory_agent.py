@@ -1,8 +1,8 @@
 """Memory Agent implementation for agent state management."""
 
 import logging
-import time
 import math
+import time
 from typing import Any, Dict, List, Optional, Union
 
 from agent_memory.config import MemoryConfig
@@ -329,27 +329,52 @@ class MemoryAgent:
         if memory is None:
             return 0.5  # Default value for None memories
 
-        # Start with base importance from metadata if available
-        base_importance = 0.5
-        if "metadata" in memory and memory["metadata"] and isinstance(memory["metadata"], dict):
-            base_importance = memory["metadata"].get("importance_score", 0.5)
-
         # Reward magnitude component (40%)
         reward = 0
-        if "content" in memory and memory["content"] and isinstance(memory["content"], dict):
+        if (
+            "content" in memory
+            and memory["content"]
+            and isinstance(memory["content"], dict)
+        ):
             reward = memory["content"].get("reward", 0)
         reward_importance = min(1.0, abs(reward) / 10.0) * 0.4
 
-        # Calculate recency factor (30%)
+        # Calculate recency factor (20%)
         # More recent memories get higher importance
         current_time = time.time()
         timestamp = memory.get("timestamp", current_time)
         time_diff = max(0, current_time - timestamp)
         recency_factor = math.exp(-time_diff / (24 * 3600))  # Decay over 24 hours
-        recency_importance = recency_factor * 0.3
+        recency_importance = recency_factor * 0.2
+
+        # Retrieval frequency component (30%)
+        retrieval_count = 0
+        if (
+            "metadata" in memory
+            and memory["metadata"]
+            and isinstance(memory["metadata"], dict)
+        ):
+            retrieval_count = memory["metadata"].get("retrieval_count", 0)
+        # Cap at 5 for max importance
+        retrieval_importance = min(retrieval_count / 5.0, 1.0) * 0.3
+
+        # Surprise factor (10%)
+        surprise_factor = 0.0
+        if (
+            "metadata" in memory
+            and memory["metadata"]
+            and isinstance(memory["metadata"], dict)
+        ):
+            surprise_factor = memory["metadata"].get("surprise_factor", 0.0)
+        surprise_importance = surprise_factor * 0.1
 
         # Combine factors
-        importance = base_importance * 0.3 + reward_importance + recency_importance
+        importance = (
+            reward_importance
+            + recency_importance
+            + retrieval_importance
+            + surprise_importance
+        )
 
         # Cap to [0, 1] range
         importance = max(0.0, min(1.0, importance))

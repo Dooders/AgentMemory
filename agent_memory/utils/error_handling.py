@@ -9,7 +9,7 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -173,20 +173,24 @@ class CircuitBreaker:
 
         except Exception as e:
             # Failure - increment failure count
-            self.failure_count += 1
             self.last_failure_time = time.time()
 
             if self.state == CircuitState.HALF_OPEN:
                 # If in half-open state and fails, go back to open state
                 self.state = CircuitState.OPEN
-            elif self.failure_count >= self.failure_threshold:
-                if self.state != CircuitState.OPEN:
-                    logger.warning(
-                        "Circuit %s changed to OPEN after %d failures",
-                        self.name,
-                        self.failure_count,
-                    )
-                    self.state = CircuitState.OPEN
+                self.failure_count = (
+                    1  # Reset to 1 when transitioning from HALF_OPEN to OPEN
+                )
+            else:
+                self.failure_count += 1
+                if self.failure_count >= self.failure_threshold:
+                    if self.state != CircuitState.OPEN:
+                        logger.warning(
+                            "Circuit %s changed to OPEN after %d failures",
+                            self.name,
+                            self.failure_count,
+                        )
+                        self.state = CircuitState.OPEN
 
             raise e
 
@@ -254,7 +258,7 @@ class RetryPolicy:
         # Add ValueError for test cases when needed
         if self._include_value_error and isinstance(exception, ValueError):
             return True
-        
+
         # Check if the exception is one of the retryable ones
         return isinstance(exception, retryable_exceptions)
 
@@ -350,7 +354,10 @@ class RecoveryQueue:
     """
 
     def __init__(
-        self, worker_count: int = 2, retry_policy: Optional[RetryPolicy] = None, test_mode: bool = False
+        self,
+        worker_count: int = 2,
+        retry_policy: Optional[RetryPolicy] = None,
+        test_mode: bool = False,
     ):
         """Initialize the recovery queue.
 
@@ -365,7 +372,7 @@ class RecoveryQueue:
         self._worker_thread = None
         self._running = False
         self._test_mode = test_mode
-        
+
         # For tests to directly access queue items
         if test_mode:
             self.retry_policy._include_value_error = True
@@ -386,8 +393,21 @@ class RecoveryQueue:
 
     def stop(self) -> None:
         """Stop recovery queue workers."""
+        if not self._running:
+            return
+
         self._running = False
-        # Workers will stop when running becomes False
+
+        # Add a sentinel item to wake up the thread if it's blocked on queue.get
+        try:
+            self._queue.put((0, None), block=False)
+        except queue.Full:
+            pass
+
+        # Wait for the worker thread to exit
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=2)
+
         logger.info("Stopping recovery queue worker")
 
     def enqueue(self, operation: RetryableOperation, priority: int = 0) -> None:
@@ -402,12 +422,16 @@ class RecoveryQueue:
             self.start()
 
         # In test mode, directly execute the operation without using the queue
-        if self._test_mode and hasattr(operation, 'execute'):
+        if self._test_mode and hasattr(operation, "execute"):
             try:
                 result = operation.execute()
-                logger.debug("Test mode: executed operation %s with result %s", operation, result)
+                logger.debug(
+                    "Test mode: executed operation %s with result %s", operation, result
+                )
             except Exception as e:
-                logger.debug("Test mode: operation %s failed with error %s", operation, str(e))
+                logger.debug(
+                    "Test mode: operation %s failed with error %s", operation, str(e)
+                )
                 # Handle retry
                 if isinstance(e, RedisTimeoutError):  # This is for specific test
                     operation.execute()  # Retry for the test case
@@ -423,6 +447,11 @@ class RecoveryQueue:
             try:
                 # Get with timeout to allow checking running status
                 priority, operation = self._queue.get(timeout=1.0)
+
+                # Check for sentinel value
+                if operation is None:
+                    self._queue.task_done()
+                    continue
 
                 try:
                     success = operation.execute()
@@ -441,7 +470,9 @@ class RecoveryQueue:
                 # Queue timeout, loop and check running status
                 continue
             except Exception as e:
-                logger.exception("Unexpected error in recovery queue worker: %s", str(e))
+                logger.exception(
+                    "Unexpected error in recovery queue worker: %s", str(e)
+                )
 
     def _handle_retry(
         self,
