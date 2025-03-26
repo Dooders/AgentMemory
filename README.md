@@ -11,6 +11,7 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 2. **Intermediate Memory (IM)**: Compressed mid-term storage with Redis + TTL
 3. **Long-Term Memory (LTM)**: Highly compressed long-term storage using SQLite
 
+
 ## Features
 
 - **Hierarchical Storage**: Automatic memory transition between STM, IM, and LTM tiers
@@ -30,21 +31,21 @@ agent_memory/
 ├── config.py            # Configuration classes
 ├── memory_agent.py      # Memory agent implementation
 ├── embeddings/          # Neural embedding components
-│   ├── autoencoder.py  # Autoencoder for compression
-│   ├── vector_store.py # Vector storage utilities
-│   └── compression.py  # Compression algorithms
-├── storage/            # Storage backend implementations
-│   ├── redis_stm.py   # Redis STM storage
-│   ├── redis_im.py    # Redis IM storage
-│   └── sqlite_ltm.py  # SQLite LTM storage
-├── retrieval/          # Memory retrieval components
-│   ├── similarity.py  # Similarity search
-│   ├── temporal.py    # Time-based retrieval
-│   └── attribute.py   # Attribute-based retrieval
-├── api/               # API interfaces
-│   ├── memory_api.py # Main API interface
-│   └── hooks.py      # Agent integration hooks
-└── utils/            # Utility functions
+│   ├── autoencoder.py   # Autoencoder for compression
+│   ├── vector_store.py  # Vector storage utilities
+│   └── compression.py   # Compression algorithms
+├── storage/             # Storage backend implementations
+│   ├── redis_stm.py     # Redis STM storage
+│   ├── redis_im.py      # Redis IM storage
+│   └── sqlite_ltm.py    # SQLite LTM storage
+├── retrieval/           # Memory retrieval components
+│   ├── similarity.py    # Similarity search
+│   ├── temporal.py      # Time-based retrieval
+│   └── attribute.py     # Attribute-based retrieval
+├── api/                 # API interfaces
+│   ├── memory_api.py    # Main API interface
+│   └── hooks.py         # Agent integration hooks
+└── utils/               # Utility functions
     ├── serialization.py
     └── redis_utils.py
 ```
@@ -60,7 +61,13 @@ agent_memory/
 
 ## Installation
 
-1. Install Redis server:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/csmangum/AgentMemory.git
+   cd AgentMemory
+   ```
+
+2. Install Redis server:
    ```bash
    # Ubuntu/Debian
    sudo apt-get install redis-server
@@ -72,7 +79,7 @@ agent_memory/
    # Download from https://github.com/microsoftarchive/redis/releases
    ```
 
-2. Install Python dependencies:
+3. Install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
@@ -179,7 +186,7 @@ similar_states = AgentMemorySystem.get_instance().retrieve_similar_states(
     k=10
 )
 ```
-
+---
 ## System Advantages
 
 The Agent Memory System offers several distinct advantages for intelligent agent implementations:
