@@ -13,6 +13,7 @@ import redis
 
 from agent_memory.utils.error_handling import (
     CircuitBreaker,
+    CircuitOpenError,
     Priority,
     RecoveryQueue,
     RedisTimeoutError,
@@ -222,6 +223,11 @@ class ResilientRedisClient:
             elif isinstance(e, redis.exceptions.TimeoutError):
                 logger.exception(f"Redis timeout in {operation_name}")
                 raise RedisTimeoutError(f"Redis operation timed out: {str(e)}") from e
+            elif isinstance(e, CircuitOpenError):
+                logger.warning(f"Circuit breaker open for {operation_name}")
+                raise RedisUnavailableError(
+                    f"Redis unavailable (circuit open): {str(e)}"
+                ) from e
             else:
                 logger.exception(f"Redis error in {operation_name}")
                 raise e
