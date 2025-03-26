@@ -210,6 +210,7 @@ class ResilientRedisClient:
             Result of the operation
 
         Raises:
+            CircuitOpenError: If the circuit is open
             RedisUnavailableError: If Redis is unavailable (connection error)
             RedisTimeoutError: If operation times out
             Exception: Other exceptions from the Redis operation
@@ -225,9 +226,8 @@ class ResilientRedisClient:
                 raise RedisTimeoutError(f"Redis operation timed out: {str(e)}") from e
             elif isinstance(e, CircuitOpenError):
                 logger.warning(f"Circuit breaker open for {operation_name}")
-                raise RedisUnavailableError(
-                    f"Redis unavailable (circuit open): {str(e)}"
-                ) from e
+                # Let CircuitOpenError pass through instead of converting to RedisUnavailableError
+                raise
             else:
                 logger.exception(f"Redis error in {operation_name}")
                 raise e
@@ -713,3 +713,16 @@ class ResilientRedisClient:
         # For backwards compatibility, always return True on success
         self.client.hset(name, mapping=mapping)
         return True
+
+    @resilient_operation("pipeline")
+    def pipeline(self) -> redis.client.Pipeline:
+        """Create a Redis pipeline for batching commands.
+
+        Returns:
+            Redis pipeline object for batching commands
+
+        Raises:
+            RedisUnavailableError: If Redis is unavailable
+            RedisTimeoutError: If operation times out
+        """
+        return self.client.pipeline()

@@ -9,10 +9,10 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from agent_memory.storage.redis_client import ResilientRedisClient
 import numpy as np
 
 from agent_memory.config import RedisIMConfig
+from agent_memory.storage.redis_client import ResilientRedisClient
 from agent_memory.utils.error_handling import (
     Priority,
     RedisTimeoutError,
@@ -113,27 +113,31 @@ class RedisIMStore:
         timestamp = memory_entry.get("timestamp", time.time())
 
         try:
+            # Use pipeline to batch all Redis commands
+            pipe = self.redis.pipeline()
+
             # Store the full memory entry
             key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-            self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
+            pipe.set(key, json.dumps(memory_entry), ex=self.config.ttl)
 
             # Add to agent's memory list
             agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
-            self.redis.zadd(agent_memories_key, {memory_id: timestamp})
-
-            # Set TTL on the sorted set
-            self.redis.expire(agent_memories_key, self.config.ttl)
+            pipe.zadd(agent_memories_key, {memory_id: timestamp})
+            pipe.expire(agent_memories_key, self.config.ttl)
 
             # Add to timeline index for chronological retrieval
             timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
-            self.redis.zadd(timeline_key, {memory_id: timestamp})
-            self.redis.expire(timeline_key, self.config.ttl)
+            pipe.zadd(timeline_key, {memory_id: timestamp})
+            pipe.expire(timeline_key, self.config.ttl)
 
             # Add to importance index for importance-based retrieval
             importance = memory_entry.get("metadata", {}).get("importance_score", 0.0)
             importance_key = f"{self._key_prefix}:{agent_id}:importance"
-            self.redis.zadd(importance_key, {memory_id: importance})
-            self.redis.expire(importance_key, self.config.ttl)
+            pipe.zadd(importance_key, {memory_id: importance})
+            pipe.expire(importance_key, self.config.ttl)
+
+            # Execute all commands as a single atomic operation
+            pipe.execute()
 
             return True
 
@@ -158,10 +162,10 @@ class RedisIMStore:
             # Construct the key using agent_id and memory_id
             key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
             data = self.redis.get(key)
-            
+
             if not data:
                 return None
-                
+
             memory_entry = json.loads(data)
             self._update_access_metadata(agent_id, memory_id, memory_entry)
             return memory_entry
@@ -175,7 +179,12 @@ class RedisIMStore:
             )
             return None
         except Exception as e:
-            logger.error("Failed to retrieve memory entry %s for agent %s: %s", memory_id, agent_id, str(e))
+            logger.error(
+                "Failed to retrieve memory entry %s for agent %s: %s",
+                memory_id,
+                agent_id,
+                str(e),
+            )
             return None
 
     def get_by_timerange(
@@ -199,12 +208,31 @@ class RedisIMStore:
                 timeline_key, min=start_time, max=end_time, start=0, num=limit
             )
 
-            # Retrieve each memory entry
-            memories = []
+            if not memory_ids:
+                return []
+
+            # Batch retrieve memory entries using pipeline
+            pipe = self.redis.pipeline()
+            memory_keys = []
+
             for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
-                if memory:
-                    memories.append(memory)
+                # Handle memory_id if it's bytes
+                if isinstance(memory_id, bytes):
+                    memory_id = memory_id.decode("utf-8")
+
+                key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                memory_keys.append(memory_id)
+                pipe.get(key)
+
+            # Execute pipeline and process results
+            results = pipe.execute()
+            memories = []
+
+            for i, data in enumerate(results):
+                if data:
+                    memory_entry = json.loads(data)
+                    self._update_access_metadata(agent_id, memory_keys[i], memory_entry)
+                    memories.append(memory_entry)
 
             return memories
 
@@ -241,12 +269,31 @@ class RedisIMStore:
                 num=limit,
             )
 
-            # Retrieve each memory entry
-            memories = []
+            if not memory_ids:
+                return []
+
+            # Batch retrieve memory entries using pipeline
+            pipe = self.redis.pipeline()
+            memory_keys = []
+
             for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
-                if memory:
-                    memories.append(memory)
+                # Handle memory_id if it's bytes
+                if isinstance(memory_id, bytes):
+                    memory_id = memory_id.decode("utf-8")
+
+                key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                memory_keys.append(memory_id)
+                pipe.get(key)
+
+            # Execute pipeline and process results
+            results = pipe.execute()
+            memories = []
+
+            for i, data in enumerate(results):
+                if data:
+                    memory_entry = json.loads(data)
+                    self._update_access_metadata(agent_id, memory_keys[i], memory_entry)
+                    memories.append(memory_entry)
 
             return memories
 
@@ -271,10 +318,13 @@ class RedisIMStore:
             timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
             importance_key = f"{self._key_prefix}:{agent_id}:importance"
 
-            self.redis.delete(key)
-            self.redis.zrem(agent_memories_key, memory_id)
-            self.redis.zrem(timeline_key, memory_id)
-            self.redis.zrem(importance_key, memory_id)
+            # Use pipeline for atomic deletion from all indices
+            pipe = self.redis.pipeline()
+            pipe.delete(key)
+            pipe.zrem(agent_memories_key, memory_id)
+            pipe.zrem(timeline_key, memory_id)
+            pipe.zrem(importance_key, memory_id)
+            pipe.execute()
 
             return True
 
@@ -314,16 +364,33 @@ class RedisIMStore:
             agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
             memory_ids = self.redis.zrange(agent_memories_key, 0, -1)
 
-            # Delete each memory
-            for memory_id in memory_ids:
-                self.delete(agent_id, memory_id)
+            if not memory_ids:
+                return True
 
-            # Delete indexes
-            self.redis.delete(
-                f"{self._key_prefix}:{agent_id}:memories",
-                f"{self._key_prefix}:{agent_id}:timeline",
-                f"{self._key_prefix}:{agent_id}:importance",
+            # Build keys to delete
+            keys_to_delete = []
+            for memory_id in memory_ids:
+                # Handle memory_id if it's bytes
+                if isinstance(memory_id, bytes):
+                    memory_id = memory_id.decode("utf-8")
+                keys_to_delete.append(
+                    f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                )
+
+            # Add index keys
+            keys_to_delete.extend(
+                [
+                    f"{self._key_prefix}:{agent_id}:memories",
+                    f"{self._key_prefix}:{agent_id}:timeline",
+                    f"{self._key_prefix}:{agent_id}:importance",
+                ]
             )
+
+            # Use pipeline to delete all keys in a single operation
+            pipe = self.redis.pipeline()
+            if keys_to_delete:
+                pipe.delete(*keys_to_delete)
+            pipe.execute()
 
             return True
         except Exception as e:
@@ -340,16 +407,20 @@ class RedisIMStore:
             ping_result = self.redis.ping()
             return {
                 "status": "healthy" if ping_result else "degraded",
-                "message": "Redis connection successful" if ping_result else "Redis ping failed",
+                "message": (
+                    "Redis connection successful"
+                    if ping_result
+                    else "Redis ping failed"
+                ),
                 "latency_ms": self.redis.get_latency(),
-                "client": "redis-im"
+                "client": "redis-im",
             }
         except (RedisTimeoutError, RedisUnavailableError, Exception) as e:
             return {
-                "status": "unhealthy", 
+                "status": "unhealthy",
                 "message": str(e),
                 "error": str(e),
-                "client": "redis-im"
+                "client": "redis-im",
             }
 
     def _update_access_metadata(
@@ -373,9 +444,12 @@ class RedisIMStore:
             )
             memory_entry["metadata"] = metadata
 
+            # Use pipeline for atomic updates
+            pipe = self.redis.pipeline()
+
             # Store updated entry
             key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-            self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
+            pipe.set(key, json.dumps(memory_entry), ex=self.config.ttl)
 
             # Update importance based on access patterns
             # Increase importance for frequently accessed memories
@@ -385,10 +459,12 @@ class RedisIMStore:
                 new_importance = importance + (access_factor * 0.1)  # Slight boost
 
                 importance_key = f"{self._key_prefix}:{agent_id}:importance"
-                self.redis.zadd(importance_key, {memory_id: new_importance})
+                pipe.zadd(importance_key, {memory_id: new_importance})
 
                 # Update in memory entry
                 metadata["importance_score"] = new_importance
+
+            pipe.execute()
 
         except Exception as e:
             # Non-critical operation, just log
@@ -398,10 +474,10 @@ class RedisIMStore:
 
     def get_size(self, agent_id: str) -> int:
         """Get the approximate size in bytes of all memories for an agent.
-        
+
         Args:
             agent_id: ID of the agent
-            
+
         Returns:
             Approximate size in bytes
         """
@@ -409,20 +485,28 @@ class RedisIMStore:
             # Get all memory keys for this agent
             pattern = f"{self._key_prefix}:{agent_id}:memory:*"
             memory_keys = list(self.redis.scan_iter(match=pattern))
-            
-            # Get memory size by dumping each key
+
+            if not memory_keys:
+                return 0
+
+            # Use pipeline to get the memory sizes in batches
             total_size = 0
-            for key in memory_keys:
-                try:
-                    # Get the memory entry JSON size
-                    value = self.redis.get(key)
+            batch_size = 100  # Process keys in batches to avoid large pipelines
+
+            for i in range(0, len(memory_keys), batch_size):
+                batch_keys = memory_keys[i : i + batch_size]
+                pipe = self.redis.pipeline()
+
+                for key in batch_keys:
+                    pipe.get(key)
+
+                values = pipe.execute()
+
+                # Sum up the sizes of non-empty values
+                for value in values:
                     if value:
                         total_size += len(value)
-                except Exception as e:
-                    # Skip keys that cause errors (wrong type, etc.)
-                    logger.debug("Skipping key %s: %s", key, e)
-                    continue
-            
+
             return total_size
         except Exception as e:
             logger.error("Error calculating memory size: %s", e)
@@ -430,11 +514,11 @@ class RedisIMStore:
 
     def get_all(self, agent_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
         """Get all memories for an agent.
-        
+
         Args:
             agent_id: ID of the agent
             limit: Maximum number of memories to return
-            
+
         Returns:
             List of memory entries
         """
@@ -444,15 +528,34 @@ class RedisIMStore:
             memory_ids = self.redis.zrange(
                 memories_key, 0, limit - 1, desc=True  # Most recent first
             )
-            
-            # Get each memory
-            results = []
+
+            if not memory_ids:
+                return []
+
+            # Batch retrieve memory entries using pipeline
+            pipe = self.redis.pipeline()
+            memory_keys = []
+
             for memory_id in memory_ids:
-                memory = self.get(memory_id, agent_id)
-                if memory:
-                    results.append(memory)
-                    
-            return results
+                # Handle memory_id if it's bytes (could happen with some Redis clients)
+                if isinstance(memory_id, bytes):
+                    memory_id = memory_id.decode("utf-8")
+
+                key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                memory_keys.append(memory_id)
+                pipe.get(key)
+
+            # Execute pipeline and process results
+            results = pipe.execute()
+            memories = []
+
+            for i, data in enumerate(results):
+                if data:
+                    memory_entry = json.loads(data)
+                    self._update_access_metadata(agent_id, memory_keys[i], memory_entry)
+                    memories.append(memory_entry)
+
+            return memories
         except Exception as e:
             logger.error("Error retrieving all memories: %s", e)
             return []
@@ -477,67 +580,69 @@ class RedisIMStore:
         """
         try:
             memories = self.get_all(agent_id)
-            
+
             # Filter by memory type if specified
             if memory_type:
                 memories = [m for m in memories if m.get("memory_type") == memory_type]
-            
+
             # Filter memories without embeddings
             memories = [m for m in memories if "embedding" in m]
-            
+
             # Return empty list if no memories with embeddings
             if not memories:
                 return []
-            
+
             # Calculate similarity scores
             for memory in memories:
                 # Calculate cosine similarity if the memory has an embedding
                 memory_embedding = memory.get("embedding", [])
                 if memory_embedding:
-                    similarity = self._cosine_similarity(query_embedding, memory_embedding)
+                    similarity = self._cosine_similarity(
+                        query_embedding, memory_embedding
+                    )
                     memory["similarity_score"] = float(similarity)
                 else:
                     memory["similarity_score"] = 0.0
-            
+
             # Sort by similarity score (descending)
             memories.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
-            
+
             # Return top k results
             return memories[:k]
-            
+
         except Exception as e:
             logger.error(f"Error in search_similar: {e}")
             return []
-    
+
     def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
         """Calculate cosine similarity between two vectors.
-        
+
         Args:
             a: First vector
             b: Second vector
-            
+
         Returns:
             Cosine similarity as a float between -1 and 1
         """
         if not a or not b or len(a) != len(b):
             return 0.0
-            
+
         try:
             # Convert to numpy for vector operations
             a_array = np.array(a)
             b_array = np.array(b)
-            
+
             # Calculate norm products
             norm_a = np.linalg.norm(a_array)
             norm_b = np.linalg.norm(b_array)
-            
+
             # Prevent division by zero
             if norm_a == 0 or norm_b == 0:
                 return 0.0
-                
+
             # Calculate cosine similarity
             return float(np.dot(a_array, b_array) / (norm_a * norm_b))
-            
+
         except Exception as e:
             logger.error(f"Error calculating cosine similarity: {e}")
             return 0.0
@@ -546,7 +651,7 @@ class RedisIMStore:
         self,
         agent_id: str,
         attributes: Dict[str, Any],
-        memory_type: Optional[str] = None
+        memory_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search for memories matching specific attributes.
 
@@ -561,51 +666,53 @@ class RedisIMStore:
         try:
             # Get all memories
             memories = self.get_all(agent_id)
-            
+
             # Filter by memory type if specified
             if memory_type:
                 memories = [m for m in memories if m.get("memory_type") == memory_type]
-            
+
             # Filter by attributes
             results = []
             for memory in memories:
                 if self._matches_attributes(memory, attributes):
                     results.append(memory)
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Error in search_by_attributes: {e}")
             return []
-    
-    def _matches_attributes(self, memory: Dict[str, Any], attributes: Dict[str, Any]) -> bool:
+
+    def _matches_attributes(
+        self, memory: Dict[str, Any], attributes: Dict[str, Any]
+    ) -> bool:
         """Check if a memory matches the specified attributes.
-        
+
         Args:
             memory: Memory entry to check
             attributes: Dictionary of attribute keys and values to match
-            
+
         Returns:
             True if the memory matches all attributes, False otherwise
         """
         for attr_path, attr_value in attributes.items():
             # Handle nested attributes using dot notation (e.g., "position.location")
-            parts = attr_path.split('.')
-            
+            parts = attr_path.split(".")
+
             # Start from the memory content
             current = memory.get("content", {})
-            
+
             # Navigate through the nested structure
             for i, part in enumerate(parts[:-1]):
                 if part not in current:
                     return False
                 current = current[part]
-            
+
             # Check the final attribute value
             last_part = parts[-1]
             if last_part not in current or current[last_part] != attr_value:
                 return False
-        
+
         return True
 
     def search_by_step_range(
@@ -613,7 +720,7 @@ class RedisIMStore:
         agent_id: str,
         start_step: int,
         end_step: int,
-        memory_type: Optional[str] = None
+        memory_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search for memories within a specific step range.
 
@@ -629,11 +736,11 @@ class RedisIMStore:
         try:
             # Get all memories
             memories = self.get_all(agent_id)
-            
+
             # Filter by memory type if specified
             if memory_type:
                 memories = [m for m in memories if m.get("memory_type") == memory_type]
-            
+
             # Filter by step range
             results = []
             for memory in memories:
@@ -641,12 +748,12 @@ class RedisIMStore:
                 # Only include memories with step numbers in the requested range
                 if step_number is not None and start_step <= step_number <= end_step:
                     results.append(memory)
-            
+
             # Sort by step number
             results.sort(key=lambda x: x.get("step_number", 0))
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Error in search_by_step_range: {e}")
             return []

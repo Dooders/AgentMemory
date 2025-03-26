@@ -13,6 +13,7 @@ import redis
 from agent_memory.storage.redis_client import ResilientRedisClient, exponential_backoff
 from agent_memory.utils.error_handling import (
     CircuitBreaker,
+    CircuitOpenError,
     CircuitState,
     Priority,
     RedisTimeoutError,
@@ -368,28 +369,19 @@ class TestResilientRedisClient(unittest.TestCase):
         with self.assertRaises(RedisUnavailableError):
             self.client.get("key")
 
+        self.assertEqual(self.client.circuit_breaker.failure_count, 1)
+        self.assertEqual(self.client.circuit_breaker.state, CircuitState.CLOSED)
+
         # Second failure - should open the circuit
         with self.assertRaises(RedisUnavailableError):
             self.client.get("key")
 
-        # The circuit may not open immediately after the second failure
-        # Allow more time and attempts for the state to transition
-        max_attempts = 10
-        for attempt in range(max_attempts):
-            if self.client.circuit_breaker.state == CircuitState.OPEN:
-                break
-            time.sleep(0.05)  # Increased delay between checks
-
-            # One more failure attempt to trigger state change if needed
-            if attempt == max_attempts // 2:
-                with self.assertRaises(RedisUnavailableError):
-                    self.client.get("key")
-
         # Verify circuit is now open
+        self.assertEqual(self.client.circuit_breaker.failure_count, 2)
         self.assertEqual(self.client.circuit_breaker.state, CircuitState.OPEN)
 
-        # Verify that circuit being open causes immediate failure
-        with self.assertRaises(RedisUnavailableError):
+        # Verify that circuit being open causes immediate failure with CircuitOpenError
+        with self.assertRaises(CircuitOpenError):
             self.client.get("key")
 
         # Wait for reset timeout (increased for reliability)
@@ -399,12 +391,13 @@ class TestResilientRedisClient(unittest.TestCase):
         self.mock_redis_instance.get.side_effect = None
         self.mock_redis_instance.get.return_value = "value"
 
-        # This should succeed and close the circuit
+        # Next call should change circuit to HALF_OPEN, and if successful, to CLOSED
         result = self.client.get("key")
         self.assertEqual(result, "value")
 
         # Circuit should be closed again
         self.assertEqual(self.client.circuit_breaker.state, CircuitState.CLOSED)
+        self.assertEqual(self.client.circuit_breaker.failure_count, 0)
 
     # Store with retry tests
     def test_store_with_retry_success(self):
