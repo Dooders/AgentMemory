@@ -1,4 +1,5 @@
 # AgentMemory
+![Project Status](https://img.shields.io/badge/status-in%20development-orange)
 
 AgentMemory is a hierarchical memory system for intelligent agents that provides efficient storage, retrieval, and compression of agent states and experiences across multiple memory tiers.
 
@@ -13,7 +14,7 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 ## Features
 
 - **Hierarchical Storage**: Automatic memory transition between STM, IM, and LTM tiers
-- **Neural Compression**: Autoencoder-based embedding generation for efficient storage
+- **Neural Compression**: Autoencoder-based embedding generation for efficient storage (in-development)
 - **Flexible Integration**: Easy integration with existing agent systems via API or hooks
 - **Priority-Based Memory**: Importance scoring for intelligent memory retention
 - **Vector Search**: Similarity-based memory retrieval using embeddings
@@ -154,7 +155,7 @@ memory_system = AgentMemorySystem.get_instance(config)
 
 ## Advanced Features
 
-### Neural Compression
+### Neural Compression (in-development)
 The system uses an autoencoder architecture to generate compressed embeddings:
 - STM: 384-dimensional embeddings
 - IM: 128-dimensional embeddings
