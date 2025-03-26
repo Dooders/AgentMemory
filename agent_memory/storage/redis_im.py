@@ -55,7 +55,7 @@ class RedisIMStore:
             circuit_reset_timeout=300,
         )
 
-        # Check for Redis vector search capabilities
+        # Check if Redis vector search capabilities are available
         self._vector_search_available = self._check_vector_search_available()
         if self._vector_search_available:
             logger.info("Redis vector search capabilities detected")
@@ -64,6 +64,15 @@ class RedisIMStore:
         else:
             logger.info(
                 "Redis vector search capabilities not detected, using fallback method"
+            )
+
+        # Check if Lua scripting is fully supported
+        self._lua_scripting_available = self._check_lua_scripting()
+        if self._lua_scripting_available:
+            logger.info("Redis Lua scripting fully supported")
+        else:
+            logger.info(
+                "Redis Lua scripting not fully supported, using fallback pipeline methods"
             )
 
         logger.info("Initialized RedisIMStore with namespace %s", self._key_prefix)
@@ -144,6 +153,20 @@ class RedisIMStore:
         except Exception as e:
             logger.warning(f"Failed to create vector index: {e}")
 
+    def _check_lua_scripting(self) -> bool:
+        """Check if Redis server fully supports Lua scripting.
+
+        Returns:
+            True if Lua scripting is fully supported, False otherwise
+        """
+        try:
+            # Try a simple Lua script to check if scripting is available
+            test_result = self.redis.eval("return 1", 0)
+            return test_result == 1
+        except Exception as e:
+            logger.warning(f"Lua scripting check failed: {e}")
+            return False
+
     def store(
         self,
         agent_id: str,
@@ -200,14 +223,7 @@ class RedisIMStore:
         timestamp = memory_entry.get("timestamp", time.time())
 
         try:
-            # Use pipeline to batch all Redis commands
-            pipe = self.redis.pipeline()
-
-            # Store the memory entry as a hash instead of JSON string
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-
-            # Flatten the memory entry for Redis hash storage
-            # We'll store nested structures as JSON strings within the hash
+            # Prepare hash values
             hash_values = {}
 
             # Basic fields
@@ -246,32 +262,95 @@ class RedisIMStore:
             if memory_type is not None:
                 hash_values["memory_type"] = memory_type
 
-            # Use HSET to set all fields at once
-            pipe.hset(key, mapping=hash_values)
-            pipe.expire(key, self.config.ttl)
-
-            # Add to agent's memory list
+            # Set up keys
+            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
             agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
-            pipe.zadd(agent_memories_key, {memory_id: timestamp})
-            pipe.expire(agent_memories_key, self.config.ttl)
-
-            # Add to timeline index for chronological retrieval
             timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
-            pipe.zadd(timeline_key, {memory_id: timestamp})
-            pipe.expire(timeline_key, self.config.ttl)
-
-            # Add to importance index for importance-based retrieval
-            importance = float(hash_values["importance_score"])
             importance_key = f"{self._key_prefix}:{agent_id}:importance"
-            pipe.zadd(importance_key, {memory_id: importance})
-            pipe.expire(importance_key, self.config.ttl)
+            importance = float(hash_values["importance_score"])
 
-            # Execute all commands as a single atomic operation
-            pipe.execute()
+            if self._lua_scripting_available:
+                # Define Lua script for atomic memory storage and index updates
+                store_script = """
+                    local memory_key = KEYS[1]
+                    local memories_key = KEYS[2]
+                    local timeline_key = KEYS[3]
+                    local importance_key = KEYS[4]
+                    
+                    local hash_json = ARGV[1]
+                    local memory_id = ARGV[2]
+                    local timestamp = ARGV[3]
+                    local importance = ARGV[4]
+                    local ttl = ARGV[5]
+                    
+                    -- Parse hash values
+                    local hash_values = cjson.decode(hash_json)
+                    
+                    -- Store hash
+                    for k, v in pairs(hash_values) do
+                        redis.call('HSET', memory_key, k, v)
+                    end
+                    
+                    -- Add to indices
+                    redis.call('ZADD', memories_key, timestamp, memory_id)
+                    redis.call('ZADD', timeline_key, timestamp, memory_id)
+                    redis.call('ZADD', importance_key, importance, memory_id)
+                    
+                    -- Set TTL on all keys
+                    redis.call('EXPIRE', memory_key, ttl)
+                    redis.call('EXPIRE', memories_key, ttl)
+                    redis.call('EXPIRE', timeline_key, ttl)
+                    redis.call('EXPIRE', importance_key, ttl)
+                    
+                    return 1
+                """
 
-            return True
+                # Execute the Lua script
+                result = self.redis.eval(
+                    store_script,
+                    4,  # Number of keys
+                    key,
+                    agent_memories_key,
+                    timeline_key,
+                    importance_key,
+                    json.dumps(hash_values),
+                    memory_id,
+                    str(timestamp),
+                    str(importance),
+                    str(self.config.ttl),
+                )
+                return result == 1
+            else:
+                # Fallback to pipeline implementation for compatibility
+                try:
+                    pipe = self.redis.pipeline()
 
-        except (RedisUnavailableError, RedisTimeoutError) as e:
+                    # Store the memory entry as a hash
+                    pipe.hset(key, mapping=hash_values)
+                    pipe.expire(key, self.config.ttl)
+
+                    # Add to agent's memory list
+                    pipe.zadd(agent_memories_key, {memory_id: timestamp})
+                    pipe.expire(agent_memories_key, self.config.ttl)
+
+                    # Add to timeline index for chronological retrieval
+                    pipe.zadd(timeline_key, {memory_id: timestamp})
+                    pipe.expire(timeline_key, self.config.ttl)
+
+                    # Add to importance index for importance-based retrieval
+                    pipe.zadd(importance_key, {memory_id: importance})
+                    pipe.expire(importance_key, self.config.ttl)
+
+                    # Execute all commands as a single atomic operation
+                    pipe.execute()
+                    return True
+                except Exception as e:
+                    logger.error(
+                        "Failed to store memory entry %s: %s", memory_id, str(e)
+                    )
+                    return False
+
+        except (RedisUnavailableError, RedisTimeoutError):
             # Let these propagate up for retry handling
             raise
         except Exception as e:
@@ -509,21 +588,62 @@ class RedisIMStore:
             True if deletion was successful
         """
         try:
-            # Remove from all indices
+            # Set up keys
             key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
             agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
             timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
             importance_key = f"{self._key_prefix}:{agent_id}:importance"
 
-            # Use pipeline for atomic deletion from all indices
-            pipe = self.redis.pipeline()
-            pipe.delete(key)
-            pipe.zrem(agent_memories_key, memory_id)
-            pipe.zrem(timeline_key, memory_id)
-            pipe.zrem(importance_key, memory_id)
-            pipe.execute()
+            if self._lua_scripting_available:
+                # Define Lua script for atomic deletion from all indices
+                delete_script = """
+                    local memory_key = KEYS[1]
+                    local memories_key = KEYS[2]
+                    local timeline_key = KEYS[3]
+                    local importance_key = KEYS[4]
+                    local memory_id = ARGV[1]
+                    
+                    -- Delete the memory hash
+                    local exists = redis.call('EXISTS', memory_key)
+                    if exists == 0 then
+                        return 0
+                    end
+                    
+                    redis.call('DEL', memory_key)
+                    
+                    -- Remove from all indices
+                    redis.call('ZREM', memories_key, memory_id)
+                    redis.call('ZREM', timeline_key, memory_id)
+                    redis.call('ZREM', importance_key, memory_id)
+                    
+                    return 1
+                """
 
-            return True
+                # Execute the Lua script
+                result = self.redis.eval(
+                    delete_script,
+                    4,  # Number of keys
+                    key,
+                    agent_memories_key,
+                    timeline_key,
+                    importance_key,
+                    memory_id,
+                )
+                return result == 1
+            else:
+                # Fallback to pipeline implementation for compatibility
+                pipe = self.redis.pipeline()
+
+                # Check if memory exists first
+                pipe.exists(key)
+                pipe.delete(key)
+                pipe.zrem(agent_memories_key, memory_id)
+                pipe.zrem(timeline_key, memory_id)
+                pipe.zrem(importance_key, memory_id)
+
+                results = pipe.execute()
+                # First result is from EXISTS check
+                return results[0] == 1
 
         except Exception as e:
             logger.error("Failed to delete memory entry %s: %s", memory_id, str(e))
@@ -557,39 +677,83 @@ class RedisIMStore:
             True if the operation succeeded, False otherwise
         """
         try:
-            # Get all memory IDs
-            agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
-            memory_ids = self.redis.zrange(agent_memories_key, 0, -1)
+            # Set up keys and pattern
+            agent_pattern = f"{self._key_prefix}:{agent_id}"
+            agent_memories_key = f"{agent_pattern}:memories"
+            timeline_key = f"{agent_pattern}:timeline"
+            importance_key = f"{agent_pattern}:importance"
 
-            if not memory_ids:
-                return True
+            if self._lua_scripting_available:
+                # Define Lua script for efficiently clearing all agent memories
+                clear_script = """
+                    local memories_key = KEYS[1]
+                    local timeline_key = KEYS[2]
+                    local importance_key = KEYS[3]
+                    local agent_pattern = ARGV[1]
+                    
+                    -- Get all memory IDs
+                    local memory_ids = redis.call('ZRANGE', memories_key, 0, -1)
+                    
+                    -- Delete all memory keys
+                    local deleted = 0
+                    for i, memory_id in ipairs(memory_ids) do
+                        local memory_key = agent_pattern .. ':memory:' .. memory_id
+                        deleted = deleted + redis.call('DEL', memory_key)
+                    end
+                    
+                    -- Delete all index keys
+                    deleted = deleted + redis.call('DEL', memories_key)
+                    deleted = deleted + redis.call('DEL', timeline_key)
+                    deleted = deleted + redis.call('DEL', importance_key)
+                    
+                    return deleted
+                """
 
-            # Build keys to delete
-            keys_to_delete = []
-            for memory_id in memory_ids:
-                # Handle memory_id if it's bytes
-                if isinstance(memory_id, bytes):
-                    memory_id = memory_id.decode("utf-8")
-                keys_to_delete.append(
-                    f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                # Execute the Lua script
+                result = self.redis.eval(
+                    clear_script,
+                    3,  # Number of keys
+                    agent_memories_key,
+                    timeline_key,
+                    importance_key,
+                    agent_pattern,
+                )
+                return result > 0
+            else:
+                # Fallback to pipeline implementation for compatibility
+                pipe = self.redis.pipeline()
+
+                # Get all memory IDs
+                memory_ids = self.redis.zrange(agent_memories_key, 0, -1)
+                if not memory_ids:
+                    return True
+
+                # Build keys to delete
+                keys_to_delete = []
+                for memory_id in memory_ids:
+                    # Handle memory_id if it's bytes
+                    if isinstance(memory_id, bytes):
+                        memory_id = memory_id.decode("utf-8")
+                    keys_to_delete.append(
+                        f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                    )
+
+                # Add index keys
+                keys_to_delete.extend(
+                    [
+                        agent_memories_key,
+                        timeline_key,
+                        importance_key,
+                    ]
                 )
 
-            # Add index keys
-            keys_to_delete.extend(
-                [
-                    f"{self._key_prefix}:{agent_id}:memories",
-                    f"{self._key_prefix}:{agent_id}:timeline",
-                    f"{self._key_prefix}:{agent_id}:importance",
-                ]
-            )
+                # Delete all keys in a single operation
+                if keys_to_delete:
+                    pipe.delete(*keys_to_delete)
+                    results = pipe.execute()
+                    return results[0] > 0
+                return True
 
-            # Use pipeline to delete all keys in a single operation
-            pipe = self.redis.pipeline()
-            if keys_to_delete:
-                pipe.delete(*keys_to_delete)
-            pipe.execute()
-
-            return True
         except Exception as e:
             logger.error("Error clearing memories for agent %s: %s", agent_id, str(e))
             return False
@@ -760,38 +924,94 @@ class RedisIMStore:
             )
             memory_entry["metadata"] = metadata
 
-            # Use pipeline for atomic updates
-            pipe = self.redis.pipeline()
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-
-            # Update only the specific hash fields that changed
-            pipe.hset(key, "metadata", json.dumps(metadata))
-            pipe.hset(key, "retrieval_count", str(retrieval_count))
-            pipe.hset(key, "last_access_time", str(access_time))
-
-            # Refresh TTL on the hash
-            pipe.expire(key, self.config.ttl)
-
-            # Update importance based on access patterns
-            # Increase importance for frequently accessed memories
+            # Calculate new importance if retrieval count warrants it
+            new_importance = 0.0
             if retrieval_count > 1:
                 importance = metadata.get("importance_score", 0.0)
                 access_factor = min(retrieval_count / 10.0, 1.0)  # Cap at 1.0
                 new_importance = importance + (access_factor * 0.1)  # Slight boost
-
-                # Update the importance score in Redis hash
-                pipe.hset(key, "importance_score", str(new_importance))
-
-                # Also update the importance index
-                importance_key = f"{self._key_prefix}:{agent_id}:importance"
-                pipe.zadd(importance_key, {memory_id: new_importance})
-                pipe.expire(importance_key, self.config.ttl)
-
-                # Update in memory entry
                 metadata["importance_score"] = new_importance
-                memory_entry["metadata"] = metadata
 
-            pipe.execute()
+            # Set up keys
+            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+            importance_key = f"{self._key_prefix}:{agent_id}:importance"
+
+            if self._lua_scripting_available:
+                # Define the Lua script for atomic metadata updates
+                update_script = """
+                    local key = KEYS[1]
+                    local importance_key = KEYS[2]
+                    
+                    local metadata = ARGV[1]
+                    local retrieval_count = ARGV[2]
+                    local access_time = ARGV[3]
+                    local ttl = ARGV[4]
+                    local memory_id = ARGV[5]
+                    local new_importance = ARGV[6]
+                    
+                    -- Update hash fields
+                    redis.call('HSET', key, 'metadata', metadata)
+                    redis.call('HSET', key, 'retrieval_count', retrieval_count)
+                    redis.call('HSET', key, 'last_access_time', access_time)
+                    
+                    -- Always refresh TTL
+                    redis.call('EXPIRE', key, ttl)
+                    
+                    -- Update importance if needed
+                    if tonumber(new_importance) > 0 then
+                        redis.call('HSET', key, 'importance_score', new_importance)
+                        redis.call('ZADD', importance_key, new_importance, memory_id)
+                        redis.call('EXPIRE', importance_key, ttl)
+                    end
+                    
+                    return 1
+                """
+
+                # Execute the Lua script
+                result = self.redis.eval(
+                    update_script,
+                    2,  # Number of keys
+                    key,
+                    importance_key,
+                    json.dumps(metadata),
+                    str(retrieval_count),
+                    str(access_time),
+                    str(self.config.ttl),
+                    memory_id,
+                    str(new_importance),
+                )
+                if result != 1:
+                    logger.warning(
+                        "Failed to update access metadata for memory %s: Lua script returned %s",
+                        memory_id,
+                        result,
+                    )
+            else:
+                # Fallback to pipeline implementation for compatibility
+                pipe = self.redis.pipeline()
+
+                # Update the metadata, retrieval count, and last access time
+                pipe.hset(key, "metadata", json.dumps(metadata))
+                pipe.hset(key, "retrieval_count", str(retrieval_count))
+                pipe.hset(key, "last_access_time", str(access_time))
+
+                # Refresh TTL
+                pipe.expire(key, self.config.ttl)
+
+                # Update importance if it has changed
+                if new_importance > 0:
+                    pipe.hset(key, "importance_score", str(new_importance))
+                    pipe.zadd(importance_key, {memory_id: new_importance})
+                    pipe.expire(importance_key, self.config.ttl)
+
+                try:
+                    pipe.execute()
+                except Exception as e:
+                    logger.warning(
+                        "Failed to update access metadata for memory %s: %s",
+                        memory_id,
+                        str(e),
+                    )
 
         except Exception as e:
             # Non-critical operation, just log
@@ -1018,35 +1238,40 @@ class RedisIMStore:
                 # First try to parse the $ field in the response (test format)
                 doc_data = {}
                 score = 0.0
-                
+
                 for field_value_pair in results[i + 1]:
-                    if isinstance(field_value_pair, list) and len(field_value_pair) >= 2:
+                    if (
+                        isinstance(field_value_pair, list)
+                        and len(field_value_pair) >= 2
+                    ):
                         field = field_value_pair[0]
                         value = field_value_pair[1]
-                        
+
                         # Decode byte strings if needed
                         if isinstance(field, bytes):
                             field = field.decode("utf-8")
                         if isinstance(value, bytes):
                             value = value.decode("utf-8")
-                        
+
                         # Handle the $ field which contains the full JSON document
                         if field == "$":
                             try:
                                 doc_data = json.loads(value)
                             except (json.JSONDecodeError, TypeError):
-                                logger.warning(f"Failed to parse JSON data in search result: {value}")
-                        
+                                logger.warning(
+                                    f"Failed to parse JSON data in search result: {value}"
+                                )
+
                         # Extract vector score
                         elif field in ["__embedding_score", "__vector_score"]:
                             try:
                                 score = float(value)
                             except (ValueError, TypeError):
                                 logger.warning(f"Failed to parse score value: {value}")
-                
+
                 # Store the score for this document
                 doc_scores[key] = score
-                
+
                 # If we got valid data from the $ field, create a memory entry
                 if doc_data:
                     # Extract memory_id from the document or the key
@@ -1055,7 +1280,7 @@ class RedisIMStore:
                         parts = key.split(":")
                         if len(parts) >= 4 and parts[-2] == "memory":
                             memory_id = parts[-1]
-                    
+
                     if memory_id:
                         # Create a memory entry from the document data
                         memory_entry = doc_data.copy()
@@ -1064,7 +1289,7 @@ class RedisIMStore:
                         self._update_access_metadata(agent_id, memory_id, memory_entry)
                         memories.append(memory_entry)
                     continue  # Skip to next result
-                
+
                 # If we couldn't get data from $ field, try regular methods
                 # Extract memory data using hgetall
                 hash_data = self.redis.hgetall(key)
@@ -1077,7 +1302,7 @@ class RedisIMStore:
                     if len(parts) >= 4 and parts[-2] == "memory":
                         memory_id = parts[-1]
                         # Fallback to get if hgetall didn't work (for tests)
-                        if not memory_entry and hasattr(self.redis, 'get'):
+                        if not memory_entry and hasattr(self.redis, "get"):
                             json_data = self.redis.get(key)
                             if json_data:
                                 try:
@@ -1085,9 +1310,11 @@ class RedisIMStore:
                                 except (json.JSONDecodeError, TypeError):
                                     # Skip this entry if we can't parse it
                                     continue
-                        
+
                         if memory_entry:
-                            self._update_access_metadata(agent_id, memory_id, memory_entry)
+                            self._update_access_metadata(
+                                agent_id, memory_id, memory_entry
+                            )
                             memories.append(memory_entry)
 
             # Sort by similarity score (highest first)
@@ -1296,24 +1523,29 @@ class RedisIMStore:
                 # First try to parse the $ field in the response (test format)
                 doc_data = {}
                 for field_value_pair in results[i + 1]:
-                    if isinstance(field_value_pair, list) and len(field_value_pair) >= 2:
+                    if (
+                        isinstance(field_value_pair, list)
+                        and len(field_value_pair) >= 2
+                    ):
                         field = field_value_pair[0]
                         value = field_value_pair[1]
-                        
+
                         # Decode byte strings if needed
                         if isinstance(field, bytes):
                             field = field.decode("utf-8")
                         if isinstance(value, bytes):
                             value = value.decode("utf-8")
-                        
+
                         # Handle the $ field which contains the full JSON document
                         if field == "$":
                             try:
                                 doc_data = json.loads(value)
                                 break  # Found what we need, exit loop
                             except (json.JSONDecodeError, TypeError):
-                                logger.warning(f"Failed to parse JSON data in search result: {value}")
-                
+                                logger.warning(
+                                    f"Failed to parse JSON data in search result: {value}"
+                                )
+
                 # If we got valid data from the $ field, create a memory entry
                 if doc_data:
                     # Extract memory_id from the document or the key
@@ -1322,14 +1554,14 @@ class RedisIMStore:
                         parts = key.split(":")
                         if len(parts) >= 4 and parts[-2] == "memory":
                             memory_id = parts[-1]
-                    
+
                     if memory_id:
                         # Create a memory entry from the document data
                         memory_entry = doc_data.copy()
                         self._update_access_metadata(agent_id, memory_id, memory_entry)
                         memories.append(memory_entry)
                     continue  # Skip to next result
-                
+
                 # If we couldn't get data from $ field, try regular methods
                 # Extract memory data using hgetall
                 hash_data = self.redis.hgetall(key)
@@ -1342,7 +1574,7 @@ class RedisIMStore:
                     if len(parts) >= 4 and parts[-2] == "memory":
                         memory_id = parts[-1]
                         # Fallback to get if hgetall didn't work (for tests)
-                        if not memory_entry and hasattr(self.redis, 'get'):
+                        if not memory_entry and hasattr(self.redis, "get"):
                             json_data = self.redis.get(key)
                             if json_data:
                                 try:
@@ -1350,9 +1582,11 @@ class RedisIMStore:
                                 except (json.JSONDecodeError, TypeError):
                                     # Skip this entry if we can't parse it
                                     continue
-                        
+
                         if memory_entry:
-                            self._update_access_metadata(agent_id, memory_id, memory_entry)
+                            self._update_access_metadata(
+                                agent_id, memory_id, memory_entry
+                            )
                             memories.append(memory_entry)
 
             return memories
@@ -1535,23 +1769,28 @@ class RedisIMStore:
                 # First try to parse the $ field in the response (test format)
                 doc_data = {}
                 for field_value_pair in results[i + 1]:
-                    if isinstance(field_value_pair, list) and len(field_value_pair) >= 2:
+                    if (
+                        isinstance(field_value_pair, list)
+                        and len(field_value_pair) >= 2
+                    ):
                         field = field_value_pair[0]
                         value = field_value_pair[1]
-                        
+
                         # Decode byte strings if needed
                         if isinstance(field, bytes):
                             field = field.decode("utf-8")
                         if isinstance(value, bytes):
                             value = value.decode("utf-8")
-                        
+
                         # Handle the $ field which contains the full JSON document
                         if field == "$":
                             try:
                                 doc_data = json.loads(value)
                             except (json.JSONDecodeError, TypeError):
-                                logger.warning(f"Failed to parse JSON data in search result: {value}")
-                
+                                logger.warning(
+                                    f"Failed to parse JSON data in search result: {value}"
+                                )
+
                 # If we got valid data from the $ field, create a memory entry
                 if doc_data:
                     # Extract memory_id from the document or the key
@@ -1560,14 +1799,14 @@ class RedisIMStore:
                         parts = key.split(":")
                         if len(parts) >= 4 and parts[-2] == "memory":
                             memory_id = parts[-1]
-                    
+
                     if memory_id:
                         # Create a memory entry from the document data
                         memory_entry = doc_data.copy()
                         self._update_access_metadata(agent_id, memory_id, memory_entry)
                         memories.append(memory_entry)
                     continue  # Skip to next result
-                
+
                 # If we couldn't get data from $ field, try regular methods
                 # Extract memory data using hgetall
                 hash_data = self.redis.hgetall(key)
@@ -1580,7 +1819,7 @@ class RedisIMStore:
                     if len(parts) >= 4 and parts[-2] == "memory":
                         memory_id = parts[-1]
                         # Fallback to get if hgetall didn't work (for tests)
-                        if not memory_entry and hasattr(self.redis, 'get'):
+                        if not memory_entry and hasattr(self.redis, "get"):
                             json_data = self.redis.get(key)
                             if json_data:
                                 try:
@@ -1588,9 +1827,11 @@ class RedisIMStore:
                                 except (json.JSONDecodeError, TypeError):
                                     # Skip this entry if we can't parse it
                                     continue
-                        
+
                         if memory_entry:
-                            self._update_access_metadata(agent_id, memory_id, memory_entry)
+                            self._update_access_metadata(
+                                agent_id, memory_id, memory_entry
+                            )
                             memories.append(memory_entry)
 
             return memories

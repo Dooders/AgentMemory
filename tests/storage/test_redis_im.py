@@ -125,6 +125,10 @@ def im_store(mock_redis_client):
     store.redis = mock_redis_client
     # Mock vector search availability for testing
     store._vector_search_available = False
+    # Mock Lua scripting availability for testing
+    store._lua_scripting_available = True
+    # Configure eval to return success by default
+    mock_redis_client.eval.return_value = 1
     return store
 
 
@@ -225,47 +229,37 @@ def test_store_memory_entry(im_store):
         "metadata": {"compression_level": 1, "importance_score": 0.8},
     }
 
-    # Mock pipeline
-    mock_pipe = mock.MagicMock()
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval method
+    im_store.redis.eval = mock.MagicMock(return_value=1)
 
     result = im_store._store_memory_entry("agent1", memory_entry)
 
     # Check the result
     assert result is True
 
-    # Verify pipeline was created
-    im_store.redis.pipeline.assert_called_once()
+    # Verify eval was called with correct arguments
+    im_store.redis.eval.assert_called_once()
 
-    # Verify pipeline operations were called - now with hset instead of set
-    mock_pipe.hset.assert_called()
-    hset_call_args = mock_pipe.hset.call_args_list[0]
+    # Get the args from the call
+    eval_args = im_store.redis.eval.call_args[0]
 
-    # Verify the key is correct and mapping was provided
-    assert hset_call_args[0][0] == "test_agent_memory:im:agent1:memory:test-memory-1"
-    assert "mapping" in hset_call_args[1]
+    # Verify the Lua script is provided (first argument)
+    assert "local memory_key = KEYS[1]" in eval_args[0]
 
-    # Get the mapping
-    hash_mapping = hset_call_args[1]["mapping"]
+    # Verify correct number of keys
+    assert eval_args[1] == 4  # Number of keys should be 4
 
-    # Verify hash fields have expected values
-    assert hash_mapping["memory_id"] == "test-memory-1"
-    assert hash_mapping["timestamp"] == str(1234567890.0)
-    assert hash_mapping["compression_level"] == "1"
-    assert hash_mapping["importance_score"] == "0.8"
-    assert "metadata" in hash_mapping
+    # Verify the keys are correct
+    assert eval_args[2] == f"{im_store._key_prefix}:agent1:memory:test-memory-1"
+    assert eval_args[3] == f"{im_store._key_prefix}:agent1:memories"
+    assert eval_args[4] == f"{im_store._key_prefix}:agent1:timeline"
+    assert eval_args[5] == f"{im_store._key_prefix}:agent1:importance"
 
-    # Verify expire was called to set TTL
-    mock_pipe.expire.assert_any_call(
-        "test_agent_memory:im:agent1:memory:test-memory-1", im_store.config.ttl
-    )
-
-    # Check pipeline operations for various indices
-    assert mock_pipe.zadd.call_count == 3
-    assert mock_pipe.expire.call_count == 4  # 3 for indices + 1 for the hash
-
-    # Verify execute was called
-    mock_pipe.execute.assert_called_once()
+    # Verify hash values in JSON format
+    hash_values = json.loads(eval_args[6])
+    assert hash_values["memory_id"] == "test-memory-1"
+    assert hash_values["timestamp"] == str(1234567890.0)
+    assert hash_values["importance_score"] == "0.8"
 
 
 def test_store_memory_entry_redis_error(im_store):
@@ -277,10 +271,15 @@ def test_store_memory_entry_redis_error(im_store):
         "metadata": {"compression_level": 1},
     }
 
-    # Mock pipeline and make it raise an exception
-    mock_pipe = mock.MagicMock()
-    mock_pipe.execute.side_effect = Exception("Redis error")
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval and make it raise an exception
+    im_store.redis.eval = mock.MagicMock(side_effect=Exception("Redis error"))
+    # Disable Lua scripting to test fallback
+    im_store._lua_scripting_available = False
+    
+    # Mock pipeline to throw an exception when execute is called
+    mock_pipeline = mock.MagicMock()
+    mock_pipeline.execute.side_effect = Exception("Redis pipeline error")
+    im_store.redis.pipeline.return_value = mock_pipeline
 
     # Should catch exception and return False
     result = im_store._store_memory_entry("agent1", memory_entry)
@@ -296,10 +295,10 @@ def test_store_memory_entry_redis_timeout(im_store):
         "metadata": {"compression_level": 1},
     }
 
-    # Mock pipeline and make it raise a timeout error
-    mock_pipe = mock.MagicMock()
-    mock_pipe.execute.side_effect = RedisTimeoutError("Redis timeout")
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval and make it raise a timeout error
+    im_store.redis.eval = mock.MagicMock(side_effect=RedisTimeoutError("Redis timeout"))
+    # Ensure Lua scripting is enabled for this test
+    im_store._lua_scripting_available = True
 
     # Should raise the timeout error for retry handling
     with pytest.raises(RedisTimeoutError):
@@ -315,10 +314,12 @@ def test_store_memory_entry_redis_unavailable(im_store):
         "metadata": {"compression_level": 1},
     }
 
-    # Mock pipeline and make it raise an unavailability error
-    mock_pipe = mock.MagicMock()
-    mock_pipe.execute.side_effect = RedisUnavailableError("Redis unavailable")
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval and make it raise an unavailability error
+    im_store.redis.eval = mock.MagicMock(
+        side_effect=RedisUnavailableError("Redis unavailable")
+    )
+    # Ensure Lua scripting is enabled for this test
+    im_store._lua_scripting_available = True
 
     # Should raise the unavailability error for retry handling
     with pytest.raises(RedisUnavailableError):
@@ -327,9 +328,8 @@ def test_store_memory_entry_redis_unavailable(im_store):
 
 def test_get_memory(im_store):
     """Test retrieving a memory by ID."""
-    # Mock pipeline for _update_access_metadata
-    mock_pipe = mock.MagicMock()
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval for _update_access_metadata
+    im_store.redis.eval = mock.MagicMock(return_value=1)
 
     memory = im_store.get("agent1", "memory1")
 
@@ -343,25 +343,21 @@ def test_get_memory(im_store):
         "test_agent_memory:im:agent1:memory:memory1"
     )
 
-    # Verify pipeline was created for update metadata
-    im_store.redis.pipeline.assert_called_once()
+    # Verify eval was called for update metadata
+    im_store.redis.eval.assert_called_once()
 
-    # Verify hset was called for updating metadata
-    assert (
-        mock_pipe.hset.call_count >= 3
-    )  # at least metadata, retrieval_count, and last_access_time
+    # Get the args from the call
+    eval_args = im_store.redis.eval.call_args[0]
 
-    # Verify hset was called with the correct key
-    called_keys = [call[0][0] for call in mock_pipe.hset.call_args_list]
-    assert "test_agent_memory:im:agent1:memory:memory1" in called_keys
+    # Verify the Lua script is provided (first argument)
+    assert "local key = KEYS[1]" in eval_args[0]
 
-    # Verify TTL was refreshed
-    mock_pipe.expire.assert_called_with(
-        "test_agent_memory:im:agent1:memory:memory1", im_store.config.ttl
-    )
+    # Verify correct number of keys
+    assert eval_args[1] == 2  # Number of keys should be 2
 
-    # Verify pipeline was executed
-    mock_pipe.execute.assert_called_once()
+    # Verify the keys are correct
+    assert eval_args[2] == f"{im_store._key_prefix}:agent1:memory:memory1"
+    assert eval_args[3] == f"{im_store._key_prefix}:agent1:importance"
 
 
 def test_get_nonexistent_memory(im_store):
@@ -572,28 +568,42 @@ def test_store_with_different_priorities(im_store):
 
 def test_delete(im_store):
     """Test deleting a memory."""
-    # Mock pipeline
-    mock_pipe = mock.MagicMock()
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval method
+    im_store.redis.eval = mock.MagicMock(return_value=1)
+    # Ensure Lua scripting is enabled
+    im_store._lua_scripting_available = True
 
     result = im_store.delete("agent1", "memory1")
 
     # Should return True
     assert result is True
 
-    # Verify pipeline was created and operations were called
-    im_store.redis.pipeline.assert_called_once()
-    assert mock_pipe.delete.call_count == 1
-    assert mock_pipe.zrem.call_count == 3
-    mock_pipe.execute.assert_called_once()
+    # Verify eval was called with correct arguments
+    im_store.redis.eval.assert_called_once()
+
+    # Get the args from the call
+    eval_args = im_store.redis.eval.call_args[0]
+
+    # Verify the Lua script is provided (first argument)
+    assert "local memory_key = KEYS[1]" in eval_args[0]
+
+    # Verify correct number of keys
+    assert eval_args[1] == 4  # Number of keys should be 4
+
+    # Verify the keys are correct
+    assert eval_args[2] == f"{im_store._key_prefix}:agent1:memory:memory1"
+    assert eval_args[3] == f"{im_store._key_prefix}:agent1:memories"
+    assert eval_args[4] == f"{im_store._key_prefix}:agent1:timeline"
+    assert eval_args[5] == f"{im_store._key_prefix}:agent1:importance"
+
+    # Verify memory_id parameter
+    assert eval_args[6] == "memory1"
 
 
 def test_delete_redis_error(im_store):
     """Test deleting a memory when Redis raises an error."""
-    # Mock pipeline and make it raise an exception
-    mock_pipe = mock.MagicMock()
-    mock_pipe.execute.side_effect = Exception("Redis error")
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval and make it raise an exception
+    im_store.redis.eval = mock.MagicMock(side_effect=Exception("Redis error"))
 
     result = im_store.delete("agent1", "memory1")
 
@@ -625,25 +635,42 @@ def test_count_redis_error(im_store):
 
 def test_clear(im_store):
     """Test clearing all memories for an agent."""
-    # Mock pipeline
-    mock_pipe = mock.MagicMock()
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval method
+    im_store.redis.eval = mock.MagicMock(return_value=1)
+    # Ensure Lua scripting is enabled
+    im_store._lua_scripting_available = True
 
     result = im_store.clear("agent1")
 
     # Should return True
     assert result is True
 
-    # Verify pipeline was created and executed
-    im_store.redis.pipeline.assert_called_once()
-    mock_pipe.delete.assert_called()
-    mock_pipe.execute.assert_called_once()
+    # Verify eval was called with correct arguments
+    im_store.redis.eval.assert_called_once()
+
+    # Get the args from the call
+    eval_args = im_store.redis.eval.call_args[0]
+
+    # Verify the Lua script is provided (first argument)
+    assert "local memories_key = KEYS[1]" in eval_args[0]
+
+    # Verify correct number of keys
+    assert eval_args[1] == 3  # Number of keys should be 3
+
+    # Verify the keys are correct
+    agent_pattern = f"{im_store._key_prefix}:agent1"
+    assert eval_args[2] == f"{agent_pattern}:memories"
+    assert eval_args[3] == f"{agent_pattern}:timeline"
+    assert eval_args[4] == f"{agent_pattern}:importance"
+
+    # Verify agent pattern parameter
+    assert eval_args[5] == agent_pattern
 
 
 def test_clear_redis_error(im_store):
     """Test clearing memories when Redis raises an error."""
-    # Make Redis zrange raise an exception
-    im_store.redis.zrange.side_effect = Exception("Redis error")
+    # Make Redis eval raise an exception to simulate error
+    im_store.redis.eval = mock.MagicMock(side_effect=Exception("Redis error"))
 
     result = im_store.clear("agent1")
 
@@ -664,46 +691,34 @@ def test_update_access_metadata(im_store):
         },
     }
 
-    # Mock pipeline
-    mock_pipe = mock.MagicMock()
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval method
+    im_store.redis.eval = mock.MagicMock(return_value=1)
+    # Ensure Lua scripting is enabled
+    im_store._lua_scripting_available = True
 
     # Call the internal method directly
     im_store._update_access_metadata("agent1", "memory1", memory_entry)
 
-    # Verify pipeline was created
-    im_store.redis.pipeline.assert_called_once()
+    # Verify eval was called with correct arguments
+    im_store.redis.eval.assert_called_once()
 
-    # Verify hset was called to update metadata fields
-    assert mock_pipe.hset.call_count >= 3  # metadata, retrieval_count, last_access_time
+    # Get the args from the call
+    eval_args = im_store.redis.eval.call_args[0]
 
-    # Get all hset calls
-    hset_calls = mock_pipe.hset.call_args_list
+    # Verify the Lua script is provided (first argument)
+    assert "local key = KEYS[1]" in eval_args[0]
 
-    # Check call for metadata update
-    metadata_call = next((c for c in hset_calls if c[0][1] == "metadata"), None)
-    assert metadata_call is not None
+    # Verify correct number of keys
+    assert eval_args[1] == 2  # Number of keys should be 2
 
-    # Check calls for individual fields
-    retrieval_count_call = next(
-        (c for c in hset_calls if c[0][1] == "retrieval_count"), None
-    )
-    assert retrieval_count_call is not None
-    assert retrieval_count_call[0][2] == "2"  # Should increment from 1 to 2
+    # Verify the keys are correct
+    assert eval_args[2] == f"{im_store._key_prefix}:agent1:memory:memory1"
+    assert eval_args[3] == f"{im_store._key_prefix}:agent1:importance"
 
-    # Verify expire is called on the memory key or any other related key
-    # The exact order might depend on implementation details
-    key = "test_agent_memory:im:agent1:memory:memory1"
-    expire_calls = [
-        call for call in mock_pipe.expire.call_args_list if call[0][0] == key
-    ]
-    assert len(expire_calls) > 0, f"expire() was not called for key {key}"
-
-    # Check that zadd was called for importance update
-    assert mock_pipe.zadd.call_count >= 1
-
-    # Verify execute was called
-    mock_pipe.execute.assert_called_once()
+    # Verify the metadata is updated correctly
+    metadata = json.loads(eval_args[4])  # First ARGV parameter is the metadata JSON
+    assert metadata["retrieval_count"] == 2  # Should be incremented from 1 to 2
+    assert "last_access_time" in metadata
 
 
 def test_update_access_metadata_redis_error(im_store):
@@ -715,10 +730,8 @@ def test_update_access_metadata_redis_error(im_store):
         "metadata": {"compression_level": 1, "importance_score": 0.7},
     }
 
-    # Mock pipeline and make it raise an exception
-    mock_pipe = mock.MagicMock()
-    mock_pipe.execute.side_effect = Exception("Redis error")
-    im_store.redis.pipeline.return_value = mock_pipe
+    # Mock eval and make it raise an exception
+    im_store.redis.eval = mock.MagicMock(side_effect=Exception("Redis error"))
 
     # Should not raise exception, just log warning
     im_store._update_access_metadata("agent1", "memory1", memory_entry)
