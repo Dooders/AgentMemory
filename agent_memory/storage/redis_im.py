@@ -10,6 +10,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import redis
 
 from agent_memory.config import RedisIMConfig
 from agent_memory.storage.redis_client import ResilientRedisClient
@@ -344,9 +345,23 @@ class RedisIMStore:
                     # Execute all commands as a single atomic operation
                     pipe.execute()
                     return True
+                except redis.RedisError as e:
+                    logger.exception(
+                        "Redis error when storing memory entry %s: %s",
+                        memory_id,
+                        str(e),
+                    )
+                    return False
+                except json.JSONDecodeError as e:
+                    logger.exception(
+                        "JSON encoding error when storing memory entry %s: %s",
+                        memory_id,
+                        str(e),
+                    )
+                    return False
                 except Exception as e:
-                    logger.error(
-                        "Failed to store memory entry %s: %s", memory_id, str(e)
+                    logger.exception(
+                        "Unexpected error storing memory entry %s", memory_id
                     )
                     return False
 
@@ -354,7 +369,9 @@ class RedisIMStore:
             # Let these propagate up for retry handling
             raise
         except Exception as e:
-            logger.error("Failed to store memory entry %s: %s", memory_id, str(e))
+            logger.exception(
+                "Critical error in _store_memory_entry for memory_id %s", memory_id
+            )
             return False
 
     def get(self, agent_id: str, memory_id: str) -> Optional[Dict[str, Any]]:
@@ -392,12 +409,21 @@ class RedisIMStore:
                 str(e),
             )
             return None
+        except redis.RedisError as e:
+            logger.exception(
+                "Redis error retrieving memory %s for agent %s", memory_id, agent_id
+            )
+            return None
+        except json.JSONDecodeError as e:
+            logger.exception(
+                "JSON decoding error for memory %s for agent %s", memory_id, agent_id
+            )
+            return None
         except Exception as e:
-            logger.error(
-                "Failed to retrieve memory entry %s for agent %s: %s",
+            logger.exception(
+                "Unexpected error retrieving memory %s for agent %s",
                 memory_id,
                 agent_id,
-                str(e),
             )
             return None
 
@@ -512,8 +538,29 @@ class RedisIMStore:
 
             return memories
 
+        except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.warning(
+                "Redis unavailable/timeout when retrieving memories by time range: %s",
+                str(e),
+            )
+            return []
+        except redis.RedisError as e:
+            logger.exception(
+                "Redis error when retrieving memories by time range for agent %s",
+                agent_id,
+            )
+            return []
+        except json.JSONDecodeError as e:
+            logger.exception(
+                "JSON decoding error when processing memories by time range for agent %s",
+                agent_id,
+            )
+            return []
         except Exception as e:
-            logger.error("Failed to retrieve memories by time range: %s", str(e))
+            logger.exception(
+                "Unexpected error retrieving memories by time range for agent %s",
+                agent_id,
+            )
             return []
 
     def get_by_importance(
@@ -573,8 +620,29 @@ class RedisIMStore:
 
             return memories
 
+        except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.warning(
+                "Redis unavailable/timeout when retrieving memories by importance: %s",
+                str(e),
+            )
+            return []
+        except redis.RedisError as e:
+            logger.exception(
+                "Redis error when retrieving memories by importance for agent %s",
+                agent_id,
+            )
+            return []
+        except json.JSONDecodeError as e:
+            logger.exception(
+                "JSON decoding error when processing memories by importance for agent %s",
+                agent_id,
+            )
+            return []
         except Exception as e:
-            logger.error("Failed to retrieve memories by importance: %s", str(e))
+            logger.exception(
+                "Unexpected error retrieving memories by importance for agent %s",
+                agent_id,
+            )
             return []
 
     def delete(self, agent_id: str, memory_id: str) -> bool:
@@ -645,8 +713,23 @@ class RedisIMStore:
                 # First result is from EXISTS check
                 return results[0] == 1
 
+        except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.warning(
+                "Redis unavailable/timeout when deleting memory %s for agent %s: %s",
+                memory_id,
+                agent_id,
+                str(e),
+            )
+            return False
+        except redis.RedisError as e:
+            logger.exception(
+                "Redis error when deleting memory %s for agent %s", memory_id, agent_id
+            )
+            return False
         except Exception as e:
-            logger.error("Failed to delete memory entry %s: %s", memory_id, str(e))
+            logger.exception(
+                "Unexpected error deleting memory %s for agent %s", memory_id, agent_id
+            )
             return False
 
     def count(self, agent_id: str) -> int:
@@ -661,9 +744,21 @@ class RedisIMStore:
         agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
         try:
             return self.redis.zcard(agent_memories_key)
+        except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.warning(
+                "Redis unavailable/timeout when counting memories for agent %s: %s",
+                agent_id,
+                str(e),
+            )
+            return 0
+        except redis.RedisError as e:
+            logger.exception(
+                "Redis error when counting memories for agent %s", agent_id
+            )
+            return 0
         except Exception as e:
-            logger.error(
-                "Failed to get memory count for agent %s: %s", agent_id, str(e)
+            logger.exception(
+                "Unexpected error counting memories for agent %s", agent_id
             )
             return 0
 
@@ -754,8 +849,22 @@ class RedisIMStore:
                     return results[0] > 0
                 return True
 
+        except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.warning(
+                "Redis unavailable/timeout when clearing memories for agent %s: %s",
+                agent_id,
+                str(e),
+            )
+            return False
+        except redis.RedisError as e:
+            logger.exception(
+                "Redis error when clearing memories for agent %s", agent_id
+            )
+            return False
         except Exception as e:
-            logger.error("Error clearing memories for agent %s: %s", agent_id, str(e))
+            logger.exception(
+                "Unexpected error clearing memories for agent %s", agent_id
+            )
             return False
 
     def check_health(self) -> Dict[str, Any]:
@@ -1068,7 +1177,7 @@ class RedisIMStore:
 
             return total_size
         except Exception as e:
-            logger.error("Error calculating memory size: %s", e)
+            logger.exception("Error retrieving memory size for agent %s", agent_id)
             return 0
 
     def get_all(self, agent_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
@@ -1116,7 +1225,7 @@ class RedisIMStore:
 
             return memories
         except Exception as e:
-            logger.error("Error retrieving all memories: %s", e)
+            logger.exception("Error retrieving all memories for agent %s", agent_id)
             return []
 
     def search_similar(
@@ -1410,7 +1519,7 @@ class RedisIMStore:
             return float(np.dot(a_array, b_array) / (norm_a * norm_b))
 
         except Exception as e:
-            logger.error(f"Error calculating cosine similarity: {e}")
+            logger.exception("Error calculating cosine similarity between vectors")
             return 0.0
 
     def search_by_attributes(
