@@ -14,6 +14,7 @@ The `RedisIMStore` is a Redis-based implementation of the Intermediate Memory (I
 - **Comprehensive Error Handling**: Graceful degradation under failure conditions
 - **Optimized Vector Search**: Uses Redis vector search capabilities when available for efficient similarity searches
 - **Attribute-Based Filtering**: Leverages Redis search for efficient attribute and step range filtering
+- **Lua Scripting**: Uses Lua scripts for atomic operations with fallback mechanisms
 
 ## **3. Class Structure**
 
@@ -41,7 +42,6 @@ class RedisIMConfig:
     
     # Memory settings
     ttl: int = 604800  # 7 days
-    memory_limit: int = 10000  # Max entries per agent
     compression_level: int = 1  # Level 1 compression
     
     namespace: str = "agent_memory:im"
@@ -85,13 +85,23 @@ class RedisIMConfig:
 | `_store_memory_entry(agent_id, memory_entry)` | Internal storage implementation |
 | `_update_access_metadata(agent_id, memory_id, memory_entry)` | Update access statistics and importance |
 | `_check_vector_search_available()` | Check if Redis vector search capabilities are available |
+| `_check_lua_scripting()` | Check if Redis Lua scripting is fully supported |
 | `_create_vector_index()` | Create vector search index for optimized searches |
-| `_search_similar_redis_vector(agent_id, query_embedding, k, memory_type)` | Optimized vector similarity search using Redis |
+| `_hash_to_memory_entry(hash_data)` | Convert Redis hash data to memory entry dictionary |
+| `_get_memory_key(agent_id, memory_id)` | Construct Redis key for a memory entry |
+| `_get_agent_memories_key(agent_id)` | Construct Redis key for agent memories list |
+| `_get_timeline_key(agent_id)` | Construct Redis key for agent timeline index |
+| `_get_importance_key(agent_id)` | Construct Redis key for agent importance index |
+| `_get_agent_prefix(agent_id)` | Construct Redis key prefix for an agent |
+| `_search_similar_redis_vector(agent_id, query_embedding, limit, score_threshold, memory_type)` | Optimized vector similarity search using Redis |
 | `_search_similar_python(agent_id, query_embedding, k, memory_type)` | Fallback vector similarity search using Python |
+| `_cosine_similarity(a, b)` | Calculate cosine similarity between two vectors |
 | `_search_by_attributes_redis(agent_id, attributes, memory_type)` | Optimized attribute search using Redis |
 | `_search_by_attributes_python(agent_id, attributes, memory_type)` | Fallback attribute search using Python |
+| `_matches_attributes(memory, attributes)` | Check if a memory matches specified attributes |
 | `_search_by_step_range_redis(agent_id, start_step, end_step, memory_type)` | Optimized step range search using Redis |
 | `_search_by_step_range_python(agent_id, start_step, end_step, memory_type)` | Fallback step range search using Python |
+| `_calculate_hit_rate(info)` | Calculate Redis cache hit rate from info statistics |
 
 ## **5. Data Organization**
 
@@ -112,7 +122,7 @@ class RedisIMConfig:
     "memory_id": "unique-id",
     "agent_id": "agent-id",
     "timestamp": 1234567890,
-    "contents": {
+    "content": {
         // Level 1 compressed memory contents
     },
     "metadata": {
@@ -122,7 +132,9 @@ class RedisIMConfig:
         "creation_time": 1234567890,
         "last_access_time": 1234567890
     },
-    "embedding": [0.1, 0.2, ..., 0.9]  // Vector embedding for similarity search
+    "embedding": [0.1, 0.2, ..., 0.9],  // Vector embedding for similarity search
+    "memory_type": "observation",  // Optional type classification
+    "step_number": 42  // Optional step number for step-based retrieval
 }
 ```
 
@@ -132,6 +144,10 @@ class RedisIMConfig:
 
 - Uses `ResilientRedisClient` with circuit breaker pattern
 - Retries failed operations based on priority
+- Handles specific exceptions:
+  - `RedisUnavailableError`: When Redis is not reachable
+  - `RedisTimeoutError`: When operations time out
+  - `redis.RedisError`: For Redis-specific errors
 - Graceful degradation when Redis is unavailable
 
 ### **6.2 Data Validation**
@@ -139,12 +155,15 @@ class RedisIMConfig:
 - Enforces level 1 compression requirement
 - Validates memory entry structure
 - Ensures proper TTL settings on all keys
+- Handles JSON encoding/decoding errors
 
 ### **6.3 Search Fallback Mechanisms**
 
 - Detects Redis search capabilities at initialization
 - Falls back to Python-based implementations when Redis search is unavailable
+- Detects Lua scripting support and uses pipeline-based approaches when not available
 - Gracefully handles search errors and provides fallback paths
+- Comprehensive exception handling with appropriate logging
 
 ## **7. Performance Considerations**
 
@@ -152,11 +171,13 @@ class RedisIMConfig:
 
 - Maintains medium-resolution data with level 1 compression
 - Automatic TTL-based cleanup
-- Configurable memory limits per agent
+- Uses hash fields for efficient storage of memory entries
 
 ### **7.2 Search Optimization**
 
 - Uses Redis vector search for optimized similarity searches when available
+- Supports FLAT vector index with COSINE distance metric
+- Handles both the JSON storage format and hash storage format
 - Offloads attribute and step range filtering to Redis when possible
 - Maintains fallback implementations for compatibility with basic Redis installations
 
@@ -165,14 +186,18 @@ class RedisIMConfig:
 - Optimized for time-based queries
 - Efficient importance-based retrieval
 - Access frequency affects importance scores
+- Dynamically updates access metadata (retrieval count, last access time)
+- Adjusts importance scores based on retrieval frequency
 
 ### **7.4 Optimization Strategies**
 
 - Redis pipelining for batch operations
+- Lua scripts for atomic operations when supported
 - TTL on indices to prevent orphaned data
 - Automatic importance score adjustments
 - Vector indexing for efficient similarity searches
 - Redis search for attribute filtering
+- Fallback implementations for environments without Redis Stack
 
 ## **8. Integration Points**
 
@@ -186,13 +211,23 @@ class RedisIMConfig:
 
 - Base importance from memory creation
 - Dynamic updates based on access patterns
-- Influences memory retention decisions
+- Retrieval count influences importance score adjustments
+- Importance scores used for memory retrieval prioritization
 
 ### **8.3 Vector Search Requirements**
 
 - Requires Redis Stack or RediSearch module for optimized vector searches
 - Automatically detects search capabilities at initialization
 - Creates vector index if search capabilities are available
+- Vector index uses 1536-dimensional FLOAT32 vectors with COSINE distance metric
+- Falls back to Python-based cosine similarity calculation when Redis search is unavailable
+
+### **8.4 Lua Scripting**
+
+- Uses Lua scripts for atomic operations when supported
+- Automatically detects Lua scripting support at initialization
+- Falls back to pipeline-based approaches when Lua scripting is not fully supported
+- Ensures data consistency with both approaches
 
 ## **9. Best Practices**
 
@@ -205,9 +240,11 @@ class RedisIMConfig:
    - Handle Redis connection issues gracefully
    - Log errors with appropriate context
    - Use retry mechanisms for critical operations
+   - Implement circuit breaker pattern for resilience
 
 3. **Performance Optimization**
    - Use Redis Stack or RediSearch module for optimized searches
+   - Enable Lua scripting for atomic operations
    - Monitor memory usage
    - Implement batch operations where possible
    - Regular maintenance of indices
@@ -215,6 +252,13 @@ class RedisIMConfig:
 4. **Vector Search**
    - Include vector embeddings in memory entries for similarity search
    - Consider using HNSW index type for large vector datasets
+   - Ensure embeddings are normalized for effective cosine similarity
+
+5. **Health Monitoring**
+   - Regularly check Redis health
+   - Monitor cache hit rates
+   - Track memory usage and growth
+   - Set up alerts for circuit breaker trips
 
 ## **10. See Also**
 
@@ -222,4 +266,5 @@ class RedisIMConfig:
 - [Redis STM Store](redis_stm_store.md)
 - [SQLite LTM Store](sqlite_ltm_store.md)
 - [Agent Memory System](agent_memory_system.md)
-- [Redis Search Documentation](https://redis.io/docs/stack/search/) 
+- [Redis Search Documentation](https://redis.io/docs/stack/search/)
+- [Redis Lua Scripting](https://redis.io/docs/manual/programmability/eval-intro/) 
