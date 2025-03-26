@@ -13,28 +13,28 @@ from typing import (
 
 # Memory tier types
 MemoryTier = Literal["stm", "im", "ltm"]
-MemoryTypeFilter = Literal["state", "interaction", "action"]
-MemoryImportanceScore = float  # 0.0 to 1.0
+MemoryTypeFilter = Literal["state", "action", "interaction", None]
+MemoryImportanceScore = float  # Constrained to 0.0-1.0
 
 
 # Memory entry structures
-class MemoryMetadata(TypedDict):
+class MemoryMetadata(TypedDict, total=False):
     """Metadata for a memory entry."""
 
-    creation_time: int
-    last_access_time: int
+    creation_time: float
+    last_access_time: float
     compression_level: int
-    importance_score: float
+    importance_score: MemoryImportanceScore
     retrieval_count: int
-    memory_type: str
+    memory_type: Literal["state", "action", "interaction"]
 
 
 class MemoryEmbeddings(TypedDict, total=False):
     """Embeddings for a memory entry."""
 
     full_vector: List[float]  # STM embedding
-    compressed_vector: Optional[List[float]]  # IM embedding
-    abstract_vector: Optional[List[float]]  # LTM embedding
+    compressed_vector: List[float]  # IM embedding
+    abstract_vector: List[float]  # LTM embedding
 
 
 class MemoryEntry(TypedDict):
@@ -43,32 +43,31 @@ class MemoryEntry(TypedDict):
     memory_id: str
     agent_id: str
     step_number: int
-    timestamp: int
+    timestamp: float
     contents: Dict[str, Any]
     metadata: MemoryMetadata
     embeddings: Optional[MemoryEmbeddings]
-    _similarity_score: Optional[float]
 
 
 class MemoryChangeRecord(TypedDict):
-    """Record of a change in a memory attribute."""
+    """Record of a change to a memory attribute."""
 
     memory_id: str
     step_number: int
-    timestamp: int
+    timestamp: float
     previous_value: Optional[Any]
     new_value: Any
 
 
 class MemoryStatistics(TypedDict):
-    """Statistics about an agent's memory usage."""
+    """Statistics about memory usage for an agent."""
 
     total_memories: int
     stm_count: int
     im_count: int
     ltm_count: int
     memory_type_distribution: Dict[str, int]
-    last_maintenance_time: Optional[int]
+    last_maintenance_time: Optional[float]
     insert_count_since_maintenance: int
 
 
@@ -130,3 +129,50 @@ class MemoryStore(Protocol):
     def clear(self) -> bool:
         """Clear all memories."""
         ...
+
+
+class MemoryTypeDistribution(TypedDict, total=False):
+    state: int
+    action: int
+    interaction: int
+
+
+class MemoryStatistics(TypedDict):
+    """Statistics about memory usage for an agent."""
+
+    total_memories: int
+    stm_count: int
+    im_count: int
+    ltm_count: int
+    memory_type_distribution: MemoryTypeDistribution
+    last_maintenance_time: Optional[float]
+    insert_count_since_maintenance: int
+
+
+class SimilaritySearchResult(MemoryEntry):
+    """Memory entry with similarity score."""
+
+    _similarity_score: float
+
+
+# Type for configuration updates
+class ConfigUpdate(Dict[str, Any]):
+    """Type for configuration updates.
+
+    Can include flat updates like {"cleanup_interval": 200}
+    or nested updates like {"stm_config.memory_limit": 10000}
+    """
+
+    pass
+
+
+# Generic query result
+class QueryResult(TypedDict):
+    """Generic result from a memory query."""
+
+    memory_id: str
+    agent_id: str
+    step_number: int
+    timestamp: float
+    contents: Dict[str, Any]
+    metadata: MemoryMetadata
