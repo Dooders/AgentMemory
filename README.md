@@ -1,4 +1,5 @@
 # AgentMemory
+![Project Status](https://img.shields.io/badge/status-in%20development-orange)
 
 AgentMemory is a hierarchical memory system for intelligent agents that provides efficient storage, retrieval, and compression of agent states and experiences across multiple memory tiers.
 
