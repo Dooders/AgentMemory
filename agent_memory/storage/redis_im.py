@@ -7,7 +7,7 @@ storage tier with TTL-based expiration and level 1 compression.
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 import numpy as np
 import redis
@@ -21,6 +21,28 @@ from agent_memory.utils.error_handling import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# TypedDict definitions for complex structures
+class MemoryMetadata(TypedDict, total=False):
+    """Metadata information for a memory entry."""
+    compression_level: int
+    importance_score: float
+    retrieval_count: int
+    creation_time: float
+    last_access_time: float
+
+
+class MemoryEntry(TypedDict, total=False):
+    """Structure of a memory entry in the intermediate memory store."""
+    memory_id: str
+    agent_id: str
+    timestamp: float
+    content: Any  # Can be any structured data
+    metadata: MemoryMetadata
+    embedding: List[float]  # Vector embedding for similarity search
+    memory_type: Optional[str]  # Optional type classification
+    step_number: Optional[int]  # Optional step number for step-based retrieval
 
 
 class RedisIMStore:
@@ -77,6 +99,63 @@ class RedisIMStore:
             )
 
         logger.info("Initialized RedisIMStore with namespace %s", self._key_prefix)
+
+    # Helper methods for key construction
+    def _get_memory_key(self, agent_id: str, memory_id: str) -> str:
+        """Construct the Redis key for a memory entry.
+        
+        Args:
+            agent_id: ID of the agent
+            memory_id: ID of the memory
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+    
+    def _get_agent_memories_key(self, agent_id: str) -> str:
+        """Construct the Redis key for an agent's memories list.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:memories"
+    
+    def _get_timeline_key(self, agent_id: str) -> str:
+        """Construct the Redis key for an agent's timeline index.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:timeline"
+    
+    def _get_importance_key(self, agent_id: str) -> str:
+        """Construct the Redis key for an agent's importance index.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:importance"
+    
+    def _get_agent_prefix(self, agent_id: str) -> str:
+        """Construct the Redis key prefix for an agent.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key prefix string
+        """
+        return f"{self._key_prefix}:{agent_id}"
 
     def _check_vector_search_available(self) -> bool:
         """Check if Redis vector search capabilities are available.
@@ -171,7 +250,7 @@ class RedisIMStore:
     def store(
         self,
         agent_id: str,
-        memory_entry: Dict[str, Any],
+        memory_entry: MemoryEntry,
         priority: Priority = Priority.NORMAL,
     ) -> bool:
         """Store a memory entry in IM.
@@ -206,7 +285,7 @@ class RedisIMStore:
             priority=priority,
         )
 
-    def _store_memory_entry(self, agent_id: str, memory_entry: Dict[str, Any]) -> bool:
+    def _store_memory_entry(self, agent_id: str, memory_entry: MemoryEntry) -> bool:
         """Internal method to store a memory entry.
 
         Args:
@@ -264,10 +343,10 @@ class RedisIMStore:
                 hash_values["memory_type"] = memory_type
 
             # Set up keys
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-            agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
-            timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
-            importance_key = f"{self._key_prefix}:{agent_id}:importance"
+            key = self._get_memory_key(agent_id, memory_id)
+            agent_memories_key = self._get_agent_memories_key(agent_id)
+            timeline_key = self._get_timeline_key(agent_id)
+            importance_key = self._get_importance_key(agent_id)
             importance = float(hash_values["importance_score"])
 
             if self._lua_scripting_available:
@@ -374,7 +453,7 @@ class RedisIMStore:
             )
             return False
 
-    def get(self, agent_id: str, memory_id: str) -> Optional[Dict[str, Any]]:
+    def get(self, agent_id: str, memory_id: str) -> Optional[MemoryEntry]:
         """Retrieve a memory entry by ID.
 
         Args:
@@ -386,7 +465,7 @@ class RedisIMStore:
         """
         try:
             # Construct the key using agent_id and memory_id
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+            key = self._get_memory_key(agent_id, memory_id)
 
             # Get all hash fields
             hash_data = self.redis.hgetall(key)
@@ -427,7 +506,7 @@ class RedisIMStore:
             )
             return None
 
-    def _hash_to_memory_entry(self, hash_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _hash_to_memory_entry(self, hash_data: Dict[str, Any]) -> MemoryEntry:
         """Convert Redis hash data to memory entry dictionary.
 
         Args:
@@ -491,7 +570,7 @@ class RedisIMStore:
 
     def get_by_timerange(
         self, agent_id: str, start_time: float, end_time: float, limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Retrieve memories within a time range.
 
         Args:
@@ -503,7 +582,7 @@ class RedisIMStore:
         Returns:
             List of memory entries within the time range
         """
-        timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
+        timeline_key = self._get_timeline_key(agent_id)
         try:
             # Get memory IDs within time range
             memory_ids = self.redis.zrangebyscore(
@@ -522,7 +601,7 @@ class RedisIMStore:
                 if isinstance(memory_id, bytes):
                     memory_id = memory_id.decode("utf-8")
 
-                key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                key = self._get_memory_key(agent_id, memory_id)
                 memory_keys.append(memory_id)
                 pipe.hgetall(key)  # Get all hash fields instead of JSON string
 
@@ -569,7 +648,7 @@ class RedisIMStore:
         min_importance: float = 0.0,
         max_importance: float = 1.0,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Retrieve memories by importance score range.
 
         Args:
@@ -581,7 +660,7 @@ class RedisIMStore:
         Returns:
             List of memory entries within the importance range
         """
-        importance_key = f"{self._key_prefix}:{agent_id}:importance"
+        importance_key = self._get_importance_key(agent_id)
         try:
             # Get memory IDs within importance range
             memory_ids = self.redis.zrangebyscore(
@@ -604,7 +683,7 @@ class RedisIMStore:
                 if isinstance(memory_id, bytes):
                     memory_id = memory_id.decode("utf-8")
 
-                key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                key = self._get_memory_key(agent_id, memory_id)
                 memory_keys.append(memory_id)
                 pipe.hgetall(key)  # Get all hash fields instead of JSON string
 
@@ -657,10 +736,10 @@ class RedisIMStore:
         """
         try:
             # Set up keys
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-            agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
-            timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
-            importance_key = f"{self._key_prefix}:{agent_id}:importance"
+            key = self._get_memory_key(agent_id, memory_id)
+            agent_memories_key = self._get_agent_memories_key(agent_id)
+            timeline_key = self._get_timeline_key(agent_id)
+            importance_key = self._get_importance_key(agent_id)
 
             if self._lua_scripting_available:
                 # Define Lua script for atomic deletion from all indices
@@ -741,7 +820,7 @@ class RedisIMStore:
         Returns:
             Number of memories stored for the agent
         """
-        agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
+        agent_memories_key = self._get_agent_memories_key(agent_id)
         try:
             return self.redis.zcard(agent_memories_key)
         except (RedisUnavailableError, RedisTimeoutError) as e:
@@ -773,10 +852,10 @@ class RedisIMStore:
         """
         try:
             # Set up keys and pattern
-            agent_pattern = f"{self._key_prefix}:{agent_id}"
-            agent_memories_key = f"{agent_pattern}:memories"
-            timeline_key = f"{agent_pattern}:timeline"
-            importance_key = f"{agent_pattern}:importance"
+            agent_pattern = self._get_agent_prefix(agent_id)
+            agent_memories_key = self._get_agent_memories_key(agent_id)
+            timeline_key = self._get_timeline_key(agent_id)
+            importance_key = self._get_importance_key(agent_id)
 
             if self._lua_scripting_available:
                 # Define Lua script for efficiently clearing all agent memories
@@ -830,7 +909,7 @@ class RedisIMStore:
                     if isinstance(memory_id, bytes):
                         memory_id = memory_id.decode("utf-8")
                     keys_to_delete.append(
-                        f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                        self._get_memory_key(agent_id, memory_id)
                     )
 
                 # Add index keys
@@ -1013,7 +1092,7 @@ class RedisIMStore:
             return monitoring_data
 
     def _update_access_metadata(
-        self, agent_id: str, memory_id: str, memory_entry: Dict[str, Any]
+        self, agent_id: str, memory_id: str, memory_entry: MemoryEntry
     ) -> None:
         """Update access metadata for a memory entry.
 
@@ -1042,8 +1121,8 @@ class RedisIMStore:
                 metadata["importance_score"] = new_importance
 
             # Set up keys
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-            importance_key = f"{self._key_prefix}:{agent_id}:importance"
+            key = self._get_memory_key(agent_id, memory_id)
+            importance_key = self._get_importance_key(agent_id)
 
             if self._lua_scripting_available:
                 # Define the Lua script for atomic metadata updates
@@ -1180,7 +1259,7 @@ class RedisIMStore:
             logger.exception("Error retrieving memory size for agent %s", agent_id)
             return 0
 
-    def get_all(self, agent_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    def get_all(self, agent_id: str, limit: int = 1000) -> List[MemoryEntry]:
         """Get all memories for an agent.
 
         Args:
@@ -1192,7 +1271,7 @@ class RedisIMStore:
         """
         try:
             # Get all memory IDs sorted by recency
-            memories_key = f"{self._key_prefix}:{agent_id}:memories"
+            memories_key = self._get_agent_memories_key(agent_id)
             memory_ids = self.redis.zrange(
                 memories_key, 0, limit - 1, desc=True  # Most recent first
             )
@@ -1209,7 +1288,7 @@ class RedisIMStore:
                 if isinstance(memory_id, bytes):
                     memory_id = memory_id.decode("utf-8")
 
-                key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+                key = self._get_memory_key(agent_id, memory_id)
                 memory_keys.append(memory_id)
                 pipe.hgetall(key)  # Get all hash fields instead of JSON string
 
@@ -1234,7 +1313,7 @@ class RedisIMStore:
         query_embedding: List[float],
         k: int = 5,
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories with similar embeddings.
 
         Args:
@@ -1272,7 +1351,7 @@ class RedisIMStore:
         limit: int = 5,
         score_threshold: float = 0.0,
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories by vector similarity in Redis.
 
         Args:
@@ -1441,7 +1520,7 @@ class RedisIMStore:
         query_embedding: List[float],
         k: int = 5,
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories with similar embeddings using Python implementation.
 
         Args:
@@ -1527,7 +1606,7 @@ class RedisIMStore:
         agent_id: str,
         attributes: Dict[str, Any],
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories matching specific attributes.
 
         Args:
@@ -1560,7 +1639,7 @@ class RedisIMStore:
         agent_id: str,
         attributes: Dict[str, Any],
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories by attributes using Redis search.
 
         Args:
@@ -1709,7 +1788,7 @@ class RedisIMStore:
         agent_id: str,
         attributes: Dict[str, Any],
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories matching specific attributes using Python implementation.
 
         Args:
@@ -1741,7 +1820,7 @@ class RedisIMStore:
             return []
 
     def _matches_attributes(
-        self, memory: Dict[str, Any], attributes: Dict[str, Any]
+        self, memory: MemoryEntry, attributes: Dict[str, Any]
     ) -> bool:
         """Check if a memory matches the specified attributes.
 
@@ -1778,7 +1857,7 @@ class RedisIMStore:
         start_step: int,
         end_step: int,
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories within a specific step range.
 
         Args:
@@ -1815,7 +1894,7 @@ class RedisIMStore:
         start_step: int,
         end_step: int,
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories within a step range using Redis search.
 
         Args:
@@ -1955,7 +2034,7 @@ class RedisIMStore:
         start_step: int,
         end_step: int,
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories within a specific step range using Python implementation.
 
         Args:
