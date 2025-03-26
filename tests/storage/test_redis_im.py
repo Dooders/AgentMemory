@@ -8,8 +8,8 @@ import json
 import time
 from unittest import mock
 
-import pytest
 import numpy as np
+import pytest
 
 from agent_memory.config import RedisIMConfig
 from agent_memory.storage.redis_im import RedisIMStore
@@ -29,6 +29,7 @@ def mock_redis_client():
         # Configure the mock to return success for store operations
         mock_client.return_value.store_with_retry.return_value = True
         mock_client.return_value.set.return_value = True
+        mock_client.return_value.hset.return_value = True
         mock_client.return_value.zadd.return_value = 1
         mock_client.return_value.expire.return_value = True
         mock_client.return_value.zrange.return_value = ["memory1", "memory2"]
@@ -37,7 +38,7 @@ def mock_redis_client():
         mock_client.return_value.delete.return_value = 1
         mock_client.return_value.zrem.return_value = 1
 
-        # Configure get to return a mock memory entry
+        # Configure get to return a mock memory entry (keep for backward compatibility)
         def get_side_effect(key):
             if "memory:memory1" in key:
                 return json.dumps(
@@ -68,6 +69,44 @@ def mock_redis_client():
             return None
 
         mock_client.return_value.get.side_effect = get_side_effect
+
+        # Configure hgetall to return mock hash data
+        def hgetall_side_effect(key):
+            if "memory:memory1" in key:
+                return {
+                    "memory_id": "memory1",
+                    "content": json.dumps("Test memory 1"),
+                    "timestamp": str(time.time()),
+                    "metadata": json.dumps(
+                        {
+                            "compression_level": 1,
+                            "importance_score": 0.7,
+                            "retrieval_count": 0,
+                        }
+                    ),
+                    "compression_level": "1",
+                    "importance_score": "0.7",
+                    "retrieval_count": "0",
+                }
+            elif "memory:memory2" in key:
+                return {
+                    "memory_id": "memory2",
+                    "content": json.dumps("Test memory 2"),
+                    "timestamp": str(time.time()),
+                    "metadata": json.dumps(
+                        {
+                            "compression_level": 1,
+                            "importance_score": 0.5,
+                            "retrieval_count": 0,
+                        }
+                    ),
+                    "compression_level": "1",
+                    "importance_score": "0.5",
+                    "retrieval_count": "0",
+                }
+            return {}
+
+        mock_client.return_value.hgetall.side_effect = hgetall_side_effect
 
         yield mock_client.return_value
 
@@ -198,16 +237,32 @@ def test_store_memory_entry(im_store):
     # Verify pipeline was created
     im_store.redis.pipeline.assert_called_once()
 
-    # Verify pipeline operations were called
-    mock_pipe.set.assert_called_with(
-        "test_agent_memory:im:agent1:memory:test-memory-1",
-        json.dumps(memory_entry),
-        ex=im_store.config.ttl,
+    # Verify pipeline operations were called - now with hset instead of set
+    mock_pipe.hset.assert_called()
+    hset_call_args = mock_pipe.hset.call_args_list[0]
+
+    # Verify the key is correct and mapping was provided
+    assert hset_call_args[0][0] == "test_agent_memory:im:agent1:memory:test-memory-1"
+    assert "mapping" in hset_call_args[1]
+
+    # Get the mapping
+    hash_mapping = hset_call_args[1]["mapping"]
+
+    # Verify hash fields have expected values
+    assert hash_mapping["memory_id"] == "test-memory-1"
+    assert hash_mapping["timestamp"] == str(1234567890.0)
+    assert hash_mapping["compression_level"] == "1"
+    assert hash_mapping["importance_score"] == "0.8"
+    assert "metadata" in hash_mapping
+
+    # Verify expire was called to set TTL
+    mock_pipe.expire.assert_any_call(
+        "test_agent_memory:im:agent1:memory:test-memory-1", im_store.config.ttl
     )
 
     # Check pipeline operations for various indices
     assert mock_pipe.zadd.call_count == 3
-    assert mock_pipe.expire.call_count == 3
+    assert mock_pipe.expire.call_count == 4  # 3 for indices + 1 for the hash
 
     # Verify execute was called
     mock_pipe.execute.assert_called_once()
@@ -283,19 +338,27 @@ def test_get_memory(im_store):
     assert memory["memory_id"] == "memory1"
     assert memory["content"] == "Test memory 1"
 
-    # Verify get was called with correct key
-    im_store.redis.get.assert_called_with("test_agent_memory:im:agent1:memory:memory1")
+    # Verify hgetall was called with correct key
+    im_store.redis.hgetall.assert_called_with(
+        "test_agent_memory:im:agent1:memory:memory1"
+    )
 
     # Verify pipeline was created for update metadata
     im_store.redis.pipeline.assert_called_once()
 
-    # Verify set was called on the pipeline with updated entry
-    mock_pipe.set.assert_called()
-    args, kwargs = mock_pipe.set.call_args
-    assert args[0] == "test_agent_memory:im:agent1:memory:memory1"
-    updated_entry = json.loads(args[1])
-    assert updated_entry["metadata"]["retrieval_count"] == 1
-    assert "last_access_time" in updated_entry["metadata"]
+    # Verify hset was called for updating metadata
+    assert (
+        mock_pipe.hset.call_count >= 3
+    )  # at least metadata, retrieval_count, and last_access_time
+
+    # Verify hset was called with the correct key
+    called_keys = [call[0][0] for call in mock_pipe.hset.call_args_list]
+    assert "test_agent_memory:im:agent1:memory:memory1" in called_keys
+
+    # Verify TTL was refreshed
+    mock_pipe.expire.assert_called_with(
+        "test_agent_memory:im:agent1:memory:memory1", im_store.config.ttl
+    )
 
     # Verify pipeline was executed
     mock_pipe.execute.assert_called_once()
@@ -303,6 +366,9 @@ def test_get_memory(im_store):
 
 def test_get_nonexistent_memory(im_store):
     """Test retrieving a memory that doesn't exist."""
+    # Make the hgetall call return an empty dict for a non-existent memory
+    im_store.redis.hgetall.return_value = {}
+
     memory = im_store.get("agent1", "nonexistent")
 
     # Should return None for non-existent memory
@@ -311,8 +377,8 @@ def test_get_nonexistent_memory(im_store):
 
 def test_get_memory_redis_error(im_store):
     """Test retrieving a memory when Redis raises an error."""
-    # Make Redis get raise an exception
-    im_store.redis.get.side_effect = Exception("Redis error")
+    # Make Redis hgetall raise an exception
+    im_store.redis.hgetall.side_effect = Exception("Redis error")
 
     memory = im_store.get("agent1", "memory1")
 
@@ -322,8 +388,8 @@ def test_get_memory_redis_error(im_store):
 
 def test_get_memory_redis_timeout(im_store):
     """Test retrieving a memory when Redis times out."""
-    # Make Redis get raise a timeout exception
-    im_store.redis.get.side_effect = RedisTimeoutError("Operation timed out")
+    # Make Redis hgetall raise a timeout exception
+    im_store.redis.hgetall.side_effect = RedisTimeoutError("Operation timed out")
 
     memory = im_store.get("agent1", "memory1")
 
@@ -333,8 +399,8 @@ def test_get_memory_redis_timeout(im_store):
 
 def test_get_memory_redis_unavailable(im_store):
     """Test retrieving a memory when Redis is unavailable."""
-    # Make Redis get raise an unavailability exception
-    im_store.redis.get.side_effect = RedisUnavailableError("Redis unavailable")
+    # Make Redis hgetall raise an unavailability exception
+    im_store.redis.hgetall.side_effect = RedisUnavailableError("Redis unavailable")
 
     memory = im_store.get("agent1", "memory1")
 
@@ -346,22 +412,22 @@ def test_get_by_timerange(im_store):
     """Test retrieving memories by time range."""
     # Mock pipeline
     mock_pipe = mock.MagicMock()
-    # Configure pipeline to return two memory entries
+    # Configure pipeline to return two memory hash entries
     mock_pipe.execute.return_value = [
-        json.dumps(
-            {
-                "memory_id": "memory1",
-                "content": "Test memory 1",
-                "metadata": {"compression_level": 1, "importance_score": 0.7},
-            }
-        ),
-        json.dumps(
-            {
-                "memory_id": "memory2",
-                "content": "Test memory 2",
-                "metadata": {"compression_level": 1, "importance_score": 0.5},
-            }
-        ),
+        {
+            "memory_id": "memory1",
+            "content": json.dumps("Test memory 1"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.7}),
+            "compression_level": "1",
+            "importance_score": "0.7",
+        },
+        {
+            "memory_id": "memory2",
+            "content": json.dumps("Test memory 2"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.5}),
+            "compression_level": "1",
+            "importance_score": "0.5",
+        },
     ]
     im_store.redis.pipeline.return_value = mock_pipe
 
@@ -388,7 +454,7 @@ def test_get_by_timerange(im_store):
 
     # Verify pipeline was created and executed
     im_store.redis.pipeline.assert_called_once()
-    assert mock_pipe.get.call_count == 2
+    assert mock_pipe.hgetall.call_count == 2  # Now calling hgetall instead of get
     mock_pipe.execute.assert_called_once()
 
     # Verify _update_access_metadata was called for each memory
@@ -412,22 +478,22 @@ def test_get_by_importance(im_store):
     """Test retrieving memories by importance score range."""
     # Mock pipeline
     mock_pipe = mock.MagicMock()
-    # Configure pipeline to return two memory entries
+    # Configure pipeline to return two memory hash entries
     mock_pipe.execute.return_value = [
-        json.dumps(
-            {
-                "memory_id": "memory1",
-                "content": "Test memory 1",
-                "metadata": {"compression_level": 1, "importance_score": 0.7},
-            }
-        ),
-        json.dumps(
-            {
-                "memory_id": "memory2",
-                "content": "Test memory 2",
-                "metadata": {"compression_level": 1, "importance_score": 0.5},
-            }
-        ),
+        {
+            "memory_id": "memory1",
+            "content": json.dumps("Test memory 1"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.7}),
+            "compression_level": "1",
+            "importance_score": "0.7",
+        },
+        {
+            "memory_id": "memory2",
+            "content": json.dumps("Test memory 2"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.5}),
+            "compression_level": "1",
+            "importance_score": "0.5",
+        },
     ]
     im_store.redis.pipeline.return_value = mock_pipe
 
@@ -454,7 +520,7 @@ def test_get_by_importance(im_store):
 
     # Verify pipeline was created and executed
     im_store.redis.pipeline.assert_called_once()
-    assert mock_pipe.get.call_count == 2
+    assert mock_pipe.hgetall.call_count == 2  # Now calling hgetall instead of get
     mock_pipe.execute.assert_called_once()
 
     # Verify _update_access_metadata was called for each memory
@@ -608,23 +674,33 @@ def test_update_access_metadata(im_store):
     # Verify pipeline was created
     im_store.redis.pipeline.assert_called_once()
 
-    # Verify set was called with updated entry
-    mock_pipe.set.assert_called()
-    args, kwargs = mock_pipe.set.call_args
+    # Verify hset was called to update metadata fields
+    assert mock_pipe.hset.call_count >= 3  # metadata, retrieval_count, last_access_time
 
-    # Verify key and TTL
-    assert args[0] == "test_agent_memory:im:agent1:memory:memory1"
-    assert kwargs["ex"] == im_store.config.ttl
+    # Get all hset calls
+    hset_calls = mock_pipe.hset.call_args_list
 
-    # Parse the JSON that was passed to Redis set
-    updated_entry = json.loads(args[1])
+    # Check call for metadata update
+    metadata_call = next((c for c in hset_calls if c[0][1] == "metadata"), None)
+    assert metadata_call is not None
 
-    # Check that metadata was updated
-    assert updated_entry["metadata"]["retrieval_count"] == 2
-    assert "last_access_time" in updated_entry["metadata"]
+    # Check calls for individual fields
+    retrieval_count_call = next(
+        (c for c in hset_calls if c[0][1] == "retrieval_count"), None
+    )
+    assert retrieval_count_call is not None
+    assert retrieval_count_call[0][2] == "2"  # Should increment from 1 to 2
+
+    # Verify expire is called on the memory key or any other related key
+    # The exact order might depend on implementation details
+    key = "test_agent_memory:im:agent1:memory:memory1"
+    expire_calls = [
+        call for call in mock_pipe.expire.call_args_list if call[0][0] == key
+    ]
+    assert len(expire_calls) > 0, f"expire() was not called for key {key}"
 
     # Check that zadd was called for importance update
-    mock_pipe.zadd.assert_called()
+    assert mock_pipe.zadd.call_count >= 1
 
     # Verify execute was called
     mock_pipe.execute.assert_called_once()
@@ -653,22 +729,22 @@ def test_get_all(im_store):
     """Test retrieving all memories for an agent."""
     # Mock pipeline
     mock_pipe = mock.MagicMock()
-    # Configure pipeline to return memory entries
+    # Configure pipeline to return memory hash entries
     mock_pipe.execute.return_value = [
-        json.dumps(
-            {
-                "memory_id": "memory1",
-                "content": "Test memory 1",
-                "metadata": {"compression_level": 1, "importance_score": 0.7},
-            }
-        ),
-        json.dumps(
-            {
-                "memory_id": "memory2",
-                "content": "Test memory 2",
-                "metadata": {"compression_level": 1, "importance_score": 0.5},
-            }
-        ),
+        {
+            "memory_id": "memory1",
+            "content": json.dumps("Test memory 1"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.7}),
+            "compression_level": "1",
+            "importance_score": "0.7",
+        },
+        {
+            "memory_id": "memory2",
+            "content": json.dumps("Test memory 2"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.5}),
+            "compression_level": "1",
+            "importance_score": "0.5",
+        },
     ]
     im_store.redis.pipeline.return_value = mock_pipe
 
@@ -692,7 +768,7 @@ def test_get_all(im_store):
 
     # Verify pipeline was created and executed
     im_store.redis.pipeline.assert_called_once()
-    assert mock_pipe.get.call_count == 2
+    assert mock_pipe.hgetall.call_count == 2  # Now calling hgetall instead of get
     mock_pipe.execute.assert_called_once()
 
     # Verify _update_access_metadata was called for each memory
@@ -712,21 +788,35 @@ def test_get_size(im_store):
 
     # Mock pipeline
     mock_pipe = mock.MagicMock()
-    # Configure pipeline to return memory entries of different sizes
+    # Configure pipeline to return hash data of different sizes
     mock_pipe.execute.return_value = [
-        json.dumps({"memory_id": "memory1", "content": "Test memory 1"}),
-        json.dumps(
-            {"memory_id": "memory2", "content": "Test memory 2 with more content"}
-        ),
-        json.dumps(
-            {"memory_id": "memory3", "content": "Test memory 3 with even more content"}
-        ),
+        {  # Memory 1 hash fields
+            "memory_id": "memory1",
+            "content": json.dumps("Test memory 1"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.7}),
+            "compression_level": "1",
+            "importance_score": "0.7",
+        },
+        {  # Memory 2 hash fields
+            "memory_id": "memory2",
+            "content": json.dumps("Test memory 2 with more content"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.5}),
+            "compression_level": "1",
+            "importance_score": "0.5",
+        },
+        {  # Memory 3 hash fields
+            "memory_id": "memory3",
+            "content": json.dumps("Test memory 3 with even more content"),
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.3}),
+            "compression_level": "1",
+            "importance_score": "0.3",
+        },
     ]
     im_store.redis.pipeline.return_value = mock_pipe
 
     size = im_store.get_size(agent_id="agent1")
 
-    # Should return the sum of the sizes of all memory entries
+    # Should return the sum of the sizes of all memory hash fields
     assert size > 0
 
     # Verify scan_iter was called with correct pattern
@@ -736,31 +826,29 @@ def test_get_size(im_store):
 
     # Verify pipeline was created and executed
     im_store.redis.pipeline.assert_called_once()
-    assert mock_pipe.get.call_count == 3
+    assert mock_pipe.hgetall.call_count == 3  # Now calling hgetall instead of get
     mock_pipe.execute.assert_called_once()
 
 
 def test_check_vector_search_available(im_store):
     """Test checking if Redis vector search is available."""
     # Mock Redis execute_command to return modules with search
-    im_store.redis.execute_command.return_value = [
-        [b'name', b'search', b'ver', 20400]
-    ]
-    
+    im_store.redis.execute_command.return_value = [[b"name", b"search", b"ver", 20400]]
+
     result = im_store._check_vector_search_available()
     assert result is True
-    
+
     # Test when search module is not available
     im_store.redis.execute_command.return_value = [
-        [b'name', b'other_module', b'ver', 10000]
+        [b"name", b"other_module", b"ver", 10000]
     ]
-    
+
     result = im_store._check_vector_search_available()
     assert result is False
-    
+
     # Test when command raises exception
     im_store.redis.execute_command.side_effect = Exception("Command failed")
-    
+
     result = im_store._check_vector_search_available()
     assert result is False
 
@@ -770,27 +858,27 @@ def test_create_vector_index(im_store):
     # First mock that index doesn't exist
     im_store.redis.execute_command.side_effect = [
         Exception("Index not found"),  # FT.INFO fails
-        "OK"  # FT.CREATE succeeds
+        "OK",  # FT.CREATE succeeds
     ]
-    
+
     im_store._create_vector_index()
-    
+
     # Verify first call was to check index existence
     call_args = im_store.redis.execute_command.call_args_list[0]
     assert call_args[0][0] == f"FT.INFO {im_store._key_prefix}_vector_idx"
-    
+
     # Verify second call was to create index
     call_args = im_store.redis.execute_command.call_args_list[1]
     assert call_args[0][0] == "FT.CREATE"
     assert call_args[0][1] == f"{im_store._key_prefix}_vector_idx"
-    
+
     # Now test when index already exists
     im_store.redis.execute_command.reset_mock()
     im_store.redis.execute_command.side_effect = None
     im_store.redis.execute_command.return_value = "Index info"
-    
+
     im_store._create_vector_index()
-    
+
     # Should only check if index exists, not create
     assert im_store.redis.execute_command.call_count == 1
     call_args = im_store.redis.execute_command.call_args
@@ -802,34 +890,34 @@ def test_search_similar_with_vector_search(im_store):
     # Set up mock response for vector search
     mock_search_results = [
         2,  # Number of results
-        b'test_agent_memory:im:agent1:memory:memory1',
+        b"test_agent_memory:im:agent1:memory:memory1",
         [
-            [b'$', b'{"memory_id":"memory1","content":"Test memory 1"}'],
-            [b'__vector_score', b'0.8']
+            [b"$", b'{"memory_id":"memory1","content":"Test memory 1"}'],
+            [b"__vector_score", b"0.8"],
         ],
-        b'test_agent_memory:im:agent1:memory:memory2',
+        b"test_agent_memory:im:agent1:memory:memory2",
         [
-            [b'$', b'{"memory_id":"memory2","content":"Test memory 2"}'],
-            [b'__vector_score', b'0.6']
-        ]
+            [b"$", b'{"memory_id":"memory2","content":"Test memory 2"}'],
+            [b"__vector_score", b"0.6"],
+        ],
     ]
-    
+
     # Enable vector search for this test
     im_store._vector_search_available = True
     im_store.redis.execute_command.return_value = mock_search_results
-    
+
     # Set up _update_access_metadata mock to prevent side effects
     im_store._update_access_metadata = mock.MagicMock()
-    
+
     query_embedding = [0.1, 0.2, 0.3]  # Sample embedding
     results = im_store.search_similar("agent1", query_embedding, k=2)
-    
+
     # Verify Redis execute_command was called with correct arguments
     im_store.redis.execute_command.assert_called_once()
     call_args = im_store.redis.execute_command.call_args
     assert call_args[0][0] == "FT.SEARCH"
     assert call_args[0][1] == f"{im_store._key_prefix}_vector_idx"
-    
+
     # Verify results
     assert len(results) == 2
     assert results[0]["memory_id"] == "memory1"
@@ -843,41 +931,41 @@ def test_search_similar_fallback(im_store):
     # Enable vector search but make it fail
     im_store._vector_search_available = True
     im_store.redis.execute_command.side_effect = Exception("Redis search failed")
-    
+
     # Set up mock memories for fallback implementation
     memories = [
         {
             "memory_id": "memory1",
             "content": "Test memory 1",
             "embedding": [0.1, 0.2, 0.3],
-            "metadata": {"compression_level": 1}
+            "metadata": {"compression_level": 1},
         },
         {
             "memory_id": "memory2",
             "content": "Test memory 2",
             "embedding": [0.4, 0.5, 0.6],
-            "metadata": {"compression_level": 1}
-        }
+            "metadata": {"compression_level": 1},
+        },
     ]
-    
+
     # Mock get_all to return our test memories
     im_store.get_all = mock.MagicMock(return_value=memories)
-    
+
     # Set up _cosine_similarity mock to return predetermined values
     im_store._cosine_similarity = mock.MagicMock(side_effect=[0.8, 0.5])
-    
+
     query_embedding = [0.1, 0.2, 0.3]  # Sample embedding
     results = im_store.search_similar("agent1", query_embedding, k=2)
-    
+
     # Verify Redis execute_command was called
     im_store.redis.execute_command.assert_called_once()
-    
+
     # Verify get_all was called for fallback
     im_store.get_all.assert_called_once_with("agent1")
-    
+
     # Verify cosine_similarity was called for each memory
     assert im_store._cosine_similarity.call_count == 2
-    
+
     # Verify results
     assert len(results) == 2
     assert results[0]["memory_id"] == "memory1"
@@ -891,35 +979,42 @@ def test_search_by_attributes_redis(im_store):
     # Set up mock response for attribute search
     mock_search_results = [
         1,  # Number of results
-        b'test_agent_memory:im:agent1:memory:memory1',
+        b"test_agent_memory:im:agent1:memory:memory1",
         [
-            [b'$', b'{"memory_id":"memory1","content":{"location":"New York","status":true}}']
-        ]
+            [
+                b"$",
+                b'{"memory_id":"memory1","content":{"location":"New York","status":true}}',
+            ]
+        ],
     ]
-    
+
     # Enable vector search for this test
     im_store._vector_search_available = True
     im_store.redis.execute_command.return_value = mock_search_results
-    
+
     # Set up _update_access_metadata mock
     im_store._update_access_metadata = mock.MagicMock()
-    
+
     # Mock the get method to return a properly formatted memory entry
-    im_store.redis.get = mock.MagicMock(return_value=json.dumps({
-        "memory_id": "memory1",
-        "content": {"location": "New York", "status": True},
-        "metadata": {"compression_level": 1}
-    }))
-    
+    im_store.redis.get = mock.MagicMock(
+        return_value=json.dumps(
+            {
+                "memory_id": "memory1",
+                "content": {"location": "New York", "status": True},
+                "metadata": {"compression_level": 1},
+            }
+        )
+    )
+
     # Define attributes to search for
     attributes = {"location": "New York", "status": True}
     results = im_store._search_by_attributes_redis("agent1", attributes)
-    
+
     # Verify Redis execute_command was called with correct arguments
     im_store.redis.execute_command.assert_called_once()
     call_args = im_store.redis.execute_command.call_args
     assert call_args[0][0] == "FT.SEARCH"
-    
+
     # Verify results
     assert len(results) == 1
     assert results[0]["memory_id"] == "memory1"
@@ -932,52 +1027,52 @@ def test_search_by_step_range_redis(im_store):
     # Set up mock response for step range search
     mock_search_results = [
         2,  # Number of results
-        b'test_agent_memory:im:agent1:memory:memory1',
-        [
-            [b'$', b'{"memory_id":"memory1","step_number":5,"content":"Step 5"}']
-        ],
-        b'test_agent_memory:im:agent1:memory:memory2',
-        [
-            [b'$', b'{"memory_id":"memory2","step_number":6,"content":"Step 6"}']
-        ]
+        b"test_agent_memory:im:agent1:memory:memory1",
+        [[b"$", b'{"memory_id":"memory1","step_number":5,"content":"Step 5"}']],
+        b"test_agent_memory:im:agent1:memory:memory2",
+        [[b"$", b'{"memory_id":"memory2","step_number":6,"content":"Step 6"}']],
     ]
-    
+
     # Enable vector search for this test
     im_store._vector_search_available = True
     im_store.redis.execute_command.return_value = mock_search_results
-    
+
     # Set up _update_access_metadata mock
     im_store._update_access_metadata = mock.MagicMock()
-    
+
     # Mock the get method to return properly formatted memory entries
     def get_side_effect(key):
         if "memory1" in key:
-            return json.dumps({
-                "memory_id": "memory1",
-                "step_number": 5,
-                "content": "Step 5",
-                "metadata": {"compression_level": 1}
-            })
+            return json.dumps(
+                {
+                    "memory_id": "memory1",
+                    "step_number": 5,
+                    "content": "Step 5",
+                    "metadata": {"compression_level": 1},
+                }
+            )
         elif "memory2" in key:
-            return json.dumps({
-                "memory_id": "memory2",
-                "step_number": 6,
-                "content": "Step 6",
-                "metadata": {"compression_level": 1}
-            })
+            return json.dumps(
+                {
+                    "memory_id": "memory2",
+                    "step_number": 6,
+                    "content": "Step 6",
+                    "metadata": {"compression_level": 1},
+                }
+            )
         return None
-    
+
     im_store.redis.get = mock.MagicMock(side_effect=get_side_effect)
-    
+
     # Search for steps 5-10
     results = im_store._search_by_step_range_redis("agent1", 5, 10)
-    
+
     # Verify Redis execute_command was called with correct arguments
     im_store.redis.execute_command.assert_called_once()
     call_args = im_store.redis.execute_command.call_args
     assert call_args[0][0] == "FT.SEARCH"
     assert "@step_number:[5 10]" in call_args[0][2]
-    
+
     # Verify results
     assert len(results) == 2
     assert results[0]["memory_id"] == "memory1"
@@ -996,31 +1091,31 @@ def test_cosine_similarity():
         namespace="test_agent_memory:im",
     )
     store = RedisIMStore(config)
-    
+
     # Test with parallel vectors (should be 1.0)
     vec1 = [1.0, 2.0, 3.0]
     vec2 = [1.0, 2.0, 3.0]
     similarity = store._cosine_similarity(vec1, vec2)
     assert abs(similarity - 1.0) < 1e-6
-    
+
     # Test with orthogonal vectors (should be 0.0)
     vec1 = [1.0, 0.0, 0.0]
     vec2 = [0.0, 1.0, 0.0]
     similarity = store._cosine_similarity(vec1, vec2)
     assert abs(similarity) < 1e-6
-    
+
     # Test with opposite vectors (should be -1.0)
     vec1 = [1.0, 2.0, 3.0]
     vec2 = [-1.0, -2.0, -3.0]
     similarity = store._cosine_similarity(vec1, vec2)
     assert abs(similarity + 1.0) < 1e-6
-    
+
     # Test with empty vectors (should be 0.0)
     vec1 = []
     vec2 = [1.0, 2.0, 3.0]
     similarity = store._cosine_similarity(vec1, vec2)
     assert similarity == 0.0
-    
+
     # Test with zero-magnitude vector (should be 0.0)
     vec1 = [0.0, 0.0, 0.0]
     vec2 = [1.0, 2.0, 3.0]
