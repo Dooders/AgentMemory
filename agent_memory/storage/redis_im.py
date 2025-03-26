@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # TypedDict definitions for complex structures
 class MemoryMetadata(TypedDict, total=False):
     """Metadata information for a memory entry."""
+
     compression_level: int
     importance_score: float
     retrieval_count: int
@@ -35,6 +36,7 @@ class MemoryMetadata(TypedDict, total=False):
 
 class MemoryEntry(TypedDict, total=False):
     """Structure of a memory entry in the intermediate memory store."""
+
     memory_id: str
     agent_id: str
     timestamp: float
@@ -54,7 +56,11 @@ class RedisIMStore:
     Attributes:
         config: Configuration for IM Redis storage
         redis: Resilient Redis client instance
-        _key_prefix: Prefix for Redis keys
+
+    Raises:
+        RedisUnavailableError: If Redis is unavailable
+        RedisTimeoutError: If operation times out
+        RedisError: If Redis returns an error
     """
 
     def __init__(self, config: RedisIMConfig):
@@ -103,55 +109,55 @@ class RedisIMStore:
     # Helper methods for key construction
     def _get_memory_key(self, agent_id: str, memory_id: str) -> str:
         """Construct the Redis key for a memory entry.
-        
+
         Args:
             agent_id: ID of the agent
             memory_id: ID of the memory
-            
+
         Returns:
             Redis key string
         """
         return f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-    
+
     def _get_agent_memories_key(self, agent_id: str) -> str:
         """Construct the Redis key for an agent's memories list.
-        
+
         Args:
             agent_id: ID of the agent
-            
+
         Returns:
             Redis key string
         """
         return f"{self._key_prefix}:{agent_id}:memories"
-    
+
     def _get_timeline_key(self, agent_id: str) -> str:
         """Construct the Redis key for an agent's timeline index.
-        
+
         Args:
             agent_id: ID of the agent
-            
+
         Returns:
             Redis key string
         """
         return f"{self._key_prefix}:{agent_id}:timeline"
-    
+
     def _get_importance_key(self, agent_id: str) -> str:
         """Construct the Redis key for an agent's importance index.
-        
+
         Args:
             agent_id: ID of the agent
-            
+
         Returns:
             Redis key string
         """
         return f"{self._key_prefix}:{agent_id}:importance"
-    
+
     def _get_agent_prefix(self, agent_id: str) -> str:
         """Construct the Redis key prefix for an agent.
-        
+
         Args:
             agent_id: ID of the agent
-            
+
         Returns:
             Redis key prefix string
         """
@@ -908,9 +914,7 @@ class RedisIMStore:
                     # Handle memory_id if it's bytes
                     if isinstance(memory_id, bytes):
                         memory_id = memory_id.decode("utf-8")
-                    keys_to_delete.append(
-                        self._get_memory_key(agent_id, memory_id)
-                    )
+                    keys_to_delete.append(self._get_memory_key(agent_id, memory_id))
 
                 # Add index keys
                 keys_to_delete.extend(
