@@ -9,6 +9,7 @@ import time
 from unittest import mock
 
 import pytest
+import numpy as np
 
 from agent_memory.config import RedisIMConfig
 from agent_memory.storage.redis_im import RedisIMStore
@@ -83,6 +84,8 @@ def im_store(mock_redis_client):
     )
     store = RedisIMStore(config)
     store.redis = mock_redis_client
+    # Mock vector search availability for testing
+    store._vector_search_available = False
     return store
 
 
@@ -735,3 +738,291 @@ def test_get_size(im_store):
     im_store.redis.pipeline.assert_called_once()
     assert mock_pipe.get.call_count == 3
     mock_pipe.execute.assert_called_once()
+
+
+def test_check_vector_search_available(im_store):
+    """Test checking if Redis vector search is available."""
+    # Mock Redis execute_command to return modules with search
+    im_store.redis.execute_command.return_value = [
+        [b'name', b'search', b'ver', 20400]
+    ]
+    
+    result = im_store._check_vector_search_available()
+    assert result is True
+    
+    # Test when search module is not available
+    im_store.redis.execute_command.return_value = [
+        [b'name', b'other_module', b'ver', 10000]
+    ]
+    
+    result = im_store._check_vector_search_available()
+    assert result is False
+    
+    # Test when command raises exception
+    im_store.redis.execute_command.side_effect = Exception("Command failed")
+    
+    result = im_store._check_vector_search_available()
+    assert result is False
+
+
+def test_create_vector_index(im_store):
+    """Test creating vector index."""
+    # First mock that index doesn't exist
+    im_store.redis.execute_command.side_effect = [
+        Exception("Index not found"),  # FT.INFO fails
+        "OK"  # FT.CREATE succeeds
+    ]
+    
+    im_store._create_vector_index()
+    
+    # Verify first call was to check index existence
+    call_args = im_store.redis.execute_command.call_args_list[0]
+    assert call_args[0][0] == f"FT.INFO {im_store._key_prefix}_vector_idx"
+    
+    # Verify second call was to create index
+    call_args = im_store.redis.execute_command.call_args_list[1]
+    assert call_args[0][0] == "FT.CREATE"
+    assert call_args[0][1] == f"{im_store._key_prefix}_vector_idx"
+    
+    # Now test when index already exists
+    im_store.redis.execute_command.reset_mock()
+    im_store.redis.execute_command.side_effect = None
+    im_store.redis.execute_command.return_value = "Index info"
+    
+    im_store._create_vector_index()
+    
+    # Should only check if index exists, not create
+    assert im_store.redis.execute_command.call_count == 1
+    call_args = im_store.redis.execute_command.call_args
+    assert call_args[0][0] == f"FT.INFO {im_store._key_prefix}_vector_idx"
+
+
+def test_search_similar_with_vector_search(im_store):
+    """Test searching similar vectors with Redis vector search."""
+    # Set up mock response for vector search
+    mock_search_results = [
+        2,  # Number of results
+        b'test_agent_memory:im:agent1:memory:memory1',
+        [
+            [b'$', b'{"memory_id":"memory1","content":"Test memory 1"}'],
+            [b'__vector_score', b'0.8']
+        ],
+        b'test_agent_memory:im:agent1:memory:memory2',
+        [
+            [b'$', b'{"memory_id":"memory2","content":"Test memory 2"}'],
+            [b'__vector_score', b'0.6']
+        ]
+    ]
+    
+    # Enable vector search for this test
+    im_store._vector_search_available = True
+    im_store.redis.execute_command.return_value = mock_search_results
+    
+    # Set up _update_access_metadata mock to prevent side effects
+    im_store._update_access_metadata = mock.MagicMock()
+    
+    query_embedding = [0.1, 0.2, 0.3]  # Sample embedding
+    results = im_store.search_similar("agent1", query_embedding, k=2)
+    
+    # Verify Redis execute_command was called with correct arguments
+    im_store.redis.execute_command.assert_called_once()
+    call_args = im_store.redis.execute_command.call_args
+    assert call_args[0][0] == "FT.SEARCH"
+    assert call_args[0][1] == f"{im_store._key_prefix}_vector_idx"
+    
+    # Verify results
+    assert len(results) == 2
+    assert results[0]["memory_id"] == "memory1"
+    assert results[0]["similarity_score"] == 0.8
+    assert results[1]["memory_id"] == "memory2"
+    assert results[1]["similarity_score"] == 0.6
+
+
+def test_search_similar_fallback(im_store):
+    """Test fallback to Python implementation when Redis vector search fails."""
+    # Enable vector search but make it fail
+    im_store._vector_search_available = True
+    im_store.redis.execute_command.side_effect = Exception("Redis search failed")
+    
+    # Set up mock memories for fallback implementation
+    memories = [
+        {
+            "memory_id": "memory1",
+            "content": "Test memory 1",
+            "embedding": [0.1, 0.2, 0.3],
+            "metadata": {"compression_level": 1}
+        },
+        {
+            "memory_id": "memory2",
+            "content": "Test memory 2",
+            "embedding": [0.4, 0.5, 0.6],
+            "metadata": {"compression_level": 1}
+        }
+    ]
+    
+    # Mock get_all to return our test memories
+    im_store.get_all = mock.MagicMock(return_value=memories)
+    
+    # Set up _cosine_similarity mock to return predetermined values
+    im_store._cosine_similarity = mock.MagicMock(side_effect=[0.8, 0.5])
+    
+    query_embedding = [0.1, 0.2, 0.3]  # Sample embedding
+    results = im_store.search_similar("agent1", query_embedding, k=2)
+    
+    # Verify Redis execute_command was called
+    im_store.redis.execute_command.assert_called_once()
+    
+    # Verify get_all was called for fallback
+    im_store.get_all.assert_called_once_with("agent1")
+    
+    # Verify cosine_similarity was called for each memory
+    assert im_store._cosine_similarity.call_count == 2
+    
+    # Verify results
+    assert len(results) == 2
+    assert results[0]["memory_id"] == "memory1"
+    assert results[0]["similarity_score"] == 0.8
+    assert results[1]["memory_id"] == "memory2"
+    assert results[1]["similarity_score"] == 0.5
+
+
+def test_search_by_attributes_redis(im_store):
+    """Test searching by attributes with Redis search."""
+    # Set up mock response for attribute search
+    mock_search_results = [
+        1,  # Number of results
+        b'test_agent_memory:im:agent1:memory:memory1',
+        [
+            [b'$', b'{"memory_id":"memory1","content":{"location":"New York","status":true}}']
+        ]
+    ]
+    
+    # Enable vector search for this test
+    im_store._vector_search_available = True
+    im_store.redis.execute_command.return_value = mock_search_results
+    
+    # Set up _update_access_metadata mock
+    im_store._update_access_metadata = mock.MagicMock()
+    
+    # Mock the get method to return a properly formatted memory entry
+    im_store.redis.get = mock.MagicMock(return_value=json.dumps({
+        "memory_id": "memory1",
+        "content": {"location": "New York", "status": True},
+        "metadata": {"compression_level": 1}
+    }))
+    
+    # Define attributes to search for
+    attributes = {"location": "New York", "status": True}
+    results = im_store._search_by_attributes_redis("agent1", attributes)
+    
+    # Verify Redis execute_command was called with correct arguments
+    im_store.redis.execute_command.assert_called_once()
+    call_args = im_store.redis.execute_command.call_args
+    assert call_args[0][0] == "FT.SEARCH"
+    
+    # Verify results
+    assert len(results) == 1
+    assert results[0]["memory_id"] == "memory1"
+    assert results[0]["content"]["location"] == "New York"
+    assert results[0]["content"]["status"] is True
+
+
+def test_search_by_step_range_redis(im_store):
+    """Test searching by step range with Redis search."""
+    # Set up mock response for step range search
+    mock_search_results = [
+        2,  # Number of results
+        b'test_agent_memory:im:agent1:memory:memory1',
+        [
+            [b'$', b'{"memory_id":"memory1","step_number":5,"content":"Step 5"}']
+        ],
+        b'test_agent_memory:im:agent1:memory:memory2',
+        [
+            [b'$', b'{"memory_id":"memory2","step_number":6,"content":"Step 6"}']
+        ]
+    ]
+    
+    # Enable vector search for this test
+    im_store._vector_search_available = True
+    im_store.redis.execute_command.return_value = mock_search_results
+    
+    # Set up _update_access_metadata mock
+    im_store._update_access_metadata = mock.MagicMock()
+    
+    # Mock the get method to return properly formatted memory entries
+    def get_side_effect(key):
+        if "memory1" in key:
+            return json.dumps({
+                "memory_id": "memory1",
+                "step_number": 5,
+                "content": "Step 5",
+                "metadata": {"compression_level": 1}
+            })
+        elif "memory2" in key:
+            return json.dumps({
+                "memory_id": "memory2",
+                "step_number": 6,
+                "content": "Step 6",
+                "metadata": {"compression_level": 1}
+            })
+        return None
+    
+    im_store.redis.get = mock.MagicMock(side_effect=get_side_effect)
+    
+    # Search for steps 5-10
+    results = im_store._search_by_step_range_redis("agent1", 5, 10)
+    
+    # Verify Redis execute_command was called with correct arguments
+    im_store.redis.execute_command.assert_called_once()
+    call_args = im_store.redis.execute_command.call_args
+    assert call_args[0][0] == "FT.SEARCH"
+    assert "@step_number:[5 10]" in call_args[0][2]
+    
+    # Verify results
+    assert len(results) == 2
+    assert results[0]["memory_id"] == "memory1"
+    assert results[0]["step_number"] == 5
+    assert results[1]["memory_id"] == "memory2"
+    assert results[1]["step_number"] == 6
+
+
+def test_cosine_similarity():
+    """Test the cosine similarity calculation."""
+    # Create store instance directly for testing internal method
+    config = RedisIMConfig(
+        host="localhost",
+        port=6379,
+        db=1,
+        namespace="test_agent_memory:im",
+    )
+    store = RedisIMStore(config)
+    
+    # Test with parallel vectors (should be 1.0)
+    vec1 = [1.0, 2.0, 3.0]
+    vec2 = [1.0, 2.0, 3.0]
+    similarity = store._cosine_similarity(vec1, vec2)
+    assert abs(similarity - 1.0) < 1e-6
+    
+    # Test with orthogonal vectors (should be 0.0)
+    vec1 = [1.0, 0.0, 0.0]
+    vec2 = [0.0, 1.0, 0.0]
+    similarity = store._cosine_similarity(vec1, vec2)
+    assert abs(similarity) < 1e-6
+    
+    # Test with opposite vectors (should be -1.0)
+    vec1 = [1.0, 2.0, 3.0]
+    vec2 = [-1.0, -2.0, -3.0]
+    similarity = store._cosine_similarity(vec1, vec2)
+    assert abs(similarity + 1.0) < 1e-6
+    
+    # Test with empty vectors (should be 0.0)
+    vec1 = []
+    vec2 = [1.0, 2.0, 3.0]
+    similarity = store._cosine_similarity(vec1, vec2)
+    assert similarity == 0.0
+    
+    # Test with zero-magnitude vector (should be 0.0)
+    vec1 = [0.0, 0.0, 0.0]
+    vec2 = [1.0, 2.0, 3.0]
+    similarity = store._cosine_similarity(vec1, vec2)
+    assert similarity == 0.0

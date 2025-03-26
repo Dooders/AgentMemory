@@ -55,7 +55,66 @@ class RedisIMStore:
             circuit_reset_timeout=300,
         )
 
+        # Check for Redis vector search capabilities
+        self._vector_search_available = self._check_vector_search_available()
+        if self._vector_search_available:
+            logger.info("Redis vector search capabilities detected")
+            # Create vector index if it doesn't exist
+            self._create_vector_index()
+        else:
+            logger.info("Redis vector search capabilities not detected, using fallback method")
+
         logger.info("Initialized RedisIMStore with namespace %s", self._key_prefix)
+
+    def _check_vector_search_available(self) -> bool:
+        """Check if Redis vector search capabilities are available.
+
+        Returns:
+            True if vector search is available, False otherwise
+        """
+        try:
+            # Check for Redis Stack / RediSearch module
+            modules = self.redis.execute_command("MODULE LIST")
+            return any(module[1] == b'search' for module in modules)
+        except Exception as e:
+            logger.warning(f"Failed to check Redis modules: {e}")
+            return False
+
+    def _create_vector_index(self) -> None:
+        """Create vector index for embeddings if it doesn't exist."""
+        try:
+            # Define index key name
+            index_name = f"{self._key_prefix}_vector_idx"
+            
+            # Check if index already exists
+            try:
+                self.redis.execute_command(f"FT.INFO {index_name}")
+                logger.info(f"Vector index {index_name} already exists")
+                return
+            except Exception:
+                # Index doesn't exist, continue to create it
+                pass
+                
+            # Create vector index for agent memory embeddings
+            # Using FLAT index for simplicity but can be changed to HNSW for better performance
+            create_cmd = [
+                "FT.CREATE", index_name,
+                "ON", "JSON",
+                "PREFIX", 1, f"{self._key_prefix}:",
+                "SCHEMA",
+                "$.embedding", "AS", "embedding", "VECTOR", "FLAT", 
+                "6", "TYPE", "FLOAT32", "DIM", "1536", "DISTANCE_METRIC", "COSINE",
+                # Add additional fields for attribute and step-range searches
+                "$.memory_type", "AS", "memory_type", "TAG",
+                "$.step_number", "AS", "step_number", "NUMERIC",
+                "$.content.*", "AS", "content", "TEXT",
+                "$.metadata.importance_score", "AS", "importance_score", "NUMERIC"
+            ]
+            
+            self.redis.execute_command(*create_cmd)
+            logger.info(f"Created vector index {index_name}")
+        except Exception as e:
+            logger.warning(f"Failed to create vector index: {e}")
 
     def store(
         self,
@@ -401,27 +460,144 @@ class RedisIMStore:
         """Check the health of the Redis store.
 
         Returns:
-            Dictionary containing health metrics
+            Dictionary containing health metrics for monitoring dashboards
         """
+        health_data = {
+            "client": "redis-im",
+            "timestamp": time.time(),
+            "metrics": {},
+        }
+        
         try:
+            # Basic connectivity check
+            ping_start = time.time()
             ping_result = self.redis.ping()
-            return {
-                "status": "healthy" if ping_result else "degraded",
-                "message": (
-                    "Redis connection successful"
-                    if ping_result
-                    else "Redis ping failed"
-                ),
-                "latency_ms": self.redis.get_latency(),
-                "client": "redis-im",
+            ping_latency = (time.time() - ping_start) * 1000  # Convert to ms
+            
+            # Get Redis info for key metrics
+            info = self.redis.info()
+            
+            # Memory metrics
+            memory_metrics = {
+                "used_memory_human": info.get("used_memory_human", "N/A"),
+                "used_memory_peak_human": info.get("used_memory_peak_human", "N/A"),
+                "used_memory_rss_human": info.get("used_memory_rss_human", "N/A"),
+                "mem_fragmentation_ratio": info.get("mem_fragmentation_ratio", 0),
             }
+            
+            # Performance metrics
+            performance_metrics = {
+                "connected_clients": info.get("connected_clients", 0),
+                "connected_slaves": info.get("connected_slaves", 0),
+                "instantaneous_ops_per_sec": info.get("instantaneous_ops_per_sec", 0),
+                "hit_rate": self._calculate_hit_rate(info),
+                "keyspace_hits": info.get("keyspace_hits", 0),
+                "keyspace_misses": info.get("keyspace_misses", 0),
+                "evicted_keys": info.get("evicted_keys", 0),
+                "expired_keys": info.get("expired_keys", 0),
+                "latency_ms": ping_latency,
+                "circuit_breaker_open": self.redis.is_circuit_open(),
+            }
+            
+            # Get keyspace stats for our database
+            db_key = f"db{self.config.db}"
+            keyspace_metrics = {}
+            if db_key in info:
+                keyspace_metrics = info[db_key]
+            
+            # IM specific metrics
+            im_metrics = {
+                "vector_search_available": self._vector_search_available,
+            }
+            
+            # Add all metrics to response
+            health_data["metrics"] = {
+                "memory": memory_metrics,
+                "performance": performance_metrics,
+                "keyspace": keyspace_metrics,
+                "im": im_metrics,
+            }
+            
+            # Set overall status
+            health_data["status"] = "healthy" if ping_result else "degraded"
+            health_data["message"] = (
+                "Redis connection successful"
+                if ping_result
+                else "Redis ping failed"
+            )
+            
+            return health_data
+            
         except (RedisTimeoutError, RedisUnavailableError, Exception) as e:
-            return {
+            health_data.update({
                 "status": "unhealthy",
                 "message": str(e),
                 "error": str(e),
-                "client": "redis-im",
+            })
+            return health_data
+    
+    def _calculate_hit_rate(self, info: Dict[str, Any]) -> float:
+        """Calculate Redis cache hit rate from info statistics.
+        
+        Args:
+            info: Redis INFO command result dictionary
+            
+        Returns:
+            Cache hit rate as a percentage (0-100)
+        """
+        hits = info.get("keyspace_hits", 0)
+        misses = info.get("keyspace_misses", 0)
+        
+        if hits + misses == 0:
+            return 0.0
+            
+        return (hits / (hits + misses)) * 100
+    
+    def get_monitoring_data(self) -> Dict[str, Any]:
+        """Get comprehensive monitoring data for integration with monitoring dashboards.
+        
+        This method provides a standard format that can be used with monitoring tools
+        like Prometheus, Datadog, etc. through appropriate exporters.
+        
+        Returns:
+            Dictionary containing detailed metrics in a format suitable for exporters
+        """
+        # Get basic health data first
+        monitoring_data = self.check_health()
+        
+        try:
+            # Add additional metrics specific for monitoring systems
+            
+            # Memory usage for this agent namespace
+            namespace_pattern = f"{self._key_prefix}:*"
+            keys_count = len(list(self.redis.scan_iter(match=namespace_pattern, count=1000)))
+            
+            # Memory statistics by key type (if Redis >=4.0)
+            memory_stats = {}
+            if self.redis.info().get("redis_version", "0.0.0") >= "4.0.0":
+                try:
+                    memory_stats = self.redis.execute_command("MEMORY STATS")
+                except Exception as e:
+                    logger.warning(f"Failed to get memory stats: {e}")
+            
+            # Add to monitoring data
+            monitoring_data["metrics"]["namespace"] = {
+                "keys_count": keys_count,
+                "memory_stats": memory_stats,
             }
+            
+            # Add server-related metrics that might be useful for monitoring
+            monitoring_data["metrics"]["server"] = {
+                "uptime_in_seconds": self.redis.info().get("uptime_in_seconds", 0),
+                "redis_version": self.redis.info().get("redis_version", "unknown"),
+            }
+            
+            return monitoring_data
+            
+        except Exception as e:
+            logger.error(f"Error getting monitoring data: {e}")
+            monitoring_data["metrics"]["error"] = str(e)
+            return monitoring_data
 
     def _update_access_metadata(
         self, agent_id: str, memory_id: str, memory_entry: Dict[str, Any]
@@ -578,6 +754,103 @@ class RedisIMStore:
         Returns:
             List of memory entries sorted by similarity score
         """
+        if self._vector_search_available:
+            try:
+                return self._search_similar_redis_vector(agent_id, query_embedding, k, memory_type)
+            except Exception as e:
+                logger.warning(f"Redis vector search failed, falling back to Python implementation: {e}")
+                # Fall back to Python implementation
+                return self._search_similar_python(agent_id, query_embedding, k, memory_type)
+        else:
+            # Use Python implementation
+            return self._search_similar_python(agent_id, query_embedding, k, memory_type)
+
+    def _search_similar_redis_vector(
+        self,
+        agent_id: str,
+        query_embedding: List[float],
+        k: int = 5,
+        memory_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for similar vectors using Redis vector search.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            query_embedding: The vector embedding to use for similarity search
+            k: Number of results to return
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries sorted by similarity score
+        """
+        index_name = f"{self._key_prefix}_vector_idx"
+        
+        # Prepare the query
+        query = f"@embedding:[VECTOR_RANGE $K $vec]=>{{}}"
+        
+        # Add memory_type filter if specified
+        filter_args = []
+        if memory_type:
+            query = f"@memory_type:{{{memory_type}}} {query}"
+        
+        # Prepare the embedding for Redis
+        vector_str = np.array(query_embedding, dtype=np.float32).tobytes()
+        
+        # Execute the search
+        results = self.redis.execute_command(
+            "FT.SEARCH", index_name, 
+            query,
+            "PARAMS", 2, "K", k, "vec", vector_str,
+            "RETURN", 1, ".",
+            "LIMIT", 0, k
+        )
+        
+        if not results or results[0] == 0:
+            return []
+            
+        # Parse results (format depends on Redis version)
+        memories = []
+        for i in range(1, len(results), 2):
+            key = results[i]
+            if isinstance(key, bytes):
+                key = key.decode('utf-8')
+                
+            # Extract memory data
+            data = self.redis.get(key)
+            if data:
+                memory_entry = json.loads(data)
+                # Extract agent_id and memory_id from the key
+                parts = key.split(":")
+                if len(parts) >= 4 and parts[-2] == "memory":
+                    memory_id = parts[-1]
+                    self._update_access_metadata(agent_id, memory_id, memory_entry)
+                    # Add similarity score
+                    if i+1 < len(results) and isinstance(results[i+1], list):
+                        for field in results[i+1]:
+                            if isinstance(field, list) and len(field) >= 2 and field[0] == b'__vector_score':
+                                memory_entry["similarity_score"] = float(field[1])
+                    memories.append(memory_entry)
+                    
+        return memories
+
+    def _search_similar_python(
+        self,
+        agent_id: str,
+        query_embedding: List[float],
+        k: int = 5,
+        memory_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories with similar embeddings using Python implementation.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            query_embedding: The vector embedding to use for similarity search
+            k: Number of results to return
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries sorted by similarity score
+        """
         try:
             memories = self.get_all(agent_id)
 
@@ -663,6 +936,117 @@ class RedisIMStore:
         Returns:
             List of memory entries with matching attributes
         """
+        if self._vector_search_available:
+            try:
+                return self._search_by_attributes_redis(agent_id, attributes, memory_type)
+            except Exception as e:
+                logger.warning(f"Redis attribute search failed, falling back to Python implementation: {e}")
+                # Fall back to Python implementation
+                return self._search_by_attributes_python(agent_id, attributes, memory_type)
+        else:
+            # Use Python implementation
+            return self._search_by_attributes_python(agent_id, attributes, memory_type)
+
+    def _search_by_attributes_redis(
+        self, 
+        agent_id: str, 
+        attributes: Dict[str, Any], 
+        memory_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Search for memories by attributes using Redis search.
+        
+        Args:
+            agent_id: Unique identifier for the agent
+            attributes: Dictionary of attribute keys and values to match
+            memory_type: Optional filter for specific memory types
+            
+        Returns:
+            List of memory entries with matching attributes
+        """
+        index_name = f"{self._key_prefix}_vector_idx"
+        
+        # Build query for Redis search
+        query_parts = []
+        
+        # Add agent ID filter - we'll filter by pattern prefix
+        agent_prefix = f"{self._key_prefix}:{agent_id}:memory:"
+        
+        # Add memory type filter if specified
+        if memory_type:
+            query_parts.append(f"@memory_type:{{{memory_type}}}")
+        
+        # Add attribute filters
+        for attr_path, attr_value in attributes.items():
+            # Convert the attribute path to the correct format for RediSearch
+            redis_path = f"@content.{attr_path}"
+            
+            if isinstance(attr_value, (int, float)):
+                # Numeric value
+                query_parts.append(f"{redis_path}:[{attr_value} {attr_value}]")
+            elif isinstance(attr_value, str):
+                # String value - escape any special characters
+                escaped_value = attr_value.replace('"', '\\"')
+                query_parts.append(f'{redis_path}:"{escaped_value}"')
+            elif isinstance(attr_value, bool):
+                # Boolean value
+                query_parts.append(f'{redis_path}:{str(attr_value).lower()}')
+        
+        # Combine query parts
+        query = " ".join(query_parts) if query_parts else "*"
+        
+        try:
+            # Execute search with prefix filter for agent_id
+            results = self.redis.execute_command(
+                "FT.SEARCH", index_name,
+                query,
+                "LIMIT", 0, 1000,  # Reasonable limit
+                "FILTER", "PREFLEN", len(agent_prefix),
+                "PREFIX", 1, agent_prefix
+            )
+            
+            if not results or results[0] == 0:
+                return []
+                
+            # Process results
+            memories = []
+            for i in range(1, len(results), 2):
+                key = results[i]
+                if isinstance(key, bytes):
+                    key = key.decode('utf-8')
+                    
+                # Extract memory data
+                data = self.redis.get(key)
+                if data:
+                    memory_entry = json.loads(data)
+                    # Extract memory_id from the key
+                    parts = key.split(":")
+                    if len(parts) >= 4 and parts[-2] == "memory":
+                        memory_id = parts[-1]
+                        self._update_access_metadata(agent_id, memory_id, memory_entry)
+                        memories.append(memory_entry)
+                        
+            return memories
+            
+        except Exception as e:
+            logger.error(f"Error in Redis attribute search: {e}")
+            raise
+    
+    def _search_by_attributes_python(
+        self,
+        agent_id: str,
+        attributes: Dict[str, Any],
+        memory_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories matching specific attributes using Python implementation.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            attributes: Dictionary of attribute keys and values to match
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries with matching attributes
+        """
         try:
             # Get all memories
             memories = self.get_all(agent_id)
@@ -723,6 +1107,109 @@ class RedisIMStore:
         memory_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search for memories within a specific step range.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            start_step: Beginning of step range (inclusive)
+            end_step: End of step range (inclusive)
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries with step numbers in the range
+        """
+        if self._vector_search_available:
+            try:
+                return self._search_by_step_range_redis(agent_id, start_step, end_step, memory_type)
+            except Exception as e:
+                logger.warning(f"Redis step range search failed, falling back to Python implementation: {e}")
+                # Fall back to Python implementation
+                return self._search_by_step_range_python(agent_id, start_step, end_step, memory_type)
+        else:
+            # Use Python implementation
+            return self._search_by_step_range_python(agent_id, start_step, end_step, memory_type)
+
+    def _search_by_step_range_redis(
+        self,
+        agent_id: str,
+        start_step: int,
+        end_step: int,
+        memory_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories within a step range using Redis search.
+        
+        Args:
+            agent_id: Unique identifier for the agent
+            start_step: Beginning of step range (inclusive)
+            end_step: End of step range (inclusive)
+            memory_type: Optional filter for specific memory types
+            
+        Returns:
+            List of memory entries within the step range
+        """
+        index_name = f"{self._key_prefix}_vector_idx"
+        
+        # Build query for Redis search
+        query_parts = []
+        
+        # Add agent ID filter - we'll filter by pattern prefix
+        agent_prefix = f"{self._key_prefix}:{agent_id}:memory:"
+        
+        # Add step range filter
+        query_parts.append(f"@step_number:[{start_step} {end_step}]")
+        
+        # Add memory type filter if specified
+        if memory_type:
+            query_parts.append(f"@memory_type:{{{memory_type}}}")
+        
+        # Combine query parts
+        query = " ".join(query_parts)
+        
+        try:
+            # Execute search with prefix filter for agent_id
+            results = self.redis.execute_command(
+                "FT.SEARCH", index_name,
+                query,
+                "LIMIT", 0, 1000,  # Reasonable limit
+                "SORTBY", "step_number", "ASC",
+                "FILTER", "PREFLEN", len(agent_prefix),
+                "PREFIX", 1, agent_prefix
+            )
+            
+            if not results or results[0] == 0:
+                return []
+                
+            # Process results
+            memories = []
+            for i in range(1, len(results), 2):
+                key = results[i]
+                if isinstance(key, bytes):
+                    key = key.decode('utf-8')
+                    
+                # Extract memory data
+                data = self.redis.get(key)
+                if data:
+                    memory_entry = json.loads(data)
+                    # Extract memory_id from the key
+                    parts = key.split(":")
+                    if len(parts) >= 4 and parts[-2] == "memory":
+                        memory_id = parts[-1]
+                        self._update_access_metadata(agent_id, memory_id, memory_entry)
+                        memories.append(memory_entry)
+                        
+            return memories
+            
+        except Exception as e:
+            logger.error(f"Error in Redis step range search: {e}")
+            raise
+    
+    def _search_by_step_range_python(
+        self,
+        agent_id: str,
+        start_step: int,
+        end_step: int,
+        memory_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories within a specific step range using Python implementation.
 
         Args:
             agent_id: Unique identifier for the agent
