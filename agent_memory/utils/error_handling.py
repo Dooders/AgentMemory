@@ -9,7 +9,7 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, TypeVar, Awaitable
+from typing import Any, Awaitable, Callable, Dict, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -164,11 +164,15 @@ class CircuitBreaker:
         try:
             result = operation()
 
-            # Success - reset failure count
+            # Success - reset failure count and close circuit if in half-open state
             if self.state == CircuitState.HALF_OPEN:
                 logger.info("Circuit %s changed from HALF_OPEN to CLOSED", self.name)
                 self.state = CircuitState.CLOSED
-            self.failure_count = 0
+                self.failure_count = 0
+            elif self.state == CircuitState.CLOSED:
+                # Reset failure count on successful operations in closed state
+                self.failure_count = 0
+
             return result
 
         except Exception as e:
@@ -177,11 +181,16 @@ class CircuitBreaker:
 
             if self.state == CircuitState.HALF_OPEN:
                 # If in half-open state and fails, go back to open state
+                logger.warning(
+                    "Circuit %s changed back to OPEN after failure in HALF_OPEN state",
+                    self.name,
+                )
                 self.state = CircuitState.OPEN
                 self.failure_count = (
                     1  # Reset to 1 when transitioning from HALF_OPEN to OPEN
                 )
             else:
+                # In CLOSED state
                 self.failure_count += 1
                 if self.failure_count >= self.failure_threshold:
                     if self.state != CircuitState.OPEN:
@@ -671,9 +680,7 @@ class AsyncCircuitBreaker:
         last_failure_time: Timestamp of the last failure
     """
 
-    def __init__(
-        self, name: str, failure_threshold: int = 3, reset_timeout: int = 300
-    ):
+    def __init__(self, name: str, failure_threshold: int = 3, reset_timeout: int = 300):
         """Initialize the circuit breaker.
 
         Args:
@@ -705,7 +712,9 @@ class AsyncCircuitBreaker:
         if self.state == CircuitState.OPEN:
             # Check if it's time to try again
             if time.time() - self.last_failure_time > self.reset_timeout:
-                logger.info(f"Circuit {self.name} reset timeout elapsed, setting to half-open")
+                logger.info(
+                    f"Circuit {self.name} reset timeout elapsed, setting to half-open"
+                )
                 self.state = CircuitState.HALF_OPEN
             else:
                 logger.warning(f"Circuit {self.name} is open, rejecting operation")
@@ -731,7 +740,10 @@ class AsyncCircuitBreaker:
             self.failure_count += 1
             self.last_failure_time = time.time()
 
-            if self.state == CircuitState.CLOSED and self.failure_count >= self.failure_threshold:
+            if (
+                self.state == CircuitState.CLOSED
+                and self.failure_count >= self.failure_threshold
+            ):
                 logger.warning(
                     f"Circuit {self.name} failure threshold reached, opening circuit"
                 )
@@ -783,8 +795,12 @@ class AsyncStoreOperation:
             True if successful, False otherwise
         """
         try:
-            logger.info(f"Executing async store operation {self.operation_id} for agent {self.agent_id}")
+            logger.info(
+                f"Executing async store operation {self.operation_id} for agent {self.agent_id}"
+            )
             return await self.store_function(self.agent_id, self.state_data)
         except Exception as e:
-            logger.exception(f"Failed to execute async store operation {self.operation_id}: {str(e)}")
+            logger.exception(
+                f"Failed to execute async store operation {self.operation_id}: {str(e)}"
+            )
             return False
