@@ -7,7 +7,7 @@ storage tier with comprehensive error handling and recovery mechanisms.
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from agent_memory.config import RedisSTMConfig
 from agent_memory.utils.error_handling import (
@@ -20,6 +20,33 @@ from .redis_client import ResilientRedisClient
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+# TypedDict definitions for complex structures
+class MemoryMetadata(TypedDict, total=False):
+    """Metadata information for a memory entry."""
+    compression_level: int  # Always 0 for STM
+    importance_score: float
+    retrieval_count: int
+    creation_time: float
+    last_access_time: float
+
+
+class MemoryEmbeddings(TypedDict, total=False):
+    """Vector embeddings for a memory entry."""
+    full_vector: List[float]  # Full resolution embedding
+
+
+class MemoryEntry(TypedDict, total=False):
+    """Structure of a memory entry in the short-term memory store."""
+    memory_id: str
+    agent_id: str
+    timestamp: float
+    content: Any  # Can be any structured data
+    metadata: MemoryMetadata
+    embeddings: MemoryEmbeddings  # Vector embeddings for similarity search
+    memory_type: Optional[str]  # Optional type classification
+    step_number: Optional[int]  # Optional step number for step-based retrieval
 
 
 class RedisSTMStore:
@@ -57,10 +84,79 @@ class RedisSTMStore:
 
         logger.info("Initialized RedisSTMStore with namespace %s", self._key_prefix)
 
+    # Helper methods for key construction
+    def _get_memory_key(self, agent_id: str, memory_id: str) -> str:
+        """Construct the Redis key for a memory entry.
+        
+        Args:
+            agent_id: ID of the agent
+            memory_id: ID of the memory
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+    
+    def _get_agent_memories_key(self, agent_id: str) -> str:
+        """Construct the Redis key for an agent's memories list.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:memories"
+    
+    def _get_timeline_key(self, agent_id: str) -> str:
+        """Construct the Redis key for an agent's timeline index.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:timeline"
+    
+    def _get_importance_key(self, agent_id: str) -> str:
+        """Construct the Redis key for an agent's importance index.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:importance"
+    
+    def _get_vector_key(self, agent_id: str, memory_id: str) -> str:
+        """Construct the Redis key for a memory's vector embedding.
+        
+        Args:
+            agent_id: ID of the agent
+            memory_id: ID of the memory
+            
+        Returns:
+            Redis key string
+        """
+        return f"{self._key_prefix}:{agent_id}:vector:{memory_id}"
+    
+    def _get_agent_prefix(self, agent_id: str) -> str:
+        """Construct the Redis key prefix for an agent.
+        
+        Args:
+            agent_id: ID of the agent
+            
+        Returns:
+            Redis key prefix string
+        """
+        return f"{self._key_prefix}:{agent_id}"
+
     def store(
         self,
         agent_id: str,
-        memory_entry: Dict[str, Any],
+        memory_entry: MemoryEntry,
         priority: Priority = Priority.NORMAL,
     ) -> bool:
         """Store a memory entry in STM.
@@ -86,7 +182,7 @@ class RedisSTMStore:
             priority=priority,
         )
 
-    def _store_memory_entry(self, agent_id: str, memory_entry: Dict[str, Any]) -> bool:
+    def _store_memory_entry(self, agent_id: str, memory_entry: MemoryEntry) -> bool:
         """Internal method to store a memory entry.
 
         Args:
@@ -105,31 +201,31 @@ class RedisSTMStore:
 
         try:
             # Store the full memory entry
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+            key = self._get_memory_key(agent_id, memory_id)
             self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
 
             # Add to agent's memory list
-            agent_memories_key = f"{self._key_prefix}:{agent_id}:memories"
+            agent_memories_key = self._get_agent_memories_key(agent_id)
             self.redis.zadd(agent_memories_key, {memory_id: timestamp})
 
             # Set TTL on the sorted set
             self.redis.expire(agent_memories_key, self.config.ttl)
 
             # Add to timeline index for chronological retrieval
-            timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
+            timeline_key = self._get_timeline_key(agent_id)
             self.redis.zadd(timeline_key, {memory_id: timestamp})
             self.redis.expire(timeline_key, self.config.ttl)
 
             # Add to importance index for importance-based retrieval
             importance = memory_entry.get("metadata", {}).get("importance_score", 0.0)
-            importance_key = f"{self._key_prefix}:{agent_id}:importance"
+            importance_key = self._get_importance_key(agent_id)
             self.redis.zadd(importance_key, {memory_id: importance})
             self.redis.expire(importance_key, self.config.ttl)
 
             # If it has embeddings, store for vector search
             embeddings = memory_entry.get("embeddings", {})
             if embeddings and "full_vector" in embeddings:
-                vector_key = f"{self._key_prefix}:{agent_id}:vector:{memory_id}"
+                vector_key = self._get_vector_key(agent_id, memory_id)
                 self.redis.set(
                     vector_key,
                     json.dumps(embeddings["full_vector"]),
@@ -151,7 +247,7 @@ class RedisSTMStore:
             )
             return False
 
-    def get(self, agent_id: str, memory_id: str) -> Optional[Dict[str, Any]]:
+    def get(self, agent_id: str, memory_id: str) -> Optional[MemoryEntry]:
         """Retrieve a memory entry by ID.
 
         Args:
@@ -163,7 +259,7 @@ class RedisSTMStore:
         """
         try:
             # Construct the key using agent_id and memory_id
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+            key = self._get_memory_key(agent_id, memory_id)
             data = self.redis.get(key)
             
             if not data:
@@ -191,7 +287,7 @@ class RedisSTMStore:
             return None
 
     def _update_access_metadata(
-        self, agent_id: str, memory_id: str, memory_entry: Dict[str, Any]
+        self, agent_id: str, memory_id: str, memory_entry: MemoryEntry
     ) -> None:
         """Update access metadata for a memory entry.
 
@@ -212,7 +308,7 @@ class RedisSTMStore:
             memory_entry["metadata"] = metadata
 
             # Store updated entry
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+            key = self._get_memory_key(agent_id, memory_id)
             self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
 
             # Update importance based on access patterns
@@ -222,7 +318,7 @@ class RedisSTMStore:
                 access_factor = min(retrieval_count / 10.0, 1.0)  # Cap at 1.0
                 new_importance = importance + (access_factor * 0.1)  # Slight boost
 
-                importance_key = f"{self._key_prefix}:{agent_id}:importance"
+                importance_key = self._get_importance_key(agent_id)
                 self.redis.zadd(importance_key, {memory_id: new_importance})
 
                 # Update in memory entry
@@ -236,7 +332,7 @@ class RedisSTMStore:
 
     def get_by_timerange(
         self, agent_id: str, start_time: float, end_time: float, limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Retrieve memories within a time range.
 
         Args:
@@ -249,7 +345,7 @@ class RedisSTMStore:
             List of memory entries
         """
         try:
-            timeline_key = f"{self._key_prefix}:{agent_id}:timeline"
+            timeline_key = self._get_timeline_key(agent_id)
             memory_ids = self.redis.zrangebyscore(
                 timeline_key, 
                 min=start_time, 
@@ -285,7 +381,7 @@ class RedisSTMStore:
         min_importance: float = 0.0,
         max_importance: float = 1.0,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Retrieve memories by importance score.
 
         Args:
@@ -298,7 +394,7 @@ class RedisSTMStore:
             List of memory entries
         """
         try:
-            importance_key = f"{self._key_prefix}:{agent_id}:importance"
+            importance_key = self._get_importance_key(agent_id)
             # Get memory IDs in range with their scores
             memory_id_scores = self.redis.zrangebyscore(
                 importance_key,
@@ -349,17 +445,17 @@ class RedisSTMStore:
         """
         try:
             # Delete the memory entry
-            key = f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
+            key = self._get_memory_key(agent_id, memory_id)
             deleted = self.redis.delete(key) > 0
 
             if deleted:
                 # Remove from indexes
-                self.redis.zrem(f"{self._key_prefix}:{agent_id}:memories", memory_id)
-                self.redis.zrem(f"{self._key_prefix}:{agent_id}:timeline", memory_id)
-                self.redis.zrem(f"{self._key_prefix}:{agent_id}:importance", memory_id)
+                self.redis.zrem(self._get_agent_memories_key(agent_id), memory_id)
+                self.redis.zrem(self._get_timeline_key(agent_id), memory_id)
+                self.redis.zrem(self._get_importance_key(agent_id), memory_id)
 
                 # Remove vector if it exists
-                self.redis.delete(f"{self._key_prefix}:{agent_id}:vector:{memory_id}")
+                self.redis.delete(self._get_vector_key(agent_id, memory_id))
 
                 logger.debug(
                     "Deleted memory %s for agent %s from STM", memory_id, agent_id
@@ -389,7 +485,7 @@ class RedisSTMStore:
             Number of memories
         """
         try:
-            key = f"{self._key_prefix}:{agent_id}:memories"
+            key = self._get_agent_memories_key(agent_id)
             return self.redis.zcard(key)
 
         except (RedisUnavailableError, RedisTimeoutError) as e:
@@ -412,7 +508,7 @@ class RedisSTMStore:
         """
         try:
             # Get all memory IDs
-            key = f"{self._key_prefix}:{agent_id}:memories"
+            key = self._get_agent_memories_key(agent_id)
             memory_ids = self.redis.zrange(key, 0, -1)
 
             # Delete each memory
@@ -421,9 +517,9 @@ class RedisSTMStore:
 
             # Delete indexes
             self.redis.delete(
-                f"{self._key_prefix}:{agent_id}:memories",
-                f"{self._key_prefix}:{agent_id}:timeline",
-                f"{self._key_prefix}:{agent_id}:importance",
+                self._get_agent_memories_key(agent_id),
+                self._get_timeline_key(agent_id),
+                self._get_importance_key(agent_id),
             )
 
             logger.info(
@@ -496,7 +592,7 @@ class RedisSTMStore:
             logger.error("Error calculating memory size: %s", e)
             return 0
 
-    def get_all(self, agent_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    def get_all(self, agent_id: str, limit: int = 1000) -> List[MemoryEntry]:
         """Get all memories for an agent.
         
         Args:
@@ -508,7 +604,7 @@ class RedisSTMStore:
         """
         try:
             # Get all memory IDs sorted by recency
-            memories_key = f"{self._key_prefix}:{agent_id}:memories"
+            memories_key = self._get_agent_memories_key(agent_id)
             memory_ids = self.redis.zrange(
                 memories_key, 0, limit - 1, desc=True  # Most recent first
             )
@@ -516,7 +612,11 @@ class RedisSTMStore:
             # Get each memory
             results = []
             for memory_id in memory_ids:
-                memory = self.get(memory_id, agent_id)
+                # Handle memory_id if it's bytes
+                if isinstance(memory_id, bytes):
+                    memory_id = memory_id.decode("utf-8")
+                    
+                memory = self.get(agent_id, memory_id)
                 if memory:
                     results.append(memory)
                     
@@ -531,7 +631,7 @@ class RedisSTMStore:
         query_embedding: List[float],
         k: int = 5,
         memory_type: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories with similar embeddings.
 
         Args:
@@ -615,7 +715,7 @@ class RedisSTMStore:
         agent_id: str,
         attributes: Dict[str, Any],
         memory_type: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories matching specific attributes.
 
         Args:
@@ -646,7 +746,7 @@ class RedisSTMStore:
             logger.error(f"Error in search_by_attributes: {e}")
             return []
     
-    def _matches_attributes(self, memory: Dict[str, Any], attributes: Dict[str, Any]) -> bool:
+    def _matches_attributes(self, memory: MemoryEntry, attributes: Dict[str, Any]) -> bool:
         """Check if a memory matches the specified attributes.
         
         Args:
@@ -682,7 +782,7 @@ class RedisSTMStore:
         start_step: int,
         end_step: int,
         memory_type: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoryEntry]:
         """Search for memories within a specific step range.
 
         Args:
