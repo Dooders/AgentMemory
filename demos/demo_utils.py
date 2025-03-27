@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Union
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from agent_memory.config import (
+    AutoencoderConfig,
     MemoryConfig,
     RedisIMConfig,
     RedisSTMConfig,
@@ -100,21 +101,38 @@ def clear_screen() -> None:
 
 
 def pretty_print_memories(
-    memories: List[Dict[str, Any]], title: str = "Memories"
+    memories: List[Dict[str, Any]],
+    title: str = "Memories",
+    logger: Optional[logging.Logger] = None,
 ) -> None:
     """Print memories in a readable format.
 
     Args:
         memories: List of memory objects to display
         title: Title to show above the memories
+        logger: Optional logger for writing to log file
     """
-    print(f"\n{title} ({len(memories)} results):")
+    message = f"\n{title} ({len(memories)} results):"
+    if logger:
+        logger.info(message)
+    else:
+        print(message)
+
     if not memories:
-        print("  No memories found.")
+        no_memories_msg = "  No memories found."
+        if logger:
+            logger.info(no_memories_msg)
+        else:
+            print(no_memories_msg)
         return
 
     for i, memory in enumerate(memories):
-        print(f"  Memory {i+1}:")
+        memory_header = f"  Memory {i+1}:"
+        if logger:
+            logger.info(memory_header)
+        else:
+            print(memory_header)
+
         # Convert complex nested objects to strings for better display
         formatted_memory = {}
         for k, v in memory.items():
@@ -124,8 +142,17 @@ def pretty_print_memories(
                 formatted_memory[k] = v
 
         for k, v in formatted_memory.items():
-            print(f"    {k}: {v}")
-        print()  # Extra line for readability
+            property_msg = f"    {k}: {v}"
+            if logger:
+                logger.info(property_msg)
+            else:
+                print(property_msg)
+
+        # Extra line for readability
+        if logger:
+            logger.info("")
+        else:
+            print()
 
 
 def print_memory_details(
@@ -180,6 +207,8 @@ def create_memory_system(
     cleanup_interval: int = 10,
     enable_hooks: bool = False,
     description: str = "demo",
+    use_embeddings: bool = True,
+    embedding_type: str = "text",  # "text" or "autoencoder"
 ) -> AgentMemorySystem:
     """Create and configure a memory system with customizable parameters.
 
@@ -194,6 +223,8 @@ def create_memory_system(
         cleanup_interval: Interval for memory maintenance in seconds
         enable_hooks: Whether to enable memory event hooks
         description: Description of this memory system instance
+        use_embeddings: Whether to enable neural embeddings
+        embedding_type: Type of embeddings to use ("text" or "autoencoder")
 
     Returns:
         Configured AgentMemorySystem instance
@@ -218,7 +249,7 @@ def create_memory_system(
         batch_size=ltm_batch_size,
     )
 
-    config = MemoryConfig(
+    memory_config = MemoryConfig(
         logging_level=logging_level,
         stm_config=stm_config,
         im_config=im_config,
@@ -227,11 +258,41 @@ def create_memory_system(
         cleanup_interval=cleanup_interval,
     )
 
-    memory_system = AgentMemorySystem.get_instance(config)
+    if use_embeddings:
+        if embedding_type == "autoencoder":
+            # Configure autoencoder (neural embedding) settings
+            autoencoder_config = AutoencoderConfig(
+                use_neural_embeddings=True,
+                embedding_dim=64,
+                hidden_dims=[128, 256, 512],
+                activation="relu",
+                latent_dim=32,
+                learning_rate=0.001,
+                weight_decay=1e-5,
+                batch_size=32,
+                num_epochs=10,
+                device="auto",
+                random_seed=42,
+                logger=None,
+            )
+            memory_config.autoencoder_config = autoencoder_config
+        else:
+            # Use text embeddings
+            memory_config.autoencoder_config = AutoencoderConfig(
+                use_neural_embeddings=True,
+                embedding_type="text",
+                text_model_name="all-mpnet-base-v2",  # Upgraded from all-MiniLM-L6-v2
+                logger=None,
+            )
+
+    memory_system = AgentMemorySystem.get_instance(memory_config)
     print(f"Initialized AgentMemorySystem for {description}")
-    
+    if use_embeddings:
+        print(f"Using {embedding_type} embeddings")
+
     # Debug: Check database tables
     import sqlite3
+
     print(f"SQLite database path: {DB_PATH}")
     try:
         conn = sqlite3.connect(DB_PATH)

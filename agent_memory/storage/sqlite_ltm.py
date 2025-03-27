@@ -11,7 +11,7 @@ import os
 import sqlite3
 import time
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 

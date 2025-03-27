@@ -18,6 +18,7 @@ from agent_memory.embeddings.autoencoder import (
     AutoencoderEmbeddingEngine,
     StateAutoencoder,
 )
+from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
 from agent_memory.embeddings.compression import CompressionEngine
 from agent_memory.memory_agent import MemoryAgent
 
@@ -47,6 +48,7 @@ __all__ = [
     # Embedding classes
     "AutoencoderEmbeddingEngine",
     "StateAutoencoder",
+    "TextEmbeddingEngine",
     "CompressionEngine",
     # Retrieval classes
     "AttributeRetrieval",

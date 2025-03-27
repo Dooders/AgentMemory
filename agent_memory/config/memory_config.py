@@ -67,6 +67,10 @@ class AutoencoderConfig:
         self.use_neural_embeddings = False
         self.model_path = "./models/autoencoder.pt"
         
+        # Text embedding options
+        self.embedding_type = "autoencoder"  # Options: "autoencoder" or "text"
+        self.text_model_name = "all-MiniLM-L6-v2"  # Default small model (~80MB)
+        
         # Update with any provided values
         for key, value in kwargs.items():
             if hasattr(self, key):

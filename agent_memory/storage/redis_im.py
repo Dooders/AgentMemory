@@ -1865,212 +1865,98 @@ class RedisIMStore:
         """Search for memories within a specific step range.
 
         Args:
-            agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
-            end_step: End of step range (inclusive)
-            memory_type: Optional filter for specific memory types
-
-        Returns:
-            List of memory entries with step numbers in the range
-        """
-        if self._vector_search_available:
-            try:
-                return self._search_by_step_range_redis(
-                    agent_id, start_step, end_step, memory_type
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Redis step range search failed, falling back to Python implementation: {e}"
-                )
-                # Fall back to Python implementation
-                return self._search_by_step_range_python(
-                    agent_id, start_step, end_step, memory_type
-                )
-        else:
-            # Use Python implementation
-            return self._search_by_step_range_python(
-                agent_id, start_step, end_step, memory_type
-            )
-
-    def _search_by_step_range_redis(
-        self,
-        agent_id: str,
-        start_step: int,
-        end_step: int,
-        memory_type: Optional[str] = None,
-    ) -> List[MemoryEntry]:
-        """Search for memories within a step range using Redis search.
-
-        Args:
-            agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
+            agent_id: ID of the agent
+            start_step: Start of step range (inclusive)
             end_step: End of step range (inclusive)
             memory_type: Optional filter for specific memory types
 
         Returns:
             List of memory entries within the step range
         """
-        index_name = f"{self._key_prefix}_vector_idx"
+        # Get all memories for the agent
+        memories = self.get_all(agent_id)
 
-        # Build query for Redis search
-        query_parts = []
-
-        # Add agent ID filter - we'll filter by pattern prefix
-        agent_prefix = f"{self._key_prefix}:{agent_id}:memory:"
-
-        # Add step range filter
-        query_parts.append(f"@step_number:[{start_step} {end_step}]")
-
-        # Add memory type filter if specified
-        if memory_type:
-            query_parts.append(f"@memory_type:{{{memory_type}}}")
-
-        # Combine query parts
-        query = " ".join(query_parts)
-
-        try:
-            # Execute search with prefix filter for agent_id
-            results = self.redis.execute_command(
-                "FT.SEARCH",
-                index_name,
-                query,
-                "LIMIT",
-                0,
-                1000,  # Reasonable limit
-                "SORTBY",
-                "step_number",
-                "ASC",
-                "FILTER",
-                "PREFLEN",
-                len(agent_prefix),
-                "PREFIX",
-                1,
-                agent_prefix,
-            )
-
-            if not results or results[0] == 0:
-                return []
-
-            # Process results
-            memories = []
-            for i in range(1, len(results), 2):
-                key = results[i]
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-
-                # First try to parse the $ field in the response (test format)
-                doc_data = {}
-                for field_value_pair in results[i + 1]:
-                    if (
-                        isinstance(field_value_pair, list)
-                        and len(field_value_pair) >= 2
-                    ):
-                        field = field_value_pair[0]
-                        value = field_value_pair[1]
-
-                        # Decode byte strings if needed
-                        if isinstance(field, bytes):
-                            field = field.decode("utf-8")
-                        if isinstance(value, bytes):
-                            value = value.decode("utf-8")
-
-                        # Handle the $ field which contains the full JSON document
-                        if field == "$":
-                            try:
-                                doc_data = json.loads(value)
-                            except (json.JSONDecodeError, TypeError):
-                                logger.warning(
-                                    f"Failed to parse JSON data in search result: {value}"
-                                )
-
-                # If we got valid data from the $ field, create a memory entry
-                if doc_data:
-                    # Extract memory_id from the document or the key
-                    memory_id = doc_data.get("memory_id")
-                    if not memory_id and key:
-                        parts = key.split(":")
-                        if len(parts) >= 4 and parts[-2] == "memory":
-                            memory_id = parts[-1]
-
-                    if memory_id:
-                        # Create a memory entry from the document data
-                        memory_entry = doc_data.copy()
-                        self._update_access_metadata(agent_id, memory_id, memory_entry)
-                        memories.append(memory_entry)
-                    continue  # Skip to next result
-
-                # If we couldn't get data from $ field, try regular methods
-                # Extract memory data using hgetall
-                hash_data = self.redis.hgetall(key)
-                if hash_data:
-                    # Convert hash data to memory entry dict
-                    memory_entry = self._hash_to_memory_entry(hash_data)
-
-                    # Extract memory_id from the key
-                    parts = key.split(":")
-                    if len(parts) >= 4 and parts[-2] == "memory":
-                        memory_id = parts[-1]
-                        # Fallback to get if hgetall didn't work (for tests)
-                        if not memory_entry and hasattr(self.redis, "get"):
-                            json_data = self.redis.get(key)
-                            if json_data:
-                                try:
-                                    memory_entry = json.loads(json_data)
-                                except (json.JSONDecodeError, TypeError):
-                                    # Skip this entry if we can't parse it
-                                    continue
-
-                        if memory_entry:
-                            self._update_access_metadata(
-                                agent_id, memory_id, memory_entry
-                            )
-                            memories.append(memory_entry)
-
-            return memories
-
-        except Exception as e:
-            logger.error(f"Error in Redis step range search: {e}")
-            raise
-
-    def _search_by_step_range_python(
-        self,
-        agent_id: str,
-        start_step: int,
-        end_step: int,
-        memory_type: Optional[str] = None,
-    ) -> List[MemoryEntry]:
-        """Search for memories within a specific step range using Python implementation.
-
-        Args:
-            agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
-            end_step: End of step range (inclusive)
-            memory_type: Optional filter for specific memory types
-
-        Returns:
-            List of memory entries with step numbers in the range
-        """
-        try:
-            # Get all memories
-            memories = self.get_all(agent_id)
-
-            # Filter by memory type if specified
-            if memory_type:
-                memories = [m for m in memories if m.get("memory_type") == memory_type]
-
-            # Filter by step range
-            results = []
-            for memory in memories:
-                step_number = memory.get("step_number")
-                # Only include memories with step numbers in the requested range
-                if step_number is not None and start_step <= step_number <= end_step:
+        # Filter by step range
+        results = []
+        for memory in memories:
+            step = memory.get("step_number")
+            if step is not None and start_step <= step <= end_step:
+                if (
+                    memory_type is None
+                    or memory.get("metadata", {}).get("memory_type") == memory_type
+                ):
                     results.append(memory)
 
-            # Sort by step number
-            results.sort(key=lambda x: x.get("step_number", 0))
+        return results
 
-            return results
+    def search_by_content(
+        self,
+        agent_id: str,
+        content_query: Union[str, Dict[str, Any]],
+        k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories based on content text/attributes.
 
-        except Exception as e:
-            logger.error(f"Error in search_by_step_range: {e}")
-            return []
+        Args:
+            agent_id: ID of the agent
+            content_query: String or dict to search for in memory contents
+            k: Maximum number of results to return
+
+        Returns:
+            List of memory entries matching the content query
+        """
+        # Get all memories for the agent
+        memories = self.get_all(agent_id)
+        results = []
+
+        # Process string query
+        query_text = ""
+        if isinstance(content_query, str):
+            query_text = content_query.lower()
+        elif isinstance(content_query, dict) and "text" in content_query:
+            query_text = content_query["text"].lower()
+
+        for memory in memories:
+            relevance_score = 0.0
+
+            # Get memory content as string for text search
+            memory_content = json.dumps(memory.get("content", {})).lower()
+
+            # Simple relevance scoring - if query text is in content
+            if query_text and query_text in memory_content:
+                # More specific matches get higher scores
+                relevance_score = len(query_text) / len(memory_content) * 10
+
+                # Bonus for exact matches
+                if query_text == memory_content:
+                    relevance_score += 1.0
+
+                # Add relevance score to memory
+                memory["relevance_score"] = relevance_score
+                results.append(memory)
+
+            # If query is a dict, also match by specific attributes
+            elif isinstance(content_query, dict) and not query_text:
+                for key, value in content_query.items():
+                    if key == "text":
+                        continue  # Already handled above
+
+                    content = memory.get("content", {})
+                    if isinstance(content, dict):
+                        # Direct attribute match
+                        if key in content and content[key] == value:
+                            relevance_score += 0.5
+
+                        # Nested attribute match (only one level deep for simplicity)
+                        for content_key, content_value in content.items():
+                            if isinstance(content_value, dict) and key in content_value:
+                                if content_value[key] == value:
+                                    relevance_score += 0.3
+
+                if relevance_score > 0:
+                    memory["relevance_score"] = relevance_score
+                    results.append(memory)
+
+        # Sort by relevance and limit results
+        results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        return results[:k]

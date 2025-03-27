@@ -129,20 +129,27 @@ class AgentMemorySystem:
         query_state: Dict[str, Any],
         k: int = 5,
         memory_type: Optional[str] = None,
+        threshold: float = 0.6,
+        context_weights: Dict[str, float] = None,
     ) -> List[Dict[str, Any]]:
-        """Retrieve most similar past states to the provided query state.
+        """Retrieve most similar states to the provided query.
 
         Args:
-            agent_id: Unique identifier for the agent
-            query_state: The state to find similar states for
+            agent_id: ID of the agent to retrieve memories for
+            query_state: Query state to compare against
             k: Number of results to return
-            memory_type: Optional filter for specific memory types
+            memory_type: Optional memory type filter
+            threshold: Minimum similarity score threshold (0.0-1.0)
+            context_weights: Optional dictionary mapping keys to importance weights
 
         Returns:
-            List of memory entries sorted by similarity to query state
+            List of memory entries sorted by similarity
         """
-        memory_agent = self.get_memory_agent(agent_id)
-        return memory_agent.retrieve_similar_states(query_state, k, memory_type)
+        self._check_agent_exists(agent_id)
+        memory_agent = self._get_agent(agent_id)
+        return memory_agent.retrieve_similar_states(
+            query_state, k, memory_type, threshold, context_weights
+        )
 
     def retrieve_by_time_range(
         self,
@@ -381,3 +388,60 @@ class AgentMemorySystem:
         # Memory not found
         logger.warning(f"Memory with ID {memory_id} not found in any agent's stores")
         return None
+
+    def hybrid_retrieve(
+        self,
+        agent_id: str,
+        query_state: Dict[str, Any],
+        k: int = 5,
+        memory_type: Optional[str] = None,
+        vector_weight: float = 0.7,
+        attribute_weight: float = 0.3,
+    ) -> List[Dict[str, Any]]:
+        """Combine similarity and attribute-based search for more robust retrieval.
+
+        Args:
+            agent_id: ID of the agent to retrieve memories for
+            query_state: State data to use for querying
+            k: Number of results to return
+            memory_type: Optional filter for specific memory types
+            vector_weight: Weight to assign to vector similarity scores (0.0-1.0)
+            attribute_weight: Weight to assign to attribute match scores (0.0-1.0)
+
+        Returns:
+            List of memory entries sorted by hybrid score
+        """
+        self._check_agent_exists(agent_id)
+        memory_agent = self._get_agent(agent_id)
+        return memory_agent.hybrid_retrieve(
+            query_state, k, memory_type, vector_weight, attribute_weight
+        )
+
+    def _check_agent_exists(self, agent_id: str) -> None:
+        """Check if an agent exists and raise an error if not.
+        
+        Args:
+            agent_id: ID of the agent to check
+            
+        Raises:
+            ValueError: If the agent doesn't exist
+        """
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent with ID {agent_id} does not exist")
+    
+    def _get_agent(self, agent_id: str) -> MemoryAgent:
+        """Get the memory agent for an agent ID.
+        
+        This is a helper method that verifies the agent exists before returning.
+        
+        Args:
+            agent_id: ID of the agent to retrieve
+            
+        Returns:
+            MemoryAgent instance for the specified agent
+            
+        Raises:
+            ValueError: If the agent doesn't exist
+        """
+        self._check_agent_exists(agent_id)
+        return self.agents[agent_id]
