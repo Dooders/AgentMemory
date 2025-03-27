@@ -7,53 +7,26 @@ storage tier with comprehensive error handling and recovery mechanisms.
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 
 from agent_memory.config import RedisSTMConfig
+from agent_memory.storage.models import MemoryEntry, STMMemoryEntry
+from agent_memory.storage.redis_base import RedisMemoryStore
+from agent_memory.storage.redis_client import ResilientRedisClient
 from agent_memory.utils.error_handling import (
+    CircuitOpenError,
+    MemoryError,
     Priority,
     RedisTimeoutError,
     RedisUnavailableError,
 )
 
-from .redis_client import ResilientRedisClient
-
 logger = logging.getLogger(__name__)
 
 
-# TypedDict definitions for complex structures
-class MemoryMetadata(TypedDict, total=False):
-    """Metadata information for a memory entry."""
-
-    compression_level: int  # Always 0 for STM
-    importance_score: float
-    retrieval_count: int
-    creation_time: float
-    last_access_time: float
-
-
-class MemoryEmbeddings(TypedDict, total=False):
-    """Vector embeddings for a memory entry."""
-
-    full_vector: List[float]  # Full resolution embedding
-
-
-class MemoryEntry(TypedDict, total=False):
-    """Structure of a memory entry in the short-term memory store."""
-
-    memory_id: str
-    agent_id: str
-    timestamp: float
-    content: Any  # Can be any structured data
-    metadata: MemoryMetadata
-    embeddings: MemoryEmbeddings  # Vector embeddings for similarity search
-    memory_type: Optional[str]  # Optional type classification
-    step_number: Optional[int]  # Optional step number for step-based retrieval
-
-
-class RedisSTMStore:
+class RedisSTMStore(RedisMemoryStore[STMMemoryEntry]):
     """Redis-based storage for Short-Term Memory (STM).
 
     This class provides storage operations for the high-resolution,
@@ -61,21 +34,19 @@ class RedisSTMStore:
 
     Attributes:
         config: Configuration for STM Redis storage
-        redis: Resilient Redis client instance
-        _key_prefix: Prefix for Redis keys
+        key_prefix: Prefix for Redis keys
+        client: Redis client for database operations
     """
 
-    def __init__(self, config: RedisSTMConfig):
+    def __init__(self, agent_id: str, config: RedisSTMConfig):
         """Initialize the Redis STM store.
 
         Args:
+            agent_id: ID of the agent
             config: Configuration for STM Redis storage
         """
-        self.config = config
-        self._key_prefix = config.namespace
-
         # Create resilient Redis client
-        self.redis = ResilientRedisClient(
+        redis_client = ResilientRedisClient(
             client_name="stm",
             host=config.host,
             port=config.port,
@@ -85,743 +56,314 @@ class RedisSTMStore:
             circuit_threshold=3,
             circuit_reset_timeout=300,
         )
-
-        logger.info("Initialized RedisSTMStore with namespace %s", self._key_prefix)
-
-    # Helper methods for key construction
-    def _get_memory_key(self, agent_id: str, memory_id: str) -> str:
-        """Construct the Redis key for a memory entry.
-
-        Args:
-            agent_id: ID of the agent
-            memory_id: ID of the memory
-
-        Returns:
-            Redis key string
-        """
-        return f"{self._key_prefix}:{agent_id}:memory:{memory_id}"
-
-    def _get_agent_memories_key(self, agent_id: str) -> str:
-        """Construct the Redis key for an agent's memories list.
-
-        Args:
-            agent_id: ID of the agent
-
-        Returns:
-            Redis key string
-        """
-        return f"{self._key_prefix}:{agent_id}:memories"
-
-    def _get_timeline_key(self, agent_id: str) -> str:
-        """Construct the Redis key for an agent's timeline index.
-
-        Args:
-            agent_id: ID of the agent
-
-        Returns:
-            Redis key string
-        """
-        return f"{self._key_prefix}:{agent_id}:timeline"
-
-    def _get_importance_key(self, agent_id: str) -> str:
-        """Construct the Redis key for an agent's importance index.
-
-        Args:
-            agent_id: ID of the agent
-
-        Returns:
-            Redis key string
-        """
-        return f"{self._key_prefix}:{agent_id}:importance"
-
-    def _get_vector_key(self, agent_id: str, memory_id: str) -> str:
-        """Construct the Redis key for a memory's vector embedding.
-
-        Args:
-            agent_id: ID of the agent
-            memory_id: ID of the memory
-
-        Returns:
-            Redis key string
-        """
-        return f"{self._key_prefix}:{agent_id}:vector:{memory_id}"
-
-    def _get_agent_prefix(self, agent_id: str) -> str:
-        """Construct the Redis key prefix for an agent.
-
-        Args:
-            agent_id: ID of the agent
-
-        Returns:
-            Redis key prefix string
-        """
-        return f"{self._key_prefix}:{agent_id}"
-
-    def store(
-        self,
-        agent_id: str,
-        memory_entry: MemoryEntry,
-        priority: Priority = Priority.NORMAL,
-    ) -> bool:
+        
+        # Initialize the base class
+        super().__init__(
+            store_type="STM",
+            agent_id=agent_id,
+            redis_client=redis_client,
+            key_prefix=config.namespace
+        )
+        
+        # Store the config for STM-specific settings
+        self.config = config
+        
+        logger.info(f"Initialized RedisSTMStore for agent {agent_id}")
+    
+    def store(self, memory_entry: STMMemoryEntry, priority: Priority = Priority.NORMAL) -> bool:
         """Store a memory entry in STM.
 
         Args:
-            agent_id: ID of the agent
             memory_entry: Memory entry to store
             priority: Priority level for this operation
 
         Returns:
             True if the operation succeeded, False otherwise
-        """
-        memory_id = memory_entry.get("memory_id")
-        if not memory_id:
-            logger.error("Cannot store memory entry without memory_id")
-            return False
-
-        # Use store_with_retry for resilient storage
-        return self.redis.store_with_retry(
-            agent_id=agent_id,
-            state_data=memory_entry,
-            store_func=self._store_memory_entry,
-            priority=priority,
-        )
-
-    def _store_memory_entry(self, agent_id: str, memory_entry: MemoryEntry) -> bool:
-        """Internal method to store a memory entry.
-
-        Args:
-            agent_id: ID of the agent
-            memory_entry: Memory entry to store
-
-        Returns:
-            True if the operation succeeded, False otherwise
-
+            
         Raises:
-            RedisUnavailableError: If Redis is unavailable
-            RedisTimeoutError: If operation times out
+            MemoryError: If the store operation fails
         """
-        memory_id = memory_entry["memory_id"]
-        timestamp = memory_entry.get("timestamp", time.time())
-
         try:
-            # Store the full memory entry
-            key = self._get_memory_key(agent_id, memory_id)
-            self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
-
-            # Add to agent's memory list
-            agent_memories_key = self._get_agent_memories_key(agent_id)
-            self.redis.zadd(agent_memories_key, {memory_id: timestamp})
-
-            # Set TTL on the sorted set
-            self.redis.expire(agent_memories_key, self.config.ttl)
-
-            # Add to timeline index for chronological retrieval
-            timeline_key = self._get_timeline_key(agent_id)
-            self.redis.zadd(timeline_key, {memory_id: timestamp})
-            self.redis.expire(timeline_key, self.config.ttl)
-
-            # Add to importance index for importance-based retrieval
-            importance = memory_entry.get("metadata", {}).get("importance_score", 0.0)
-            importance_key = self._get_importance_key(agent_id)
-            self.redis.zadd(importance_key, {memory_id: importance})
-            self.redis.expire(importance_key, self.config.ttl)
-
-            # If it has embeddings, store for vector search
-            embeddings = memory_entry.get("embeddings", {})
-            if embeddings and "full_vector" in embeddings:
-                vector_key = self._get_vector_key(agent_id, memory_id)
-                self.redis.set(
-                    vector_key,
-                    json.dumps(embeddings["full_vector"]),
-                    ex=self.config.ttl,
-                )
-
-            logger.debug("Stored memory %s for agent %s in STM", memory_id, agent_id)
+            memory_id = memory_entry.get("memory_id")
+            if not memory_id:
+                logger.error("Cannot store memory entry without memory_id")
+                return False
+            
+            # Get Redis keys
+            memory_key = self._get_memory_key(memory_id)
+            timestamp_key = self._get_timestamp_key()
+            importance_key = self._get_importance_key()
+            
+            # Set defaults and ensure metadata exists
+            if "metadata" not in memory_entry:
+                memory_entry["metadata"] = {}
+            
+            # STM-specific defaults
+            memory_entry["metadata"]["compression_level"] = 0  # No compression for STM
+            
+            # Ensure we have creation time
+            if "creation_time" not in memory_entry["metadata"]:
+                memory_entry["metadata"]["creation_time"] = float(time.time())
+            
+            # Set default access time if not present
+            if "last_access_time" not in memory_entry["metadata"]:
+                memory_entry["metadata"]["last_access_time"] = float(time.time())
+            
+            # Set default retrieval count if not present
+            if "retrieval_count" not in memory_entry["metadata"]:
+                memory_entry["metadata"]["retrieval_count"] = 0
+            
+            # Serialize memory entry
+            serialized_memory = self._serialize_memory(memory_entry)
+            
+            # Get importance score (default to 0.5 if not present)
+            importance_score = memory_entry["metadata"].get("importance_score", 0.5)
+            
+            # Store vector embedding if present
+            vector_key = None
+            if "embeddings" in memory_entry and "full_vector" in memory_entry["embeddings"]:
+                vector_key = self._get_vector_key(memory_id)
+                vector = memory_entry["embeddings"]["full_vector"]
+                vector_json = json.dumps(vector)
+            
+            # Create a pipeline for atomic operations
+            pipeline = self.client.pipeline()
+            
+            # Store the memory with TTL based on importance
+            ttl = self._calculate_ttl(importance_score)
+            pipeline.set(memory_key, serialized_memory, ex=ttl)
+            
+            # Update indices
+            timestamp = memory_entry.get("timestamp", float(time.time()))
+            pipeline.zadd(timestamp_key, {memory_id: timestamp})
+            pipeline.zadd(importance_key, {memory_id: importance_score})
+            
+            # Add to memory type index if present
+            if memory_entry.get("memory_type"):
+                type_key = self._get_memory_type_key(memory_entry["memory_type"])
+                pipeline.sadd(type_key, memory_id)
+            
+            # Add to step index if present
+            if memory_entry.get("step_number") is not None:
+                step_key = self._get_step_key()
+                pipeline.zadd(step_key, {memory_id: memory_entry["step_number"]})
+            
+            # Store vector embedding if present
+            if vector_key and "vector_json" in locals():
+                pipeline.set(vector_key, vector_json, ex=ttl)
+            
+            # Execute all commands
+            pipeline.execute()
+            
+            logger.debug(f"Stored memory {memory_id} in STM")
             return True
-
-        except (RedisUnavailableError, RedisTimeoutError) as e:
-            # These exceptions are caught by store_with_retry
-            raise e
+            
+        except (RedisUnavailableError, RedisTimeoutError, CircuitOpenError) as e:
+            logger.error(f"Redis error during memory storage: {str(e)}")
+            raise MemoryError(f"Failed to store memory: {str(e)}")
         except Exception as e:
-            logger.error(
-                "Unexpected error storing memory %s for agent %s: %s",
-                memory_id,
-                agent_id,
-                str(e),
-            )
-            return False
-
-    def get(self, agent_id: str, memory_id: str) -> Optional[MemoryEntry]:
-        """Retrieve a memory entry by ID.
-
+            logger.error(f"Unexpected error during memory storage: {str(e)}")
+            raise MemoryError(f"Failed to store memory: {str(e)}")
+    
+    def _calculate_ttl(self, importance_score: float) -> int:
+        """Calculate TTL based on importance score.
+        
+        Higher importance = longer TTL.
+        
         Args:
-            agent_id: ID of the agent
-            memory_id: ID of the memory to retrieve
-
+            importance_score: Importance score (0.0-1.0)
+            
         Returns:
-            Memory entry or None if not found
+            TTL in seconds
         """
-        try:
-            # Construct the key using agent_id and memory_id
-            key = self._get_memory_key(agent_id, memory_id)
-            data = self.redis.get(key)
-
-            if not data:
-                return None
-
-            memory_entry = json.loads(data)
-            self._update_access_metadata(agent_id, memory_id, memory_entry)
-            return memory_entry
-
-        except (RedisUnavailableError, RedisTimeoutError) as e:
-            logger.warning(
-                "Failed to retrieve memory %s for agent %s: %s",
-                memory_id,
-                agent_id,
-                str(e),
-            )
-            return None
-        except Exception as e:
-            logger.error(
-                "Failed to retrieve memory %s for agent %s: %s",
-                memory_id,
-                agent_id,
-                str(e),
-            )
-            return None
-
-    def _update_access_metadata(
-        self, agent_id: str, memory_id: str, memory_entry: MemoryEntry
-    ) -> None:
-        """Update access metadata for a memory entry.
-
-        Args:
-            agent_id: ID of the agent
-            memory_id: ID of the memory
-            memory_entry: Memory entry to update
-        """
-        try:
-            # Update access time and retrieval count
-            metadata = memory_entry.get("metadata", {})
-            retrieval_count = metadata.get("retrieval_count", 0) + 1
-            access_time = time.time()
-
-            metadata.update(
-                {"last_access_time": access_time, "retrieval_count": retrieval_count}
-            )
-            memory_entry["metadata"] = metadata
-
-            # Store updated entry
-            key = self._get_memory_key(agent_id, memory_id)
-            self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
-
-            # Update importance based on access patterns
-            # Increase importance for frequently accessed memories
-            if retrieval_count > 1:
-                importance = metadata.get("importance_score", 0.0)
-                access_factor = min(retrieval_count / 10.0, 1.0)  # Cap at 1.0
-                new_importance = importance + (access_factor * 0.1)  # Slight boost
-
-                importance_key = self._get_importance_key(agent_id)
-                self.redis.zadd(importance_key, {memory_id: new_importance})
-
-                # Update in memory entry
-                metadata["importance_score"] = new_importance
-
-        except Exception as e:
-            # Non-critical operation, just log
-            logger.warning(
-                "Failed to update access metadata for memory %s: %s", memory_id, str(e)
-            )
-
-    def get_by_timerange(
-        self, agent_id: str, start_time: float, end_time: float, limit: int = 100
-    ) -> List[MemoryEntry]:
-        """Retrieve memories within a time range.
-
-        Args:
-            agent_id: ID of the agent
-            start_time: Start timestamp (inclusive)
-            end_time: End timestamp (inclusive)
-            limit: Maximum number of results
-
-        Returns:
-            List of memory entries
-        """
-        try:
-            timeline_key = self._get_timeline_key(agent_id)
-            memory_ids = self.redis.zrangebyscore(
-                timeline_key, min=start_time, max=end_time, start=0, num=limit
-            )
-
-            results = []
-            for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
-                if memory:
-                    results.append(memory)
-
-            return results
-
-        except (RedisUnavailableError, RedisTimeoutError) as e:
-            logger.warning(
-                "Failed to retrieve memories by timerange for agent %s: %s",
-                agent_id,
-                str(e),
-            )
-            return []
-        except Exception as e:
-            logger.error(
-                "Unexpected error retrieving memories by timerange: %s", str(e)
-            )
-            return []
-
-    def get_by_importance(
-        self,
-        agent_id: str,
-        min_importance: float = 0.0,
-        max_importance: float = 1.0,
-        limit: int = 100,
-    ) -> List[MemoryEntry]:
-        """Retrieve memories by importance score.
-
-        Args:
-            agent_id: ID of the agent
-            min_importance: Minimum importance score (inclusive)
-            max_importance: Maximum importance score (inclusive)
-            limit: Maximum number of results
-
-        Returns:
-            List of memory entries
-        """
-        try:
-            importance_key = self._get_importance_key(agent_id)
-            # Get memory IDs in range with their scores
-            memory_id_scores = self.redis.zrangebyscore(
-                importance_key, min=min_importance, max=max_importance, withscores=True
-            )
-
-            # Sort by score in descending order (higher importance first)
-            memory_id_scores = sorted(
-                memory_id_scores, key=lambda x: x[1], reverse=True
-            )
-
-            # Limit the number of results
-            memory_id_scores = memory_id_scores[:limit]
-
-            # Get just the memory IDs (without scores)
-            memory_ids = [item[0] for item in memory_id_scores]
-
-            results = []
-            for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
-                if memory:
-                    results.append(memory)
-
-            return results
-
-        except (RedisUnavailableError, RedisTimeoutError) as e:
-            logger.warning(
-                "Failed to retrieve memories by importance for agent %s: %s",
-                agent_id,
-                str(e),
-            )
-            return []
-        except Exception as e:
-            logger.error(
-                "Unexpected error retrieving memories by importance: %s", str(e)
-            )
-            return []
-
-    def delete(self, agent_id: str, memory_id: str) -> bool:
-        """Delete a memory entry.
-
-        Args:
-            agent_id: ID of the agent
-            memory_id: ID of the memory to delete
-
-        Returns:
-            True if the memory was deleted, False otherwise
-        """
-        try:
-            # Delete the memory entry
-            key = self._get_memory_key(agent_id, memory_id)
-            deleted = self.redis.delete(key) > 0
-
-            if deleted:
-                # Remove from indexes
-                self.redis.zrem(self._get_agent_memories_key(agent_id), memory_id)
-                self.redis.zrem(self._get_timeline_key(agent_id), memory_id)
-                self.redis.zrem(self._get_importance_key(agent_id), memory_id)
-
-                # Remove vector if it exists
-                self.redis.delete(self._get_vector_key(agent_id, memory_id))
-
-                logger.debug(
-                    "Deleted memory %s for agent %s from STM", memory_id, agent_id
-                )
-
-            return deleted
-
-        except (RedisUnavailableError, RedisTimeoutError) as e:
-            logger.warning(
-                "Failed to delete memory %s for agent %s: %s",
-                memory_id,
-                agent_id,
-                str(e),
-            )
-            return False
-        except Exception as e:
-            logger.error("Unexpected error deleting memory %s: %s", memory_id, str(e))
-            return False
-
-    def count(self, agent_id: str) -> int:
-        """Get the number of memories for an agent.
-
-        Args:
-            agent_id: ID of the agent
-
-        Returns:
-            Number of memories
-        """
-        try:
-            key = self._get_agent_memories_key(agent_id)
-            return self.redis.zcard(key)
-
-        except (RedisUnavailableError, RedisTimeoutError) as e:
-            logger.warning(
-                "Failed to count memories for agent %s: %s", agent_id, str(e)
-            )
-            return 0
-        except Exception as e:
-            logger.error("Unexpected error counting memories: %s", str(e))
-            return 0
-
-    def clear(self, agent_id: str) -> bool:
-        """Clear all memories for an agent.
-
-        Args:
-            agent_id: ID of the agent
-
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Get all memory IDs
-            key = self._get_agent_memories_key(agent_id)
-            memory_ids = self.redis.zrange(key, 0, -1)
-
-            # Delete each memory
-            for memory_id in memory_ids:
-                self.delete(agent_id, memory_id)
-
-            # Delete indexes
-            self.redis.delete(
-                self._get_agent_memories_key(agent_id),
-                self._get_timeline_key(agent_id),
-                self._get_importance_key(agent_id),
-            )
-
-            logger.info(
-                "Cleared all %d memories for agent %s from STM",
-                len(memory_ids),
-                agent_id,
-            )
-            return True
-
-        except (RedisUnavailableError, RedisTimeoutError) as e:
-            logger.warning(
-                "Failed to clear memories for agent %s: %s", agent_id, str(e)
-            )
-            return False
-        except Exception as e:
-            logger.error("Unexpected error clearing memories: %s", str(e))
-            return False
-
-    def check_health(self) -> Dict[str, Any]:
-        """Check the health of the Redis store.
-
-        Returns:
-            Dictionary containing health metrics
-        """
-        try:
-            ping_result = self.redis.ping()
-            return {
-                "status": "healthy" if ping_result else "degraded",
-                "message": (
-                    "Redis connection successful"
-                    if ping_result
-                    else "Redis ping failed"
-                ),
-                "latency_ms": self.redis.get_latency(),
-                "client": "redis-stm",
-            }
-        except (RedisTimeoutError, RedisUnavailableError, Exception) as e:
-            return {
-                "status": "unhealthy",
-                "message": str(e),
-                "error": str(e),
-                "client": "redis-stm",
-            }
-
-    def get_size(self, agent_id: str) -> int:
-        """Get the approximate size in bytes of all memories for an agent.
-
-        Args:
-            agent_id: ID of the agent
-
-        Returns:
-            Approximate size in bytes
-        """
-        try:
-            # Get all memory keys for this agent
-            pattern = f"{self._key_prefix}:{agent_id}:memory:*"
-            memory_keys = list(self.redis.scan_iter(match=pattern))
-
-            # Get memory size by dumping each key
-            total_size = 0
-            for key in memory_keys:
-                try:
-                    # Get the memory entry JSON size
-                    value = self.redis.get(key)
-                    if value:
-                        total_size += len(value)
-                except Exception as e:
-                    # Skip keys that cause errors (wrong type, etc.)
-                    logger.debug("Skipping key %s: %s", key, e)
-                    continue
-
-            return total_size
-        except Exception as e:
-            logger.error("Error calculating memory size: %s", e)
-            return 0
-
-    def get_all(self, agent_id: str, limit: int = 1000) -> List[MemoryEntry]:
-        """Get all memories for an agent.
-
-        Args:
-            agent_id: ID of the agent
-            limit: Maximum number of memories to return
-
-        Returns:
-            List of memory entries
-        """
-        try:
-            # Get all memory IDs sorted by recency
-            memories_key = self._get_agent_memories_key(agent_id)
-            memory_ids = self.redis.zrange(
-                memories_key, 0, limit - 1, desc=True  # Most recent first
-            )
-
-            # Get each memory
-            results = []
-            for memory_id in memory_ids:
-                # Handle memory_id if it's bytes
-                if isinstance(memory_id, bytes):
-                    memory_id = memory_id.decode("utf-8")
-
-                memory = self.get(agent_id, memory_id)
-                if memory:
-                    results.append(memory)
-
-            return results
-        except Exception as e:
-            logger.error("Error retrieving all memories: %s", e)
-            return []
-
+        # Base TTL from config
+        base_ttl = self.config.ttl
+        
+        # Scale TTL by importance (max 2x base TTL)
+        ttl = int(base_ttl * (1 + importance_score))
+        
+        return ttl
+    
     def search_similar(
         self,
-        agent_id: str,
         query_embedding: List[float],
         k: int = 5,
-        memory_type: Optional[str] = None,
-    ) -> List[MemoryEntry]:
-        """Search for memories with similar embeddings.
-
+        memory_type: Optional[str] = None
+    ) -> List[STMMemoryEntry]:
+        """Search memories by vector similarity.
+        
         Args:
-            agent_id: Unique identifier for the agent
-            query_embedding: The vector embedding to use for similarity search
+            query_embedding: Query vector embedding
             k: Number of results to return
-            memory_type: Optional filter for specific memory types
-
+            memory_type: Optional filter by memory type
+            
         Returns:
-            List of memory entries sorted by similarity score
+            List of memory entries ordered by similarity
+            
+        Raises:
+            MemoryError: If the search fails
         """
         try:
-            memories = self.get_all(agent_id)
-
-            # Filter by memory type if specified
+            # Get all memories of the specified type (or all memories)
             if memory_type:
-                memories = [m for m in memories if m.get("memory_type") == memory_type]
-
-            # Filter memories without embeddings
-            memories = [m for m in memories if "embedding" in m]
-
-            # Return empty list if no memories with embeddings
-            if not memories:
+                type_key = self._get_memory_type_key(memory_type)
+                memory_ids = self.client.smembers(type_key)
+            else:
+                timestamp_key = self._get_timestamp_key()
+                memory_ids = self.client.zrange(timestamp_key, 0, -1)
+            
+            if not memory_ids:
                 return []
-
-            # Calculate similarity scores
-            for memory in memories:
-                # Calculate cosine similarity if the memory has an embedding
-                memory_embedding = memory.get("embedding", [])
-                if memory_embedding:
-                    similarity = self._cosine_similarity(
-                        query_embedding, memory_embedding
-                    )
-                    memory["similarity_score"] = float(similarity)
-                else:
-                    memory["similarity_score"] = 0.0
-
-            # Sort by similarity score (descending)
-            memories.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
-
+            
+            # Calculate similarity for each memory
+            memories_with_scores = []
+            
+            for memory_id in memory_ids:
+                # Get vector embedding
+                vector_key = self._get_vector_key(memory_id)
+                vector_json = self.client.get(vector_key)
+                
+                if not vector_json:
+                    continue
+                
+                try:
+                    vector = json.loads(vector_json)
+                    # Calculate cosine similarity
+                    similarity = self._cosine_similarity(query_embedding, vector)
+                    
+                    # Get the memory
+                    memory = self.get(memory_id)
+                    if memory:
+                        memories_with_scores.append((memory, similarity))
+                except Exception as e:
+                    logger.warning(f"Error processing vector for memory {memory_id}: {str(e)}")
+                    continue
+            
+            # Sort by similarity (descending)
+            memories_with_scores.sort(key=lambda x: x[1], reverse=True)
+            
             # Return top k results
-            return memories[:k]
-
+            return [memory for memory, _ in memories_with_scores[:k]]
+            
+        except (RedisUnavailableError, RedisTimeoutError, CircuitOpenError) as e:
+            logger.error(f"Redis error during similarity search: {str(e)}")
+            raise MemoryError(f"Failed to search by similarity: {str(e)}")
         except Exception as e:
-            logger.error(f"Error in search_similar: {e}")
-            return []
-
+            logger.error(f"Unexpected error during similarity search: {str(e)}")
+            raise MemoryError(f"Failed to search by similarity: {str(e)}")
+    
     def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
         """Calculate cosine similarity between two vectors.
-
+        
         Args:
             a: First vector
             b: Second vector
-
+            
         Returns:
-            Cosine similarity as a float between -1 and 1
+            Cosine similarity (-1 to 1)
         """
-        if not a or not b or len(a) != len(b):
+        if len(a) != len(b):
+            raise ValueError(f"Vector dimensions don't match: {len(a)} vs {len(b)}")
+        
+        # Convert to numpy arrays for efficient calculation
+        a_array = np.array(a)
+        b_array = np.array(b)
+        
+        # Calculate dot product
+        dot_product = np.dot(a_array, b_array)
+        
+        # Calculate magnitudes
+        a_magnitude = np.linalg.norm(a_array)
+        b_magnitude = np.linalg.norm(b_array)
+        
+        # Calculate similarity
+        if a_magnitude == 0 or b_magnitude == 0:
             return 0.0
-
-        try:
-            # Convert to numpy for vector operations
-            a_array = np.array(a)
-            b_array = np.array(b)
-
-            # Calculate norm products
-            norm_a = np.linalg.norm(a_array)
-            norm_b = np.linalg.norm(b_array)
-
-            # Prevent division by zero
-            if norm_a == 0 or norm_b == 0:
-                return 0.0
-
-            # Calculate cosine similarity
-            return float(np.dot(a_array, b_array) / (norm_a * norm_b))
-
-        except Exception as e:
-            logger.error(f"Error calculating cosine similarity: {e}")
-            return 0.0
-
+        
+        similarity = dot_product / (a_magnitude * b_magnitude)
+        
+        # Handle numerical errors that might push similarity outside [-1, 1]
+        return max(-1.0, min(1.0, similarity))
+    
     def search_by_attributes(
         self,
-        agent_id: str,
         attributes: Dict[str, Any],
-        memory_type: Optional[str] = None,
-    ) -> List[MemoryEntry]:
-        """Search for memories matching specific attributes.
-
+        memory_type: Optional[str] = None
+    ) -> List[STMMemoryEntry]:
+        """Search memories by attribute matching.
+        
         Args:
-            agent_id: Unique identifier for the agent
-            attributes: Dictionary of attribute keys and values to match
-            memory_type: Optional filter for specific memory types
-
+            attributes: Attributes to match
+            memory_type: Optional filter by memory type
+            
         Returns:
-            List of memory entries with matching attributes
+            List of memory entries matching the attributes
+            
+        Raises:
+            MemoryError: If the search fails
         """
         try:
-            # Get all memories
-            memories = self.get_all(agent_id)
-
-            # Filter by memory type if specified
+            # Get all memories of the specified type (or all memories)
             if memory_type:
-                memories = [m for m in memories if m.get("memory_type") == memory_type]
-
-            # Filter by attributes
-            results = []
-            for memory in memories:
+                type_key = self._get_memory_type_key(memory_type)
+                memory_ids = self.client.smembers(type_key)
+            else:
+                timestamp_key = self._get_timestamp_key()
+                memory_ids = self.client.zrange(timestamp_key, 0, -1)
+            
+            if not memory_ids:
+                return []
+            
+            matching_memories = []
+            
+            for memory_id in memory_ids:
+                memory = self.get(memory_id)
+                if not memory:
+                    continue
+                
+                # Check if memory matches attributes
                 if self._matches_attributes(memory, attributes):
-                    results.append(memory)
-
-            return results
-
+                    matching_memories.append(memory)
+            
+            return matching_memories
+            
+        except (RedisUnavailableError, RedisTimeoutError, CircuitOpenError) as e:
+            logger.error(f"Redis error during attribute search: {str(e)}")
+            raise MemoryError(f"Failed to search by attributes: {str(e)}")
         except Exception as e:
-            logger.error(f"Error in search_by_attributes: {e}")
-            return []
-
-    def _matches_attributes(
-        self, memory: MemoryEntry, attributes: Dict[str, Any]
-    ) -> bool:
-        """Check if a memory matches the specified attributes.
-
+            logger.error(f"Unexpected error during attribute search: {str(e)}")
+            raise MemoryError(f"Failed to search by attributes: {str(e)}")
+    
+    def get_all(self, limit: int = 1000) -> List[STMMemoryEntry]:
+        """Get all memories up to limit.
+        
         Args:
-            memory: Memory entry to check
-            attributes: Dictionary of attribute keys and values to match
-
+            limit: Maximum number of entries to return
+            
         Returns:
-            True if the memory matches all attributes, False otherwise
-        """
-        for attr_path, attr_value in attributes.items():
-            # Handle nested attributes using dot notation (e.g., "position.location")
-            parts = attr_path.split(".")
-
-            # Start from the memory content
-            current = memory.get("content", {})
-
-            # Navigate through the nested structure
-            for i, part in enumerate(parts[:-1]):
-                if part not in current:
-                    return False
-                current = current[part]
-
-            # Check the final attribute value
-            last_part = parts[-1]
-            if last_part not in current or current[last_part] != attr_value:
-                return False
-
-        return True
-
-    def search_by_step_range(
-        self,
-        agent_id: str,
-        start_step: int,
-        end_step: int,
-        memory_type: Optional[str] = None,
-    ) -> List[MemoryEntry]:
-        """Search for memories within a specific step range.
-
-        Args:
-            agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
-            end_step: End of step range (inclusive)
-            memory_type: Optional filter for specific memory types
-
-        Returns:
-            List of memory entries with step numbers in the range
+            List of memory entries
+            
+        Raises:
+            MemoryError: If retrieval fails
         """
         try:
-            # Get all memories
-            memories = self.get_all(agent_id)
-
-            # Filter by memory type if specified
-            if memory_type:
-                memories = [m for m in memories if m.get("memory_type") == memory_type]
-
-            # Filter by step range
-            results = []
-            for memory in memories:
-                step_number = memory.get("step_number")
-                # Only include memories with step numbers in the requested range
-                if step_number is not None and start_step <= step_number <= end_step:
-                    results.append(memory)
-
-            # Sort by step number
-            results.sort(key=lambda x: x.get("step_number", 0))
-
-            return results
-
+            timestamp_key = self._get_timestamp_key()
+            
+            # Get memory IDs sorted by timestamp (newest first)
+            memory_ids = self.client.zrevrange(timestamp_key, 0, limit - 1)
+            
+            # Retrieve each memory
+            memories = []
+            for memory_id in memory_ids:
+                memory = self.get(memory_id)
+                if memory:
+                    memories.append(memory)
+            
+            return memories
+            
+        except (RedisUnavailableError, RedisTimeoutError, CircuitOpenError) as e:
+            logger.error(f"Redis error during retrieval of all memories: {str(e)}")
+            raise MemoryError(f"Failed to retrieve all memories: {str(e)}")
         except Exception as e:
-            logger.error(f"Error in search_by_step_range: {e}")
-            return []
+            logger.error(f"Unexpected error during retrieval of all memories: {str(e)}")
+            raise MemoryError(f"Failed to retrieve all memories: {str(e)}")

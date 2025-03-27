@@ -2,6 +2,7 @@
 
 # Import and re-export configuration classes
 from agent_memory.config.memory_config import (
+    BaseConfig,
     MemoryConfig,
     RedisSTMConfig,
     RedisIMConfig,
@@ -28,6 +29,7 @@ except ImportError:
     pass
 
 __all__ = [
+    'BaseConfig',
     'MemoryConfig',
     'RedisSTMConfig',
     'RedisIMConfig',
