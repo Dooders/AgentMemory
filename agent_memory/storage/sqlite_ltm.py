@@ -16,12 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from agent_memory.config import SQLiteLTMConfig
-from agent_memory.utils.error_handling import (
-    LTMError,
-    Priority,
-    SQLitePermanentError,
-    SQLiteTemporaryError,
-)
+from agent_memory.utils.error_handling import SQLitePermanentError, SQLiteTemporaryError
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +233,7 @@ class SQLiteLTMStore:
             elif step_number == 0:
                 # Default value
                 step_number = 0
-            
+
             memory_type = memory_entry.get("type")
             if memory_type is None:
                 # Keep it as None
@@ -251,7 +246,7 @@ class SQLiteLTMStore:
             compression_level = metadata.get(
                 "compression_level", self.config.compression_level
             )
-            
+
             # Preserve None for importance score
             importance_score = metadata.get("importance_score")
             if importance_score is None:
@@ -260,7 +255,7 @@ class SQLiteLTMStore:
             elif importance_score == 0:
                 # Default value
                 importance_score = 0.0
-                
+
             retrieval_count = metadata.get("retrieval_count", 0)
             created_at = metadata.get("creation_time", int(time.time()))
             last_accessed = metadata.get("last_access_time", int(time.time()))
@@ -382,7 +377,7 @@ class SQLiteLTMStore:
                     elif step_number == 0:
                         # Default value
                         step_number = 0
-                    
+
                     memory_type = memory_entry.get("type")
                     if memory_type is None:
                         # Keep it as None
@@ -395,7 +390,7 @@ class SQLiteLTMStore:
                     compression_level = metadata.get(
                         "compression_level", self.config.compression_level
                     )
-                    
+
                     # Preserve None for importance score
                     importance_score = metadata.get("importance_score")
                     if importance_score is None:
@@ -404,7 +399,7 @@ class SQLiteLTMStore:
                     elif importance_score == 0:
                         # Default value
                         importance_score = 0.0
-                        
+
                     retrieval_count = metadata.get("retrieval_count", 0)
                     created_at = metadata.get("creation_time", int(time.time()))
                     last_accessed = metadata.get("last_access_time", int(time.time()))
@@ -478,7 +473,9 @@ class SQLiteLTMStore:
             logger.error("Unexpected error storing batch of memories: %s", str(e))
             return False
 
-    def get(self, memory_id: str, agent_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get(
+        self, memory_id: str, agent_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """Retrieve a memory entry by its ID.
 
         Args:
@@ -491,10 +488,10 @@ class SQLiteLTMStore:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 # Use provided agent_id or the default one
                 search_agent_id = agent_id if agent_id is not None else self.agent_id
-                
+
                 # Get the memory entry with the specified agent_id
                 cursor.execute(
                     f"""
@@ -505,7 +502,7 @@ class SQLiteLTMStore:
                 )
 
                 row = cursor.fetchone()
-                
+
                 if not row:
                     return None
 
@@ -802,41 +799,39 @@ class SQLiteLTMStore:
         try:
             # Get similar memories using the existing method
             similar_memories = self.get_most_similar(query_embedding, top_k=k)
-            
+
             # Process results to match the expected format
             results = []
             for memory, similarity in similar_memories:
                 # Filter by memory type if specified
                 if memory_type and memory.get("memory_type") != memory_type:
                     continue
-                    
+
                 # Add similarity score to the memory entry
                 memory["similarity_score"] = float(similarity)
                 results.append(memory)
-                
+
             # If we've filtered by memory_type, we might need more results
             if memory_type and len(results) < k:
                 # We would need to get more results and filter them
                 additional_needed = k - len(results)
-                more_similar = self.get_most_similar(query_embedding, top_k=k+20)
-                
+                more_similar = self.get_most_similar(query_embedding, top_k=k + 20)
+
                 for memory, similarity in more_similar[k:]:
                     if memory.get("memory_type") == memory_type:
                         memory["similarity_score"] = float(similarity)
                         results.append(memory)
                         if len(results) >= k:
                             break
-            
+
             return results[:k]
-            
+
         except Exception as e:
             logger.error(f"Error in search_similar: {e}")
             return []
 
     def search_by_attributes(
-        self,
-        attributes: Dict[str, Any],
-        memory_type: Optional[str] = None
+        self, attributes: Dict[str, Any], memory_type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Search for memories matching specific attributes.
 
@@ -864,47 +859,49 @@ class SQLiteLTMStore:
                     candidates = [m for m in candidates if m]  # Filter out None values
             else:
                 candidates = self.get_all(limit=1000)
-            
+
             # Filter by attributes
             results = []
             for memory in candidates:
                 if self._matches_attributes(memory, attributes):
                     results.append(memory)
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Error in search_by_attributes: {e}")
             return []
-    
-    def _matches_attributes(self, memory: Dict[str, Any], attributes: Dict[str, Any]) -> bool:
+
+    def _matches_attributes(
+        self, memory: Dict[str, Any], attributes: Dict[str, Any]
+    ) -> bool:
         """Check if a memory matches the specified attributes.
-        
+
         Args:
             memory: Memory entry to check
             attributes: Dictionary of attribute keys and values to match
-            
+
         Returns:
             True if the memory matches all attributes, False otherwise
         """
         for attr_path, attr_value in attributes.items():
             # Handle nested attributes using dot notation (e.g., "position.location")
-            parts = attr_path.split('.')
-            
+            parts = attr_path.split(".")
+
             # Start from the memory content
             current = memory.get("content", {})
-            
+
             # Navigate through the nested structure
             for i, part in enumerate(parts[:-1]):
                 if part not in current:
                     return False
                 current = current[part]
-            
+
             # Check the final attribute value
             last_part = parts[-1]
             if last_part not in current or current[last_part] != attr_value:
                 return False
-        
+
         return True
 
     def count(self) -> int:
@@ -939,14 +936,14 @@ class SQLiteLTMStore:
 
     def get_size(self) -> int:
         """Get the approximate size in bytes of all memories for the agent.
-        
+
         Returns:
             Approximate size in bytes
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 # Get the size of the memory data
                 cursor.execute(
                     f"""
@@ -956,10 +953,10 @@ class SQLiteLTMStore:
                 """,
                     (self.agent_id,),
                 )
-                
+
                 row = cursor.fetchone()
                 memory_size = row["total_size"] if row and row["total_size"] else 0
-                
+
                 # Get the size of the embeddings
                 cursor.execute(
                     f"""
@@ -970,15 +967,17 @@ class SQLiteLTMStore:
                 """,
                     (self.agent_id,),
                 )
-                
+
                 row = cursor.fetchone()
                 embedding_size = row["total_size"] if row and row["total_size"] else 0
-                
+
                 return memory_size + embedding_size
-                
+
         except (SQLiteTemporaryError, SQLitePermanentError) as e:
             logger.warning(
-                "Failed to calculate memory size for agent %s: %s", self.agent_id, str(e)
+                "Failed to calculate memory size for agent %s: %s",
+                self.agent_id,
+                str(e),
             )
             return 0
         except Exception as e:
@@ -998,11 +997,17 @@ class SQLiteLTMStore:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
+                # Get all memory entries directly to avoid individual get() calls
                 cursor.execute(
                     f"""
-                SELECT memory_id FROM {self.memory_table}
-                WHERE agent_id = ?
-                ORDER BY timestamp DESC
+                SELECT 
+                    m.memory_id, m.agent_id, m.step_number, m.timestamp, 
+                    m.content_json, m.metadata_json, m.memory_type, 
+                    m.importance_score, m.retrieval_count,
+                    m.created_at, m.last_accessed
+                FROM {self.memory_table} AS m
+                WHERE m.agent_id = ?
+                ORDER BY m.timestamp DESC
                 LIMIT ?
                 """,
                     (self.agent_id, limit),
@@ -1012,9 +1017,42 @@ class SQLiteLTMStore:
 
                 results = []
                 for row in rows:
-                    memory = self.get(row["memory_id"])
-                    if memory:
-                        results.append(memory)
+                    # Convert row to dict and parse JSON fields
+                    memory_data = dict(row)
+
+                    # Handle explicitly to avoid any type mismatches
+                    try:
+                        content = json.loads(memory_data["content_json"])
+                        metadata = json.loads(memory_data["metadata_json"])
+
+                        # Ensure step_number is consistent (int or None, not mixed types)
+                        step_number = memory_data["step_number"]
+                        if step_number is not None:
+                            step_number = int(step_number)
+
+                        memory_entry = {
+                            "memory_id": memory_data["memory_id"],
+                            "agent_id": memory_data["agent_id"],
+                            "step_number": step_number,
+                            "timestamp": memory_data["timestamp"],
+                            "type": memory_data["memory_type"],
+                            "content": content,
+                            "metadata": metadata,
+                            "importance_score": (
+                                float(memory_data["importance_score"])
+                                if memory_data["importance_score"] is not None
+                                else 0.0
+                            ),
+                            "retrieval_count": (
+                                int(memory_data["retrieval_count"])
+                                if memory_data["retrieval_count"] is not None
+                                else 0
+                            ),
+                        }
+                        results.append(memory_entry)
+                    except Exception as e:
+                        logger.warning(f"Error parsing memory data: {e}")
+                        continue
 
                 return results
 
@@ -1154,10 +1192,7 @@ class SQLiteLTMStore:
             }
 
     def search_by_step_range(
-        self,
-        start_step: int,
-        end_step: int,
-        memory_type: Optional[str] = None
+        self, start_step: int, end_step: int, memory_type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Search for memories within a specific step range.
 
@@ -1172,7 +1207,7 @@ class SQLiteLTMStore:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 # Construct query based on whether memory_type is specified
                 if memory_type:
                     cursor.execute(
@@ -1192,18 +1227,18 @@ class SQLiteLTMStore:
                     """,
                         (self.agent_id, start_step, end_step),
                     )
-                
+
                 rows = cursor.fetchall()
-                
+
                 # Get full memory entries
                 results = []
                 for row in rows:
                     memory = self.get(row["memory_id"])
                     if memory:
                         results.append(memory)
-                        
+
                 return results
-                
+
         except Exception as e:
             logger.error(f"Error in search_by_step_range: {e}")
             return []
