@@ -7,7 +7,7 @@ storage tier with comprehensive error handling and recovery mechanisms.
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 import numpy as np
 
@@ -793,35 +793,98 @@ class RedisSTMStore:
         """Search for memories within a specific step range.
 
         Args:
-            agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
+            agent_id: ID of the agent
+            start_step: Start of step range (inclusive)
             end_step: End of step range (inclusive)
             memory_type: Optional filter for specific memory types
 
         Returns:
-            List of memory entries with step numbers in the range
+            List of memory entries within the step range
         """
-        try:
-            # Get all memories
-            memories = self.get_all(agent_id)
+        # Get all memories for the agent
+        memories = self.get_all(agent_id)
 
-            # Filter by memory type if specified
-            if memory_type:
-                memories = [m for m in memories if m.get("memory_type") == memory_type]
-
-            # Filter by step range
-            results = []
-            for memory in memories:
-                step_number = memory.get("step_number")
-                # Only include memories with step numbers in the requested range
-                if step_number is not None and start_step <= step_number <= end_step:
+        # Filter by step range
+        results = []
+        for memory in memories:
+            step = memory.get("step_number")
+            if step is not None and start_step <= step <= end_step:
+                if (
+                    memory_type is None
+                    or memory.get("metadata", {}).get("memory_type") == memory_type
+                ):
                     results.append(memory)
 
-            # Sort by step number
-            results.sort(key=lambda x: x.get("step_number", 0))
+        return results
 
-            return results
+    def search_by_content(
+        self,
+        agent_id: str,
+        content_query: Union[str, Dict[str, Any]],
+        k: int = 5,
+    ) -> List[MemoryEntry]:
+        """Search for memories based on content text/attributes.
 
-        except Exception as e:
-            logger.error(f"Error in search_by_step_range: {e}")
-            return []
+        Args:
+            agent_id: ID of the agent
+            content_query: String or dict to search for in memory contents
+            k: Maximum number of results to return
+
+        Returns:
+            List of memory entries matching the content query
+        """
+        # Get all memories for the agent
+        memories = self.get_all(agent_id)
+        results = []
+
+        # Process string query
+        query_text = ""
+        if isinstance(content_query, str):
+            query_text = content_query.lower()
+        elif isinstance(content_query, dict) and "text" in content_query:
+            query_text = content_query["text"].lower()
+
+        for memory in memories:
+            relevance_score = 0.0
+
+            # Get memory content as string for text search
+            memory_content = json.dumps(memory.get("content", {})).lower()
+
+            # Simple relevance scoring - if query text is in content
+            if query_text and query_text in memory_content:
+                # More specific matches get higher scores
+                relevance_score = len(query_text) / len(memory_content) * 10
+
+                # Bonus for exact matches
+                if query_text == memory_content:
+                    relevance_score += 1.0
+
+                # Add relevance score to memory
+                memory["relevance_score"] = relevance_score
+                results.append(memory)
+
+            # If query is a dict, also match by specific attributes
+            elif isinstance(content_query, dict) and not query_text:
+                for key, value in content_query.items():
+                    if key == "text":
+                        continue  # Already handled above
+
+                    content = memory.get("content", {})
+                    if isinstance(content, dict):
+                        # Direct attribute match
+                        if key in content and content[key] == value:
+                            relevance_score += 0.5
+
+                        # Nested attribute match (only one level deep for simplicity)
+                        for content_key, content_value in content.items():
+                            if isinstance(content_value, dict) and key in content_value:
+                                if content_value[key] == value:
+                                    relevance_score += 0.3
+
+                if relevance_score > 0:
+                    memory["relevance_score"] = relevance_score
+                    results.append(memory)
+
+        # Sort by relevance and limit results
+        results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        return results[:k]
