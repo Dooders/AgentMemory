@@ -7,7 +7,7 @@ retry functionality for resilient Redis operations.
 import logging
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union, cast
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 import redis
 
@@ -726,3 +726,38 @@ class ResilientRedisClient:
             RedisTimeoutError: If operation times out
         """
         return self.client.pipeline()
+
+    @resilient_operation("execute_command")
+    def execute_command(self, *args, **kwargs) -> Any:
+        """Execute a Redis command directly.
+
+        Args:
+            *args: Command and arguments to execute
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            Command result
+
+        Raises:
+            RedisUnavailableError: If Redis is unavailable
+            RedisTimeoutError: If operation times out
+        """
+        return self.client.execute_command(*args, **kwargs)
+
+    @resilient_operation("eval")
+    def eval(self, script: str, numkeys: int, *keys_and_args) -> Any:
+        """Execute a Lua script on the Redis server.
+
+        Args:
+            script: Lua script to execute
+            numkeys: Number of keys in the keys_and_args parameter
+            *keys_and_args: Redis keys and additional arguments for the script
+
+        Returns:
+            Script execution result
+
+        Raises:
+            RedisUnavailableError: If Redis is unavailable
+            RedisTimeoutError: If operation times out
+        """
+        return self.client.eval(script, numkeys, *keys_and_args)
