@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 from agent_memory.config import MemoryConfig
 from agent_memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
 from agent_memory.embeddings.compression import CompressionEngine
+# from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
 from agent_memory.storage.redis_im import RedisIMStore
 from agent_memory.storage.redis_stm import RedisSTMStore
 from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
@@ -50,17 +51,31 @@ class MemoryAgent:
         # Initialize compression engine
         self.compression_engine = CompressionEngine(config.autoencoder_config)
 
-        # Optional: Initialize neural embedding engine for advanced vectorization
+        # Initialize embedding engine based on configuration
         if config.autoencoder_config.use_neural_embeddings:
-            self.embedding_engine = AutoencoderEmbeddingEngine(
-                model_path=config.autoencoder_config.model_path,
-                input_dim=config.autoencoder_config.input_dim,
-                stm_dim=config.autoencoder_config.stm_dim,
-                im_dim=config.autoencoder_config.im_dim,
-                ltm_dim=config.autoencoder_config.ltm_dim,
-            )
+            if config.autoencoder_config.embedding_type == "text":
+                # Use text embedding model
+                # self.embedding_engine = TextEmbeddingEngine(
+                #     model_name=config.autoencoder_config.text_model_name
+                # )
+                logger.info(
+                    f"Using text embeddings with model {config.autoencoder_config.text_model_name}"
+                )
+            else:
+                # Use traditional autoencoder
+                self.embedding_engine = AutoencoderEmbeddingEngine(
+                    model_path=config.autoencoder_config.model_path,
+                    input_dim=config.autoencoder_config.input_dim,
+                    stm_dim=config.autoencoder_config.stm_dim,
+                    im_dim=config.autoencoder_config.im_dim,
+                    ltm_dim=config.autoencoder_config.ltm_dim,
+                )
+                logger.info(f"Using autoencoder neural embeddings")
         else:
             self.embedding_engine = None
+            logger.warning(
+                "Neural embeddings disabled - similarity search will not be available"
+            )
 
         # Internal state
         self._insert_count = 0
@@ -394,7 +409,12 @@ class MemoryAgent:
         return stm_success and im_success and ltm_success
 
     def retrieve_similar_states(
-        self, query_state: Dict[str, Any], k: int = 5, memory_type: Optional[str] = None
+        self,
+        query_state: Dict[str, Any],
+        k: int = 5,
+        memory_type: Optional[str] = None,
+        threshold: float = 0.6,
+        context_weights: Dict[str, float] = None,
     ) -> List[Dict[str, Any]]:
         """Retrieve most similar past states to the provided query state.
 
@@ -402,13 +422,17 @@ class MemoryAgent:
             query_state: The state to find similar states for
             k: Number of results to return
             memory_type: Optional filter for specific memory types
+            threshold: Minimum similarity score threshold (0.0-1.0)
+            context_weights: Optional dictionary mapping keys to importance weights
 
         Returns:
             List of memory entries sorted by similarity to query state
         """
         # Generate query embedding
         if self.embedding_engine:
-            query_embedding = self.embedding_engine.encode_stm(query_state)
+            query_embedding = self.embedding_engine.encode_stm(
+                query_state, context_weights
+            )
         else:
             raise RuntimeError("Neural embeddings required for similarity search")
 
@@ -424,7 +448,7 @@ class MemoryAgent:
         # If we need more results, search IM
         if len(results) < k:
             remaining = k - len(results)
-            im_query = self.embedding_engine.encode_im(query_state)
+            im_query = self.embedding_engine.encode_im(query_state, context_weights)
             im_results = self.im_store.search_similar(
                 self.agent_id, im_query, k=remaining, memory_type=memory_type
             )
@@ -433,15 +457,20 @@ class MemoryAgent:
         # If still need more, search LTM
         if len(results) < k:
             remaining = k - len(results)
-            ltm_query = self.embedding_engine.encode_ltm(query_state)
+            ltm_query = self.embedding_engine.encode_ltm(query_state, context_weights)
             ltm_results = self.ltm_store.search_similar(
                 ltm_query, k=remaining, memory_type=memory_type
             )
             results.extend(ltm_results)
 
+        # Filter by similarity threshold
+        filtered_results = [
+            r for r in results if r.get("similarity_score", 0) >= threshold
+        ]
+
         # Sort by similarity score
-        results.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
-        return results[:k]
+        filtered_results.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
+        return filtered_results[:k]
 
     def retrieve_by_time_range(
         self, start_step: int, end_step: int, memory_type: Optional[str] = None
@@ -847,3 +876,104 @@ class MemoryAgent:
         normalized_reward = min(max(reward, 0), max_reward) / max_reward
 
         return normalized_reward
+
+    def hybrid_retrieve(
+        self,
+        query_state: Dict[str, Any],
+        k: int = 5,
+        memory_type: Optional[str] = None,
+        vector_weight: float = 0.4,
+        attribute_weight: float = 0.6,
+    ) -> List[Dict[str, Any]]:
+        """Combine similarity and attribute-based search for more robust retrieval.
+
+        Args:
+            query_state: State data to use for querying
+            k: Number of results to return
+            memory_type: Optional filter for specific memory types
+            vector_weight: Weight to assign to vector similarity scores (0.0-1.0)
+            attribute_weight: Weight to assign to attribute match scores (0.0-1.0)
+
+        Returns:
+            List of memory entries sorted by hybrid score
+        """
+        # Extract key attributes for exact matching
+        attribute_filters = {}
+        if isinstance(query_state, dict):
+            # Look for location information which is often important for context
+            if "position" in query_state and isinstance(query_state["position"], dict):
+                if "location" in query_state["position"]:
+                    attribute_filters["position.location"] = query_state["position"][
+                        "location"
+                    ]
+
+            # Add other important exact-match attributes
+            for key in ["health", "energy", "level"]:
+                if key in query_state:
+                    attribute_filters[key] = query_state[key]
+
+            # Handle inventory items if present
+            if (
+                "inventory" in query_state
+                and isinstance(query_state["inventory"], list)
+                and query_state["inventory"]
+            ):
+                # Process all inventory items for attribute matching
+                attribute_filters["inventory"] = query_state["inventory"]
+
+        # Get more results than needed from both methods
+        vector_results = self.retrieve_similar_states(
+            query_state, k=k * 2, memory_type=memory_type, threshold=0.2
+        )
+
+        # Only use attribute search if we have filters
+        attr_results = []
+        if attribute_filters:
+            attr_results = self.retrieve_by_attributes(
+                attribute_filters, memory_type=memory_type
+            )
+
+            # If we don't have any attribute results, try searching with fewer attributes
+            if not attr_results and len(attribute_filters) > 1:
+                # Try with just location, which is often most important
+                if "position.location" in attribute_filters:
+                    reduced_filters = {
+                        "position.location": attribute_filters["position.location"]
+                    }
+                    attr_results = self.retrieve_by_attributes(
+                        reduced_filters, memory_type=memory_type
+                    )
+
+        # Merge and rank results
+        combined = {}
+        for result in vector_results:
+            memory_id = result["memory_id"]
+            combined[memory_id] = {
+                "memory": result,
+                "vector_score": result.get("similarity_score", 0),
+                "attr_score": 0,
+            }
+
+        for result in attr_results:
+            memory_id = result["memory_id"]
+            if memory_id in combined:
+                combined[memory_id]["attr_score"] = 1.0
+            else:
+                combined[memory_id] = {
+                    "memory": result,
+                    "vector_score": 0,
+                    "attr_score": 1.0,
+                }
+
+        # Calculate final scores and sort
+        scored_results = []
+        for memory_id, data in combined.items():
+            final_score = (data["vector_score"] * vector_weight) + (
+                data["attr_score"] * attribute_weight
+            )
+            data["memory"]["hybrid_score"] = final_score
+            scored_results.append(data["memory"])
+
+        # Sort by final score
+        scored_results.sort(key=lambda x: x.get("hybrid_score", 0), reverse=True)
+        return scored_results[:k]
