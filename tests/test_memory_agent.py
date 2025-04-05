@@ -434,9 +434,9 @@ class TestMemoryRetrieval:
         assert results[4]["memory_id"] == "ltm2"  # Lowest similarity
         
         # Verify embedding engine calls
-        memory_agent.embedding_engine.encode_stm.assert_called_with(query_state)
-        memory_agent.embedding_engine.encode_im.assert_called_with(query_state)
-        memory_agent.embedding_engine.encode_ltm.assert_called_with(query_state)
+        memory_agent.embedding_engine.encode_stm.assert_called_with(query_state, None)
+        memory_agent.embedding_engine.encode_im.assert_called_with(query_state, None)
+        memory_agent.embedding_engine.encode_ltm.assert_called_with(query_state, None)
         
         # Verify search calls on stores with correct parameters
         stm_query = memory_agent.embedding_engine.encode_stm.return_value

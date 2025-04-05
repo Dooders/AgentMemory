@@ -1873,7 +1873,18 @@ class RedisIMStore:
         Returns:
             List of memory entries within the step range
         """
-        # Get all memories for the agent
+        if self._vector_search_available:
+            try:
+                return self._search_by_step_range_redis(
+                    agent_id, start_step, end_step, memory_type
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Redis step range search failed, falling back to Python implementation: {e}"
+                )
+                # Fall back to Python implementation
+        
+        # If Redis search is not available or failed, use Python implementation
         memories = self.get_all(agent_id)
 
         # Filter by step range
@@ -1883,11 +1894,140 @@ class RedisIMStore:
             if step is not None and start_step <= step <= end_step:
                 if (
                     memory_type is None
-                    or memory.get("metadata", {}).get("memory_type") == memory_type
+                    or memory.get("memory_type") == memory_type
                 ):
                     results.append(memory)
 
         return results
+        
+    def _search_by_step_range_redis(
+        self,
+        agent_id: str,
+        start_step: int,
+        end_step: int,
+        memory_type: Optional[str] = None,
+    ) -> List[MemoryEntry]:
+        """Search for memories by step range using Redis search.
+
+        Args:
+            agent_id: Unique identifier for the agent
+            start_step: Start of step range (inclusive)
+            end_step: End of step range (inclusive)
+            memory_type: Optional filter for specific memory types
+
+        Returns:
+            List of memory entries with matching step range
+        """
+        index_name = f"{self._key_prefix}_vector_idx"
+
+        # Build query for Redis search
+        query_parts = []
+
+        # Add agent ID filter - we'll filter by pattern prefix
+        agent_prefix = f"{self._key_prefix}:{agent_id}:memory:"
+
+        # Add step range filter
+        query_parts.append(f"@step_number:[{start_step} {end_step}]")
+
+        # Add memory type filter if specified
+        if memory_type:
+            query_parts.append(f"@memory_type:{{{memory_type}}}")
+
+        # Combine query parts
+        query = " ".join(query_parts)
+
+        try:
+            # Execute search with prefix filter for agent_id
+            results = self.redis.execute_command(
+                "FT.SEARCH",
+                index_name,
+                query,
+                "LIMIT",
+                0,
+                1000,  # Reasonable limit
+                "FILTER",
+                "PREFLEN",
+                len(agent_prefix),
+                "PREFIX",
+                1,
+                agent_prefix,
+            )
+
+            if not results or results[0] == 0:
+                return []
+
+            # Process results
+            memories = []
+            for i in range(1, len(results), 2):
+                key = results[i]
+                if isinstance(key, bytes):
+                    key = key.decode("utf-8")
+
+                # First try to parse the $ field in the response (test format)
+                doc_data = {}
+                for field_value_pair in results[i + 1]:
+                    if (
+                        isinstance(field_value_pair, list)
+                        and len(field_value_pair) >= 2
+                    ):
+                        field = field_value_pair[0]
+                        value = field_value_pair[1]
+
+                        # Decode byte strings if needed
+                        if isinstance(field, bytes):
+                            field = field.decode("utf-8")
+                        if isinstance(value, bytes):
+                            value = value.decode("utf-8")
+
+                        # Handle the $ field which contains the full JSON document
+                        if field == "$":
+                            try:
+                                doc_data = json.loads(value)
+                                break  # Found what we need, exit loop
+                            except (json.JSONDecodeError, TypeError):
+                                logger.warning(
+                                    f"Failed to parse JSON data in search result: {value}"
+                                )
+
+                # If we got valid data from the $ field, create a memory entry
+                if doc_data:
+                    # Extract memory_id from the document or the key
+                    memory_id = doc_data.get("memory_id")
+                    if not memory_id and key:
+                        parts = key.split(":")
+                        if len(parts) >= 4 and parts[-2] == "memory":
+                            memory_id = parts[-1]
+
+                    if memory_id:
+                        # Create a memory entry from the document data
+                        memory_entry = doc_data.copy()
+                        self._update_access_metadata(agent_id, memory_id, memory_entry)
+                        memories.append(memory_entry)
+                    continue  # Skip to next result
+
+                # If we couldn't get data from $ field, try regular methods
+                # Extract memory data using the key
+                memory_entry = None
+                try:
+                    json_data = self.redis.get(key)
+                    if json_data:
+                        memory_entry = json.loads(json_data)
+                except (json.JSONDecodeError, TypeError, redis.RedisError) as e:
+                    logger.warning(f"Error parsing memory data for key {key}: {e}")
+
+                # Extract memory_id from the key
+                if memory_entry:
+                    parts = key.split(":")
+                    if len(parts) >= 4 and parts[-2] == "memory":
+                        memory_id = parts[-1]
+                        self._update_access_metadata(agent_id, memory_id, memory_entry)
+                        memories.append(memory_entry)
+
+            return memories
+
+        except Exception as e:
+            logger.error(f"Error in Redis step range search: {e}")
+            raise
 
     def search_by_content(
         self,
