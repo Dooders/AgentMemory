@@ -13,6 +13,7 @@ import zlib
 from typing import Any, Dict, Set
 
 from agent_memory.config import AutoencoderConfig
+from agent_memory.embeddings.utils import filter_dict_keys
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class CompressionEngine:
 
         # Apply content filtering
         if compression_config["content_filter_keys"] and "content" in compressed:
-            filtered_content = self._filter_content_keys(
+            filtered_content = filter_dict_keys(
                 compressed["content"], compression_config["content_filter_keys"]
             )
             compressed["content"] = filtered_content
@@ -188,7 +189,7 @@ class CompressionEngine:
         """
         if not isinstance(content, dict):
             return content
-            
+
         # Create a copy to avoid modifying the original
         result = copy.deepcopy(content)
 
@@ -205,7 +206,11 @@ class CompressionEngine:
                 result[key] = self._filter_content_keys(value, filter_keys)
             elif isinstance(value, list):
                 result[key] = [
-                    self._filter_content_keys(item, filter_keys) if isinstance(item, dict) else item
+                    (
+                        self._filter_content_keys(item, filter_keys)
+                        if isinstance(item, dict)
+                        else item
+                    )
                     for item in value
                 ]
 
