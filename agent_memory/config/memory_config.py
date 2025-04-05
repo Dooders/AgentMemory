@@ -3,17 +3,17 @@
 
 class RedisSTMConfig:
     """Configuration for Redis-based Short-Term Memory storage."""
-    
+
     def __init__(self, **kwargs):
         # Default configuration values
         self.host = "localhost"
         self.port = 6379
         self.memory_limit = 10000
         self.ttl = 3600  # 1 hour
-        self.db = 0      # Redis DB number
+        self.db = 0  # Redis DB number
         self.namespace = "agent-stm"
         self.password = None
-        
+
         # Update with any provided values
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -22,17 +22,17 @@ class RedisSTMConfig:
 
 class RedisIMConfig:
     """Configuration for Redis-based Intermediate Memory storage."""
-    
+
     def __init__(self, **kwargs):
         # Default configuration values
         self.host = "localhost"
         self.port = 6379
         self.memory_limit = 50000
         self.ttl = 86400  # 24 hours
-        self.db = 1       # Redis DB number
+        self.db = 1  # Redis DB number
         self.namespace = "agent-im"
         self.password = None
-        
+
         # Update with any provided values
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -41,14 +41,14 @@ class RedisIMConfig:
 
 class SQLiteLTMConfig:
     """Configuration for SQLite-based Long-Term Memory storage."""
-    
+
     def __init__(self, **kwargs):
         # Default configuration values
         self.db_path = "./ltm.db"
         self.compression_level = 1
         self.batch_size = 100
         self.table_prefix = "ltm"
-        
+
         # Update with any provided values
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -57,7 +57,7 @@ class SQLiteLTMConfig:
 
 class AutoencoderConfig:
     """Configuration for the memory autoencoder."""
-    
+
     def __init__(self, **kwargs):
         # Default configuration values
         self.input_dim = 64
@@ -66,11 +66,13 @@ class AutoencoderConfig:
         self.ltm_dim = 128
         self.use_neural_embeddings = False
         self.model_path = "./models/autoencoder.pt"
-        
+
         # Text embedding options
         self.embedding_type = "autoencoder"  # Options: "autoencoder" or "text"
-        self.text_model_name = "all-MiniLM-L6-v2"  # Default small model (~80MB)
-        
+        self.text_model_name = (
+            "all-MiniLM-L6-v2"  # Default to smaller model for faster startup
+        )
+
         # Update with any provided values
         for key, value in kwargs.items():
             if hasattr(self, key):
