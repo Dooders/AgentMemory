@@ -279,7 +279,7 @@ class TestMemoryRetrieval:
         assert isinstance(result, list)
         assert len(result) == 2
         mock_memory_agent.retrieve_similar_states.assert_called_once_with(
-            query_state, k, memory_type
+            query_state, k, memory_type, 0.6, None
         )
 
     def test_retrieve_by_time_range(self, memory_system, mock_memory_agent):

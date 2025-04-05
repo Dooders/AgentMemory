@@ -1865,13 +1865,13 @@ class RedisIMStore:
         """Search for memories within a specific step range.
 
         Args:
-            agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
+            agent_id: ID of the agent
+            start_step: Start of step range (inclusive)
             end_step: End of step range (inclusive)
             memory_type: Optional filter for specific memory types
 
         Returns:
-            List of memory entries with step numbers in the range
+            List of memory entries within the step range
         """
         if self._vector_search_available:
             try:
@@ -1882,15 +1882,110 @@ class RedisIMStore:
                 logger.warning(
                     f"Redis step range search failed, falling back to Python implementation: {e}"
                 )
-                # Fall back to Python implementation
-                return self._search_by_step_range_python(
-                    agent_id, start_step, end_step, memory_type
+                # Fall back to optimized Python implementation
+        
+        # Even without vector search capabilities, we can use Redis sorted sets or SCAN with pattern matching
+        try:
+            # Create a timeline key if using a sorted set approach
+            timeline_key = self._get_timeline_key(agent_id)
+            
+            # Check if we have a sorted set timeline index
+            if self.redis.exists(timeline_key):
+                # Use Redis ZRANGEBYSCORE to get memory IDs in the step range
+                memory_ids = self.redis.zrangebyscore(
+                    timeline_key, 
+                    min=start_step, 
+                    max=end_step
                 )
-        else:
-            # Use Python implementation
-            return self._search_by_step_range_python(
-                agent_id, start_step, end_step, memory_type
-            )
+                
+                results = []
+                for memory_id in memory_ids:
+                    if isinstance(memory_id, bytes):
+                        memory_id = memory_id.decode("utf-8")
+                    
+                    # Get the memory data
+                    memory_key = self._get_memory_key(agent_id, memory_id)
+                    memory_data = self.redis.get(memory_key)
+                    
+                    if memory_data:
+                        try:
+                            memory = json.loads(memory_data)
+                            # Apply memory type filter if needed
+                            if memory_type is None or memory.get("memory_type") == memory_type:
+                                # Update access metadata and add to results
+                                self._update_access_metadata(agent_id, memory_id, memory)
+                                results.append(memory)
+                        except json.JSONDecodeError:
+                            logger.warning(f"Failed to parse memory data for ID {memory_id}")
+                
+                return results
+            
+            # If no timeline index exists, use SCAN with pattern matching and step filtering
+            pattern = f"{self._key_prefix}:{agent_id}:memory:*"
+            cursor = 0
+            results = []
+            
+            while True:
+                cursor, keys = self.redis.scan(cursor=cursor, match=pattern, count=100)
+                
+                if not keys:
+                    if cursor == 0:
+                        break
+                    continue
+                
+                # Get memory data for each key using pipeline for efficiency
+                pipe = self.redis.pipeline()
+                for key in keys:
+                    if isinstance(key, bytes):
+                        key = key.decode("utf-8")
+                    pipe.get(key)
+                
+                memory_data_list = pipe.execute()
+                
+                # Process memory data
+                for i, memory_data in enumerate(memory_data_list):
+                    if not memory_data:
+                        continue
+                    
+                    try:
+                        memory = json.loads(memory_data)
+                        step = memory.get("step_number")
+                        
+                        # Filter by step range
+                        if step is not None and start_step <= step <= end_step:
+                            # Apply memory type filter if needed
+                            if memory_type is None or memory.get("memory_type") == memory_type:
+                                # Extract memory ID from key
+                                key = keys[i]
+                                if isinstance(key, bytes):
+                                    key = key.decode("utf-8")
+                                memory_id = key.split(":")[-1]
+                                
+                                # Update access metadata and add to results
+                                self._update_access_metadata(agent_id, memory_id, memory)
+                                results.append(memory)
+                    except json.JSONDecodeError:
+                        continue
+                
+                if cursor == 0:
+                    break
+            
+            return results
+            
+        except Exception as e:
+            # If Redis operations fail, fall back to retrieving all and filtering
+            logger.warning(f"Optimized step range search failed, using full fallback: {e}")
+            memories = self.get_all(agent_id)
+
+            # Filter by step range
+            results = []
+            for memory in memories:
+                step = memory.get("step_number")
+                if step is not None and start_step <= step <= end_step:
+                    if memory_type is None or memory.get("memory_type") == memory_type:
+                        results.append(memory)
+
+            return results
 
     def _search_by_step_range_redis(
         self,
@@ -1899,16 +1994,16 @@ class RedisIMStore:
         end_step: int,
         memory_type: Optional[str] = None,
     ) -> List[MemoryEntry]:
-        """Search for memories within a step range using Redis search.
+        """Search for memories by step range using Redis search.
 
         Args:
             agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
+            start_step: Start of step range (inclusive)
             end_step: End of step range (inclusive)
             memory_type: Optional filter for specific memory types
 
         Returns:
-            List of memory entries within the step range
+            List of memory entries with matching step range
         """
         index_name = f"{self._key_prefix}_vector_idx"
 
@@ -1937,9 +2032,6 @@ class RedisIMStore:
                 "LIMIT",
                 0,
                 1000,  # Reasonable limit
-                "SORTBY",
-                "step_number",
-                "ASC",
                 "FILTER",
                 "PREFLEN",
                 len(agent_prefix),
@@ -1978,6 +2070,7 @@ class RedisIMStore:
                         if field == "$":
                             try:
                                 doc_data = json.loads(value)
+                                break  # Found what we need, exit loop
                             except (json.JSONDecodeError, TypeError):
                                 logger.warning(
                                     f"Failed to parse JSON data in search result: {value}"
@@ -2000,31 +2093,22 @@ class RedisIMStore:
                     continue  # Skip to next result
 
                 # If we couldn't get data from $ field, try regular methods
-                # Extract memory data using hgetall
-                hash_data = self.redis.hgetall(key)
-                if hash_data:
-                    # Convert hash data to memory entry dict
-                    memory_entry = self._hash_to_memory_entry(hash_data)
+                # Extract memory data using the key
+                memory_entry = None
+                try:
+                    json_data = self.redis.get(key)
+                    if json_data:
+                        memory_entry = json.loads(json_data)
+                except (json.JSONDecodeError, TypeError, redis.RedisError) as e:
+                    logger.warning(f"Error parsing memory data for key {key}: {e}")
 
-                    # Extract memory_id from the key
+                # Extract memory_id from the key
+                if memory_entry:
                     parts = key.split(":")
                     if len(parts) >= 4 and parts[-2] == "memory":
                         memory_id = parts[-1]
-                        # Fallback to get if hgetall didn't work (for tests)
-                        if not memory_entry and hasattr(self.redis, "get"):
-                            json_data = self.redis.get(key)
-                            if json_data:
-                                try:
-                                    memory_entry = json.loads(json_data)
-                                except (json.JSONDecodeError, TypeError):
-                                    # Skip this entry if we can't parse it
-                                    continue
-
-                        if memory_entry:
-                            self._update_access_metadata(
-                                agent_id, memory_id, memory_entry
-                            )
-                            memories.append(memory_entry)
+                        self._update_access_metadata(agent_id, memory_id, memory_entry)
+                        memories.append(memory_entry)
 
             return memories
 
@@ -2032,45 +2116,74 @@ class RedisIMStore:
             logger.error(f"Error in Redis step range search: {e}")
             raise
 
-    def _search_by_step_range_python(
+    def search_by_content(
         self,
         agent_id: str,
-        start_step: int,
-        end_step: int,
-        memory_type: Optional[str] = None,
-    ) -> List[MemoryEntry]:
-        """Search for memories within a specific step range using Python implementation.
+        content_query: Union[str, Dict[str, Any]],
+        k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Search for memories based on content text/attributes.
 
         Args:
-            agent_id: Unique identifier for the agent
-            start_step: Beginning of step range (inclusive)
-            end_step: End of step range (inclusive)
-            memory_type: Optional filter for specific memory types
+            agent_id: ID of the agent
+            content_query: String or dict to search for in memory contents
+            k: Maximum number of results to return
 
         Returns:
-            List of memory entries with step numbers in the range
+            List of memory entries matching the content query
         """
-        try:
-            # Get all memories
-            memories = self.get_all(agent_id)
+        # Get all memories for the agent
+        memories = self.get_all(agent_id)
+        results = []
 
-            # Filter by memory type if specified
-            if memory_type:
-                memories = [m for m in memories if m.get("memory_type") == memory_type]
+        # Process string query
+        query_text = ""
+        if isinstance(content_query, str):
+            query_text = content_query.lower()
+        elif isinstance(content_query, dict) and "text" in content_query:
+            query_text = content_query["text"].lower()
 
-            # Filter by step range
-            results = []
-            for memory in memories:
-                step_number = memory.get("step_number")
-                # Only include memories with step numbers in the requested range
-                if step_number is not None and start_step <= step_number <= end_step:
+        for memory in memories:
+            relevance_score = 0.0
+
+            # Get memory content as string for text search
+            memory_content = json.dumps(memory.get("content", {})).lower()
+
+            # Simple relevance scoring - if query text is in content
+            if query_text and query_text in memory_content:
+                # More specific matches get higher scores
+                relevance_score = len(query_text) / len(memory_content) * 10
+
+                # Bonus for exact matches
+                if query_text == memory_content:
+                    relevance_score += 1.0
+
+                # Add relevance score to memory
+                memory["relevance_score"] = relevance_score
+                results.append(memory)
+
+            # If query is a dict, also match by specific attributes
+            elif isinstance(content_query, dict) and not query_text:
+                for key, value in content_query.items():
+                    if key == "text":
+                        continue  # Already handled above
+
+                    content = memory.get("content", {})
+                    if isinstance(content, dict):
+                        # Direct attribute match
+                        if key in content and content[key] == value:
+                            relevance_score += 0.5
+
+                        # Nested attribute match (only one level deep for simplicity)
+                        for content_key, content_value in content.items():
+                            if isinstance(content_value, dict) and key in content_value:
+                                if content_value[key] == value:
+                                    relevance_score += 0.3
+
+                if relevance_score > 0:
+                    memory["relevance_score"] = relevance_score
                     results.append(memory)
 
-            # Sort by step number
-            results.sort(key=lambda x: x.get("step_number", 0))
-
-            return results
-
-        except Exception as e:
-            logger.error(f"Error in search_by_step_range: {e}")
-            return []
+        # Sort by relevance and limit results
+        results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        return results[:k]
