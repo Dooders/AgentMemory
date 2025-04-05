@@ -3,8 +3,7 @@
 import logging
 import math
 import os
-import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -12,9 +11,10 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
-from torch.utils.data import DataLoader, Dataset, SubsetRandomSampler
+from torch.utils.data import DataLoader, SubsetRandomSampler
 
 from agent_memory.config import AutoencoderConfig
+from agent_memory.embeddings.utils import flatten_dict
 
 logger = logging.getLogger(__name__)
 
@@ -33,29 +33,10 @@ class NumericExtractor:
         """
         # Extract all numeric values from the state dictionary
         vector = []
-        for key, value in self._flatten_dict(state).items():
+        for key, value in flatten_dict(state).items():
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 vector.append(float(value))
         return vector
-
-    def _flatten_dict(self, d: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
-        """Flatten a nested dictionary.
-
-        Args:
-            d: Dictionary to flatten
-            prefix: Key prefix for nested dictionaries
-
-        Returns:
-            Flattened dictionary
-        """
-        result = {}
-        for k, v in d.items():
-            key = f"{prefix}.{k}" if prefix else k
-            if isinstance(v, dict):
-                result.update(self._flatten_dict(v, key))
-            else:
-                result[key] = v
-        return result
 
 
 class StateAutoencoder(nn.Module):

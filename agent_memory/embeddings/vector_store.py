@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from agent_memory.embeddings.utils import cosine_similarity
+
 logger = logging.getLogger(__name__)
 
 
@@ -139,7 +141,7 @@ class InMemoryVectorIndex(VectorIndex):
                     continue
 
                 # Calculate cosine similarity
-                similarity = self._cosine_similarity(query_array, np.array(vector))
+                similarity = cosine_similarity(query_array, np.array(vector))
 
                 results.append(
                     {
@@ -157,24 +159,6 @@ class InMemoryVectorIndex(VectorIndex):
         except Exception as e:
             logger.error("Vector search failed: %s", str(e))
             return []
-
-    def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
-        """Calculate cosine similarity between two vectors.
-
-        Args:
-            a: First vector
-            b: Second vector
-
-        Returns:
-            Cosine similarity score
-        """
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
-
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-
-        return np.dot(a, b) / (norm_a * norm_b)
 
     def delete(self, id: str) -> bool:
         """Delete a vector from the index.

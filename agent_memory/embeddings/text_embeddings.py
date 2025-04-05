@@ -5,6 +5,8 @@ from typing import Any, Dict, List
 
 from sentence_transformers import SentenceTransformer
 
+from agent_memory.embeddings.utils import object_to_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,54 +39,6 @@ class TextEmbeddingEngine:
             )
             raise
 
-    def _object_to_text(self, obj: Any) -> str:
-        """Convert any object to an enhanced text representation.
-
-        Args:
-            obj: Any Python object to convert to text
-
-        Returns:
-            String representation of the object
-        """
-        if isinstance(obj, str):
-            return obj
-        elif isinstance(obj, dict):
-            # Better handling of nested structures
-            parts = []
-            for key, value in obj.items():
-                # Format based on value type
-                if isinstance(value, dict):
-                    # For nested dictionaries like position
-                    if key == "position" and "location" in value:
-                        # Make location more prominent in the text representation
-                        formatted = f"{key}: location is {value['location']}"
-                        if "x" in value and "y" in value:
-                            formatted += (
-                                f", coordinates x={value['x']:.1f} y={value['y']:.1f}"
-                            )
-                    else:
-                        formatted = f"{key}: " + ", ".join(
-                            f"{k}={v}" for k, v in value.items()
-                        )
-                elif isinstance(value, list):
-                    if key == "inventory":
-                        # Make inventory items more prominent
-                        formatted = f"{key}: has " + ", ".join(
-                            str(item) for item in value
-                        )
-                    else:
-                        formatted = f"{key}: " + ", ".join(str(item) for item in value)
-                else:
-                    formatted = f"{key}: {value}"
-                parts.append(formatted)
-            return " | ".join(parts)
-        elif isinstance(obj, list):
-            # Handle lists with better formatting
-            return "items: " + ", ".join(self._object_to_text(item) for item in obj)
-        else:
-            # Convert other types to string
-            return str(obj)
-
     def encode(
         self, data: Any, context_weights: Dict[str, float] = None
     ) -> List[float]:
@@ -102,7 +56,7 @@ class TextEmbeddingEngine:
         if context_weights and isinstance(data, dict):
             weighted_text = ""
             # Process standard representation
-            standard_text = self._object_to_text(data)
+            standard_text = object_to_text(data)
 
             # Add weighted components
             for key, weight in context_weights.items():
@@ -125,7 +79,7 @@ class TextEmbeddingEngine:
                             weighted_text += f" {item_text}" * repeat_count
                     else:
                         # Extract and repeat important components based on weight
-                        value_text = self._object_to_text({key: data[key]})
+                        value_text = object_to_text({key: data[key]})
                         # Repeat text based on weight for emphasis (integer multiplier)
                         repeat_count = max(1, int(weight * 3))
                         weighted_text += f" {value_text}" * repeat_count
@@ -136,7 +90,7 @@ class TextEmbeddingEngine:
             return embedding.tolist()
 
         # Default encoding without weighting
-        text = self._object_to_text(data)
+        text = object_to_text(data)
         embedding = self.model.encode(text)
         return embedding.tolist()
 
