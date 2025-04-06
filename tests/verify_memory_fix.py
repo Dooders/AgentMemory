@@ -142,7 +142,7 @@ def verify_memory_system():
         return
     
     # 4. Check database directly
-    from check_db import check_database
+    from tests.check_db import check_database
     logger.info("\nFinal database check:")
     check_database(original_memory_id)
     
