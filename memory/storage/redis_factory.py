@@ -9,9 +9,9 @@ from typing import Optional, Type, Union
 
 import redis
 
-from agent_memory.storage.redis_client import ResilientRedisClient
-from agent_memory.storage.async_redis_client import AsyncResilientRedisClient
-from agent_memory.storage.mockredis import MockRedis
+from memory.storage.redis_client import ResilientRedisClient
+from memory.storage.async_redis_client import AsyncResilientRedisClient
+from memory.storage.mockredis import MockRedis
 
 logger = logging.getLogger(__name__)
 

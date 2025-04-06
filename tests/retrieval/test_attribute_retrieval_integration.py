@@ -8,11 +8,11 @@ import json
 import os
 import time
 
-from agent_memory.config import RedisSTMConfig, RedisIMConfig, SQLiteLTMConfig
-from agent_memory.retrieval.attribute import AttributeRetrieval
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.storage.redis_im import RedisIMStore
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.config import RedisSTMConfig, RedisIMConfig, SQLiteLTMConfig
+from memory.retrieval.attribute import AttributeRetrieval
+from memory.storage.redis_stm import RedisSTMStore
+from memory.storage.redis_im import RedisIMStore
+from memory.storage.sqlite_ltm import SQLiteLTMStore
 
 
 class TestAttributeRetrievalIntegration:

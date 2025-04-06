@@ -5,13 +5,13 @@ import math
 import time
 from typing import Any, Dict, List, Optional, Union
 
-from agent_memory.config import MemoryConfig
-from agent_memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
-from agent_memory.embeddings.compression import CompressionEngine
-# from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
-from agent_memory.storage.redis_im import RedisIMStore
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.config import MemoryConfig
+from memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
+from memory.embeddings.compression import CompressionEngine
+# from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.storage.redis_im import RedisIMStore
+from memory.storage.redis_stm import RedisSTMStore
+from memory.storage.sqlite_ltm import SQLiteLTMStore
 
 logger = logging.getLogger(__name__)
 

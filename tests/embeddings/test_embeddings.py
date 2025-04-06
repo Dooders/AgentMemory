@@ -28,14 +28,14 @@ sys.modules["sentence_transformers"].SentenceTransformer = MagicMock(
 )
 
 # Import after mocking
-# from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
-from agent_memory.embeddings.utils import (
+# from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.utils import (
     cosine_similarity,
     filter_dict_keys,
     flatten_dict,
     object_to_text,
 )
-from agent_memory.embeddings.vector_store import InMemoryVectorIndex, VectorStore
+from memory.embeddings.vector_store import InMemoryVectorIndex, VectorStore
 
 #################################
 # TextEmbeddingEngine Tests

@@ -6,8 +6,8 @@ import logging
 import time
 from typing import Dict, Any
 
-from agent_memory.config import MemoryConfig
-from agent_memory.memory_agent import MemoryAgent
+from memory.config import MemoryConfig
+from memory.memory_agent import MemoryAgent
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)

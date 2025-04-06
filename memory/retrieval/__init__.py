@@ -5,9 +5,9 @@ different storage tiers based on similarity, temporal attributes, and
 specific content attributes.
 """
 
-from agent_memory.retrieval.attribute import AttributeRetrieval
-from agent_memory.retrieval.similarity import SimilarityRetrieval
-from agent_memory.retrieval.temporal import TemporalRetrieval
+from memory.retrieval.attribute import AttributeRetrieval
+from memory.retrieval.similarity import SimilarityRetrieval
+from memory.retrieval.temporal import TemporalRetrieval
 
 __all__ = [
     "SimilarityRetrieval",

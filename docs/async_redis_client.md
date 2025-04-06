@@ -44,7 +44,7 @@ Asynchronous Redis operations provide several key advantages:
 
 ```python
 import asyncio
-from agent_memory.storage.async_redis_client import AsyncResilientRedisClient
+from memory.storage.async_redis_client import AsyncResilientRedisClient
 
 async def main():
     # Create client
@@ -83,7 +83,7 @@ asyncio.run(main())
 ### **4.2 Advanced Usage with Store Retry**
 
 ```python
-from agent_memory.utils.error_handling import Priority
+from memory.utils.error_handling import Priority
 
 async def store_agent_state(agent_id, state_data):
     key = f"agent:{agent_id}:state"

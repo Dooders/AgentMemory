@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional, TypedDict, Union
 
 import numpy as np
 
-from agent_memory.config import RedisSTMConfig
-from agent_memory.utils.error_handling import (
+from memory.config import RedisSTMConfig
+from memory.utils.error_handling import (
     Priority,
     RedisTimeoutError,
     RedisUnavailableError,

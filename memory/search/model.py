@@ -3,8 +3,8 @@
 import logging
 from typing import Any, Dict, List, Optional, Type, Union
 
-from agent_memory.config import MemoryConfig
-from agent_memory.search.strategies.base import SearchStrategy
+from memory.config import MemoryConfig
+from memory.search.strategies.base import SearchStrategy
 
 logger = logging.getLogger(__name__)
 

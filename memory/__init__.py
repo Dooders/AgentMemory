@@ -5,32 +5,32 @@ their experiences, enabling learning and adaptation.
 """
 
 # Core components
-from agent_memory.config import (
+from memory.config import (
     MemoryConfig,
     RedisIMConfig,
     RedisSTMConfig,
     SQLiteLTMConfig,
 )
-from agent_memory.core import AgentMemorySystem
+from memory.core import AgentMemorySystem
 
 # Embedding components
-from agent_memory.embeddings.autoencoder import (
+from memory.embeddings.autoencoder import (
     AutoencoderEmbeddingEngine,
     StateAutoencoder,
 )
-# from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
-from agent_memory.embeddings.compression import CompressionEngine
-from agent_memory.memory_agent import MemoryAgent
+# from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.compression import CompressionEngine
+from memory.memory_agent import MemoryAgent
 
 # Retrieval components
-from agent_memory.retrieval.attribute import AttributeRetrieval
-from agent_memory.retrieval.similarity import SimilarityRetrieval
-from agent_memory.retrieval.temporal import TemporalRetrieval
-from agent_memory.storage.redis_im import RedisIMStore
+from memory.retrieval.attribute import AttributeRetrieval
+from memory.retrieval.similarity import SimilarityRetrieval
+from memory.retrieval.temporal import TemporalRetrieval
+from memory.storage.redis_im import RedisIMStore
 
 # Storage components
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.storage.redis_stm import RedisSTMStore
+from memory.storage.sqlite_ltm import SQLiteLTMStore
 
 __all__ = [
     # Core classes

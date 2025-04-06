@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 from sentence_transformers import SentenceTransformer
 
-from agent_memory.embeddings.utils import object_to_text
+from memory.embeddings.utils import object_to_text
 
 logger = logging.getLogger(__name__)
 

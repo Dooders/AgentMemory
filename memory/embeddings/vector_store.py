@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from agent_memory.embeddings.utils import cosine_similarity
+from memory.embeddings.utils import cosine_similarity
 
 logger = logging.getLogger(__name__)
 

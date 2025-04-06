@@ -4,11 +4,11 @@ This package provides the public API for integrating the Agent Memory System
 with agents, including memory hooks and data models.
 """
 
-from agent_memory.api.hooks import BaseAgent, install_memory_hooks, with_memory
-from agent_memory.api.models import ActionData, ActionResult, AgentState
+from memory.api.hooks import BaseAgent, install_memory_hooks, with_memory
+from memory.api.models import ActionData, ActionResult, AgentState
 
 # Make type definitions available
-from agent_memory.api.types import (
+from memory.api.types import (
     MemoryChangeRecord,
     MemoryEmbeddings,
     MemoryEntry,

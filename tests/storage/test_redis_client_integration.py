@@ -9,8 +9,8 @@ import os
 import time
 import redis
 
-from agent_memory.storage.redis_client import ResilientRedisClient
-from agent_memory.utils.error_handling import Priority
+from memory.storage.redis_client import ResilientRedisClient
+from memory.utils.error_handling import Priority
 
 
 # Check if Redis is available

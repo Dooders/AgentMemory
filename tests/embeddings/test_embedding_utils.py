@@ -16,7 +16,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Import after path setup
-from agent_memory.embeddings.utils import (
+from memory.embeddings.utils import (
     cosine_similarity,
     flatten_dict,
     object_to_text,

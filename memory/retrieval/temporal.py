@@ -8,9 +8,9 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from agent_memory.storage.redis_im import RedisIMStore
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.storage.redis_im import RedisIMStore
+from memory.storage.redis_stm import RedisSTMStore
+from memory.storage.sqlite_ltm import SQLiteLTMStore
 
 logger = logging.getLogger(__name__)
 

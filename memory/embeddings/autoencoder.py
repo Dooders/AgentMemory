@@ -13,8 +13,8 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader, SubsetRandomSampler
 
-from agent_memory.config import AutoencoderConfig
-from agent_memory.embeddings.utils import flatten_dict
+from memory.config import AutoencoderConfig
+from memory.embeddings.utils import flatten_dict
 
 logger = logging.getLogger(__name__)
 

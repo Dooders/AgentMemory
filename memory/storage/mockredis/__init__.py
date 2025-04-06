@@ -25,7 +25,7 @@ sorted sets) and common Redis features (expiration, transactions, pub/sub).
 
 Usage example:
 ```python
-from agent_memory.storage.mockredis import MockRedis
+from memory.storage.mockredis import MockRedis
 
 # Create a mock Redis instance
 redis = MockRedis()

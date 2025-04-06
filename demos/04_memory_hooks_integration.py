@@ -17,8 +17,8 @@ from pprint import pprint
 # Add the project root directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from agent_memory.core import AgentMemorySystem
-from agent_memory.config import MemoryConfig, RedisSTMConfig, RedisIMConfig
+from memory.core import AgentMemorySystem
+from memory.config import MemoryConfig, RedisSTMConfig, RedisIMConfig
 
 # Import common utilities for demos
 from demo_utils import (

@@ -12,10 +12,10 @@ from typing import Any, Dict, List, Optional, TypedDict, Union
 import numpy as np
 import redis
 
-from agent_memory.config import RedisIMConfig
-from agent_memory.storage.redis_client import ResilientRedisClient
-from agent_memory.storage.redis_factory import RedisFactory
-from agent_memory.utils.error_handling import (
+from memory.config import RedisIMConfig
+from memory.storage.redis_client import ResilientRedisClient
+from memory.storage.redis_factory import RedisFactory
+from memory.utils.error_handling import (
     Priority,
     RedisTimeoutError,
     RedisUnavailableError,

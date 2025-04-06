@@ -12,7 +12,7 @@ from typing import Dict, Any, List
 
 import pytest
 
-from agent_memory.utils.serialization import (
+from memory.utils.serialization import (
     MemorySerializer,
     MemoryJSONEncoder,
     memory_json_decoder,

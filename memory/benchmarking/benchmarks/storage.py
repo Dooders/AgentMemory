@@ -12,8 +12,8 @@ import json
 import tempfile
 from typing import Dict, List, Any, Optional
 
-from agent_memory import AgentMemorySystem
-from agent_memory.config import MemoryConfig
+from memory import AgentMemorySystem
+from memory.config import MemoryConfig
 
 
 def generate_test_state(complexity: int = 1) -> Dict[str, Any]:

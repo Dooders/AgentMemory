@@ -28,8 +28,8 @@ similarity to support context-aware agent reasoning.
 
 Usage example:
 ```python
-from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
-from agent_memory.embeddings.vector_store import VectorStore
+from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.vector_store import VectorStore
 
 # Initialize embedding engine
 embedding_engine = TextEmbeddingEngine()
@@ -51,25 +51,25 @@ similar_memories = vector_store.find_similar_memories(vector, tier="stm", limit=
 ```
 """
 
-from agent_memory.embeddings.autoencoder import (
+from memory.embeddings.autoencoder import (
     AgentStateDataset,
     AutoencoderEmbeddingEngine,
     NumericExtractor,
     StateAutoencoder,
 )
-# from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
-from agent_memory.embeddings.utils import (
+# from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.utils import (
     cosine_similarity,
     filter_dict_keys,
     flatten_dict,
     object_to_text,
 )
-from agent_memory.embeddings.vector_store import (
+from memory.embeddings.vector_store import (
     InMemoryVectorIndex,
     VectorIndex,
     VectorStore,
 )
-from agent_memory.embeddings.vector_compression import (
+from memory.embeddings.vector_compression import (
     quantize_vector,
     dequantize_vector,
     compress_vector_rp,

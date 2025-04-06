@@ -5,9 +5,9 @@ import logging
 import time
 from typing import Any, Dict, Optional, Type, TypeVar
 
-from agent_memory.api.models import ActionData, ActionResult, AgentState
-from agent_memory.config import MemoryConfig
-from agent_memory.core import AgentMemorySystem
+from memory.api.models import ActionData, ActionResult, AgentState
+from memory.config import MemoryConfig
+from memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
 

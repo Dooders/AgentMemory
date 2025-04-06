@@ -10,9 +10,9 @@ import time
 import uuid
 import pytest
 
-from agent_memory.config import RedisSTMConfig
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.utils.error_handling import Priority
+from memory.config import RedisSTMConfig
+from memory.storage.redis_stm import RedisSTMStore
+from memory.utils.error_handling import Priority
 
 
 # Skip these tests if integration tests are not enabled

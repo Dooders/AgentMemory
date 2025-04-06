@@ -12,9 +12,9 @@ import json
 import logging
 from typing import Dict, Any, Optional, List
 
-from agent_memory.benchmarking.config import BenchmarkConfig
-from agent_memory.benchmarking.runner import BenchmarkRunner
-from agent_memory.benchmarking.results import BenchmarkResults
+from memory.benchmarking.config import BenchmarkConfig
+from memory.benchmarking.runner import BenchmarkRunner
+from memory.benchmarking.results import BenchmarkResults
 
 
 def parse_args() -> argparse.Namespace:

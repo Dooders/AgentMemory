@@ -12,8 +12,8 @@ import logging
 import zlib
 from typing import Any, Dict, Set
 
-from agent_memory.config import AutoencoderConfig
-from agent_memory.embeddings.utils import filter_dict_keys
+from memory.config import AutoencoderConfig
+from memory.embeddings.utils import filter_dict_keys
 
 logger = logging.getLogger(__name__)
 

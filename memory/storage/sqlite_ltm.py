@@ -15,8 +15,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from agent_memory.config import SQLiteLTMConfig
-from agent_memory.utils.error_handling import SQLitePermanentError, SQLiteTemporaryError
+from memory.config import SQLiteLTMConfig
+from memory.utils.error_handling import SQLitePermanentError, SQLiteTemporaryError
 
 logger = logging.getLogger(__name__)
 

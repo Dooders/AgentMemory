@@ -11,7 +11,7 @@ from typing import Any, Dict, Generator, List, Optional, Set
 import redis
 
 from .serialization import MemorySerializer, deserialize_memory, serialize_memory
-from agent_memory.storage.mockredis import MockRedis
+from memory.storage.mockredis import MockRedis
 
 logger = logging.getLogger(__name__)
 

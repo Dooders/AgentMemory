@@ -3,12 +3,12 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from agent_memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
-from agent_memory.embeddings.vector_store import VectorStore
-from agent_memory.search.strategies.base import SearchStrategy
-from agent_memory.storage.redis_im import RedisIMStore
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
+from memory.embeddings.vector_store import VectorStore
+from memory.search.strategies.base import SearchStrategy
+from memory.storage.redis_im import RedisIMStore
+from memory.storage.redis_stm import RedisSTMStore
+from memory.storage.sqlite_ltm import SQLiteLTMStore
 
 logger = logging.getLogger(__name__)
 

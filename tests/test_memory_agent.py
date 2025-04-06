@@ -26,8 +26,8 @@ import time
 import unittest.mock as mock
 import pytest
 
-from agent_memory.config import MemoryConfig, AutoencoderConfig
-from agent_memory.memory_agent import MemoryAgent
+from memory.config import MemoryConfig, AutoencoderConfig
+from memory.memory_agent import MemoryAgent
 
 
 @pytest.fixture

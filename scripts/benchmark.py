@@ -7,7 +7,7 @@ comparing benchmarks for the Agent Memory System.
 """
 
 import sys
-from agent_memory.benchmarking.cli import main
+from memory.benchmarking.cli import main
 
 if __name__ == "__main__":
     sys.exit(main()) 

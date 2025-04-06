@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch, MagicMock
 import time
 import random
 
-from agent_memory.retrieval.attribute import AttributeRetrieval
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.storage.redis_im import RedisIMStore
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.retrieval.attribute import AttributeRetrieval
+from memory.storage.redis_stm import RedisSTMStore
+from memory.storage.redis_im import RedisIMStore
+from memory.storage.sqlite_ltm import SQLiteLTMStore
 
 
 class TestAttributeRetrievalCombined:

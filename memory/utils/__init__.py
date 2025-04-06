@@ -4,7 +4,7 @@ This package provides various utility functions and classes used throughout
 the agent memory system for serialization, Redis operations, and error handling.
 """
 
-from agent_memory.utils.error_handling import (
+from memory.utils.error_handling import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,
@@ -25,7 +25,7 @@ from agent_memory.utils.error_handling import (
     StoreOperation,
     TransactionError,
 )
-from agent_memory.utils.redis_utils import (
+from memory.utils.redis_utils import (
     RedisBatchProcessor,
     RedisConnectionManager,
     bytes_to_vector,
@@ -41,7 +41,7 @@ from agent_memory.utils.redis_utils import (
     serialize_vector,
     vector_to_bytes,
 )
-from agent_memory.utils.serialization import (
+from memory.utils.serialization import (
     MemorySerializer,
     deserialize_memory,
     from_json,

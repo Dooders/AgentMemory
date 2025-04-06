@@ -5,15 +5,15 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from agent_memory.api.hooks import (
+from memory.api.hooks import (
     BaseAgent,
     get_memory_config,
     install_memory_hooks,
     with_memory,
 )
-from agent_memory.api.models import ActionResult, AgentState
-from agent_memory.config import MemoryConfig
-from agent_memory.core import AgentMemorySystem
+from memory.api.models import ActionResult, AgentState
+from memory.config import MemoryConfig
+from memory.core import AgentMemorySystem
 
 
 class TestAgent(BaseAgent):

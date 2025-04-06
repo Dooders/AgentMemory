@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 import redis
 
-from agent_memory.utils.error_handling import (
+from memory.utils.error_handling import (
     CircuitBreaker,
     CircuitOpenError,
     Priority,

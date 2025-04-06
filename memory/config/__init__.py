@@ -1,7 +1,7 @@
 """Configuration packages for the agent memory system."""
 
 # Import and re-export configuration classes
-from agent_memory.config.memory_config import (
+from memory.config.memory_config import (
     MemoryConfig,
     RedisSTMConfig,
     RedisIMConfig,
@@ -16,7 +16,7 @@ LTMConfig = SQLiteLTMConfig
 
 # Make the Pydantic models available
 try:
-    from agent_memory.config.models import (
+    from memory.config.models import (
         MemoryConfigModel,
         STMConfig as PydanticSTMConfig,
         IMConfig as PydanticIMConfig,

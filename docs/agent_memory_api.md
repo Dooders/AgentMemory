@@ -64,7 +64,7 @@ The memory system maintains five specialized indices for efficient retrieval ope
 The Agent Memory API is available as part of the agent state memory system. Import it directly:
 
 ```python
-from agent_memory.core import AgentMemorySystem
+from memory.core import AgentMemorySystem
 ```
 
 ## Basic Usage
@@ -72,8 +72,8 @@ from agent_memory.core import AgentMemorySystem
 ### Initialization
 
 ```python
-from agent_memory.core import AgentMemorySystem
-from agent_memory.config import MemoryConfig
+from memory.core import AgentMemorySystem
+from memory.config import MemoryConfig
 
 # Initialize with default configuration
 memory_system = AgentMemorySystem.get_instance()
@@ -351,7 +351,7 @@ API methods implement several error recovery approaches:
 ### Example Error Handling
 
 ```python
-from agent_memory.api.memory_api import AgentMemoryAPI, MemoryStoreException, MemoryRetrievalException
+from memory.api.memory_api import AgentMemoryAPI, MemoryStoreException, MemoryRetrievalException
 
 memory_api = AgentMemoryAPI()
 
@@ -508,7 +508,7 @@ results = memory_agent.search_by_embedding(
 The API can be configured using the `MemoryConfig` object:
 
 ```python
-from agent_memory.config import MemoryConfig, RedisSTMConfig
+from memory.config import MemoryConfig, RedisSTMConfig
 
 config = MemoryConfig(
     # System-wide settings

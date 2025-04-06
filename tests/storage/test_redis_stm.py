@@ -9,9 +9,9 @@ import time
 from unittest import mock
 import pytest
 
-from agent_memory.config import RedisSTMConfig
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.utils.error_handling import Priority, RedisTimeoutError, RedisUnavailableError
+from memory.config import RedisSTMConfig
+from memory.storage.redis_stm import RedisSTMStore
+from memory.utils.error_handling import Priority, RedisTimeoutError, RedisUnavailableError
 
 
 @pytest.fixture

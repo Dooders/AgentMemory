@@ -18,8 +18,8 @@ import uuid
 import pytest
 import redis
 
-from agent_memory.config import RedisIMConfig
-from agent_memory.storage.redis_im import RedisIMStore
+from memory.config import RedisIMConfig
+from memory.storage.redis_im import RedisIMStore
 
 # Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration

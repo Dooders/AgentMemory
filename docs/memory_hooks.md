@@ -52,7 +52,7 @@ Memory hooks function as connectors between agents and the memory architecture. 
 Apply memory hooks to all instances of an agent class:
 
 ```python
-from agent_memory.api.hooks import install_memory_hooks, BaseAgent
+from memory.api.hooks import install_memory_hooks, BaseAgent
 
 @install_memory_hooks
 class MyAgent(BaseAgent):
@@ -66,7 +66,7 @@ class MyAgent(BaseAgent):
 Apply memory hooks to a specific agent instance:
 
 ```python
-from agent_memory.api.hooks import with_memory, BaseAgent
+from memory.api.hooks import with_memory, BaseAgent
 
 # Create agent
 agent = BaseAgent(config)
@@ -80,7 +80,7 @@ agent_with_memory = with_memory(agent)
 Memory hooks can be configured through the agent's configuration:
 
 ```python
-from agent_memory.config import MemoryConfig
+from memory.config import MemoryConfig
 
 # Create memory configuration
 memory_config = MemoryConfig(
@@ -175,8 +175,8 @@ def with_memory(agent_instance: T) -> T:
 ### Basic Integration with Existing Agents
 
 ```python
-from agent_memory.api.hooks import install_memory_hooks
-from agent_memory.config import MemoryConfig
+from memory.api.hooks import install_memory_hooks
+from memory.config import MemoryConfig
 from my_project.agents import ExplorerAgent
 
 # Configure memory system
@@ -203,7 +203,7 @@ action_result = agent.act()  # Action is recorded with states before/after
 ### Retrieving Memories from the Agent
 
 ```python
-from agent_memory.api.hooks import with_memory
+from memory.api.hooks import with_memory
 from my_project.agents import SimpleAgent
 
 # Create and enhance agent
@@ -233,8 +233,8 @@ action_history = agent.memory_system.retrieve_by_time_range(
 ### Disabling Memory for Specific Agents
 
 ```python
-from agent_memory.api.hooks import install_memory_hooks
-from agent_memory.config import MemoryConfig
+from memory.api.hooks import install_memory_hooks
+from memory.config import MemoryConfig
 from my_project.agents import SimpleAgent
 
 @install_memory_hooks

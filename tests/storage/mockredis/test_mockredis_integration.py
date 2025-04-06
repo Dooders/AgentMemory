@@ -4,9 +4,9 @@ import pytest
 import time
 import uuid
 
-from agent_memory.config import RedisSTMConfig, RedisIMConfig
-from agent_memory.storage.redis_stm import RedisSTMStore
-from agent_memory.storage.redis_im import RedisIMStore
+from memory.config import RedisSTMConfig, RedisIMConfig
+from memory.storage.redis_stm import RedisSTMStore
+from memory.storage.redis_im import RedisIMStore
 
 
 def create_test_memory():

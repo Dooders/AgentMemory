@@ -283,8 +283,8 @@ To create a complete runnable example, save the following file as `main_demo.py`
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from agent_memory import AgentMemorySystem, MemoryConfig
-from agent_memory.api.hooks import install_memory_hooks
+from memory import AgentMemorySystem, MemoryConfig
+from memory.api.hooks import install_memory_hooks
 
 # Define a simple maze environment
 class MazeEnvironment:

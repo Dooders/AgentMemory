@@ -13,7 +13,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar, Unio
 import redis.asyncio as redis
 from redis.asyncio import ConnectionPool, Redis
 
-from agent_memory.utils.error_handling import (
+from memory.utils.error_handling import (
     AsyncCircuitBreaker,
     AsyncStoreOperation,
     Priority,

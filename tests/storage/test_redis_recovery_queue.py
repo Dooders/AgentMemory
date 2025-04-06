@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch, call
 import time
 import uuid
 
-from agent_memory.storage.redis_client import ResilientRedisClient
-from agent_memory.utils.error_handling import (
+from memory.storage.redis_client import ResilientRedisClient
+from memory.utils.error_handling import (
     Priority,
     RecoveryQueue,
     RedisUnavailableError,

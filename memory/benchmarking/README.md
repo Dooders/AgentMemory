@@ -98,7 +98,7 @@ def benchmark_my_new_test(param1: int = 100, param2: float = 0.5, **kwargs) -> D
 You can create a custom configuration file by extending the default configuration:
 
 ```python
-from agent_memory.benchmarking.config import BenchmarkConfig
+from memory.benchmarking.config import BenchmarkConfig
 
 # Create default config
 config = BenchmarkConfig()

@@ -13,8 +13,8 @@ import traceback
 from typing import Dict, List, Any, Optional, Union, Callable, Tuple, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from agent_memory.benchmarking.config import BenchmarkConfig
-from agent_memory.benchmarking.results import BenchmarkResults
+from memory.benchmarking.config import BenchmarkConfig
+from memory.benchmarking.results import BenchmarkResults
 
 
 # Set up logging

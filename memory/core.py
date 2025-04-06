@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, Union
 import time
 import uuid
 
-from agent_memory.config import MemoryConfig
-from agent_memory.memory_agent import MemoryAgent
+from memory.config import MemoryConfig
+from memory.memory_agent import MemoryAgent
 
 logger = logging.getLogger(__name__)
 
