@@ -65,9 +65,8 @@ def compress_vector_rp(vector: np.ndarray, target_dim: int) -> np.ndarray:
     """
     # Create a random projection matrix
     # For reproducibility, we use a fixed seed
-    np.random.seed(42)
-    projection_matrix = np.random.randn(len(vector), target_dim) / np.sqrt(target_dim)
-
+    rng = np.random.RandomState(42)
+    projection_matrix = rng.randn(len(vector), target_dim) / np.sqrt(target_dim)
     # Project the vector
     return np.dot(vector, projection_matrix)
 
