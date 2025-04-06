@@ -23,7 +23,7 @@ class TestBenchmarkResults:
         assert results.results_dir == "benchmark_results"
         
         # Test with custom path
-        custom_path = "custom_results"
+        custom_path = "tests/benchmarking/test_results"
         results = BenchmarkResults(custom_path)
         assert results.results_dir == custom_path
 

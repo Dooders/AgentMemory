@@ -25,8 +25,8 @@ class TestBenchmarkRunner:
         assert runner.completed_benchmarks == {}
         
         # Test with custom parameters
-        config = BenchmarkConfig(output_dir="custom_output")
-        results_manager = BenchmarkResults("custom_results")
+        config = BenchmarkConfig(output_dir="tests/benchmarking/test_results")
+        results_manager = BenchmarkResults("tests/benchmarking/test_results")
         
         runner = BenchmarkRunner(config=config, results_manager=results_manager)
         assert runner.config is config
