@@ -144,8 +144,8 @@ class TestRedisConnectionManager(unittest.TestCase):
         )
         
         # Connection should be stored in connections dict
-        self.assertIn("localhost:6379:0", manager.connections)
-        self.assertEqual(manager.connections["localhost:6379:0"], connection)
+        self.assertIn("localhost:6379:0:False", manager.connections)
+        self.assertEqual(manager.connections["localhost:6379:0:False"], connection)
     
     def test_get_connection_custom(self, mock_redis):
         """Test getting a connection with custom parameters."""
@@ -168,8 +168,8 @@ class TestRedisConnectionManager(unittest.TestCase):
         )
         
         # Connection should be stored in connections dict
-        self.assertIn("redis.example.com:6380:1", manager.connections)
-        self.assertEqual(manager.connections["redis.example.com:6380:1"], connection)
+        self.assertIn("redis.example.com:6380:1:False", manager.connections)
+        self.assertEqual(manager.connections["redis.example.com:6380:1:False"], connection)
     
     def test_get_connection_reuse(self, mock_redis):
         """Test that connections are reused."""

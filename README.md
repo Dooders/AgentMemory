@@ -140,6 +140,49 @@ config = MemoryConfig(
 memory_system = AgentMemorySystem.get_instance(config)
 ```
 
+### Using MockRedis for Development and Testing
+
+For development or testing without a real Redis server, you can use the built-in MockRedis implementation:
+
+```python
+from agent_memory import MemoryConfig, RedisSTMConfig, RedisIMConfig
+
+# Configure STM with MockRedis
+stm_config = RedisSTMConfig(
+    use_mock=True,  # Use MockRedis instead of real Redis
+    namespace="agent-stm",
+    ttl=3600  # 1 hour
+)
+
+# Configure IM with MockRedis
+im_config = RedisIMConfig(
+    use_mock=True,  # Use MockRedis instead of real Redis
+    namespace="agent-im",
+    ttl=86400  # 24 hours
+)
+
+# Create memory system with MockRedis for both STM and IM
+config = MemoryConfig(
+    stm_config=stm_config,
+    im_config=im_config
+)
+
+memory_system = AgentMemorySystem.get_instance(config)
+```
+
+This allows you to develop and test your agent memory system without setting up a Redis server.
+
+### Redis Connection Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| host | Redis server hostname | "localhost" |
+| port | Redis server port | 6379 |
+| db | Redis database number | 0 (STM), 1 (IM) |
+| password | Redis password | None |
+| use_mock | Use MockRedis instead of real Redis | False |
+| ttl | Time-to-live for memories in seconds | 86400 (STM), 604800 (IM) |
+
 ## Memory Tiers
 
 ### Short-Term Memory (STM)

@@ -57,7 +57,7 @@ from agent_memory.embeddings.autoencoder import (
     NumericExtractor,
     StateAutoencoder,
 )
-from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
+# from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
 from agent_memory.embeddings.utils import (
     cosine_similarity,
     filter_dict_keys,
@@ -69,9 +69,16 @@ from agent_memory.embeddings.vector_store import (
     VectorIndex,
     VectorStore,
 )
+from agent_memory.embeddings.vector_compression import (
+    quantize_vector,
+    dequantize_vector,
+    compress_vector_rp,
+    decompress_vector_rp,
+    CompressionConfig,
+)
 
 __all__ = [
-    "TextEmbeddingEngine",
+    # "TextEmbeddingEngine",
     "AutoencoderEmbeddingEngine",
     "NumericExtractor",
     "StateAutoencoder",
@@ -83,4 +90,9 @@ __all__ = [
     "flatten_dict",
     "object_to_text",
     "filter_dict_keys",
+    "quantize_vector",
+    "dequantize_vector",
+    "compress_vector_rp",
+    "decompress_vector_rp",
+    "CompressionConfig",
 ]

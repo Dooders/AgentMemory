@@ -139,13 +139,14 @@ def test_init():
     )
 
     with mock.patch(
-        "agent_memory.storage.redis_im.ResilientRedisClient"
-    ) as mock_client:
+        "agent_memory.storage.redis_im.RedisFactory.create_client"
+    ) as mock_factory:
         store = RedisIMStore(config)
 
         # Check that Redis client was initialized with correct parameters
-        mock_client.assert_called_once_with(
+        mock_factory.assert_called_once_with(
             client_name="im",
+            use_mock=config.use_mock,
             host="test-host",
             port=1234,
             db=2,

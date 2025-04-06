@@ -19,6 +19,7 @@ from agent_memory.utils.error_handling import (
 )
 
 from .redis_client import ResilientRedisClient
+from .redis_factory import RedisFactory
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +75,10 @@ class RedisSTMStore:
         self.config = config
         self._key_prefix = config.namespace
 
-        # Create resilient Redis client
-        self.redis = ResilientRedisClient(
+        # Create resilient Redis client using the factory
+        self.redis = RedisFactory.create_client(
             client_name="stm",
+            use_mock=config.use_mock,
             host=config.host,
             port=config.port,
             db=config.db,

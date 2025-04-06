@@ -23,10 +23,10 @@ class TestRedisSTMEdgeCases:
         # Create the mock Redis client
         self.mock_redis = mock.MagicMock()
         
-        # Mock the ResilientRedisClient class
-        self.redis_client_patcher = mock.patch('agent_memory.storage.redis_stm.ResilientRedisClient')
-        self.mock_redis_client_class = self.redis_client_patcher.start()
-        self.mock_redis_client_class.return_value = self.mock_redis
+        # Mock the RedisFactory.create_client method instead of ResilientRedisClient
+        self.redis_factory_patcher = mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client')
+        self.mock_redis_factory = self.redis_factory_patcher.start()
+        self.mock_redis_factory.return_value = self.mock_redis
         
         # Set up default successful responses for Redis methods
         self.mock_redis.get.return_value = None
@@ -56,7 +56,7 @@ class TestRedisSTMEdgeCases:
         yield
         
         # Stop patcher after the test
-        self.redis_client_patcher.stop()
+        self.redis_factory_patcher.stop()
     
     def test_store_empty_memory(self):
         """Test storing a nearly empty memory entry."""
@@ -284,8 +284,8 @@ class TestRedisSTMEdgeCases:
     
     def test_circuit_breaker_functionality(self):
         """Test that circuit breaker pattern is used in Redis client."""
-        # The RedisSTMStore should use ResilientRedisClient with circuit breaker
-        with mock.patch('agent_memory.storage.redis_stm.ResilientRedisClient') as mock_client_class:
+        # The RedisSTMStore should use RedisFactory.create_client with circuit breaker settings
+        with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client') as mock_factory:
             # Create configuration
             config = RedisSTMConfig(
                 host="localhost",
@@ -296,12 +296,13 @@ class TestRedisSTMEdgeCases:
                 ttl=3600
             )
             
-            # Create store which should use our mocked client
+            # Create store which should use our mocked factory
             _ = RedisSTMStore(config)
             
-            # Verify client was created with correct parameters
-            mock_client_class.assert_called_once_with(
+            # Verify create_client was called with correct parameters
+            mock_factory.assert_called_once_with(
                 client_name="stm",
+                use_mock=config.use_mock,
                 host="localhost",
                 port=6379,
                 db=0,
@@ -342,7 +343,7 @@ class TestRedisSTMEdgeCases:
             ttl=3600
         )
         
-        with mock.patch('agent_memory.storage.redis_stm.ResilientRedisClient'):
+        with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client'):
             # Should initialize with long namespace
             store = RedisSTMStore(config)
             assert store._key_prefix == long_namespace
@@ -370,7 +371,7 @@ class TestRedisSTMEdgeCases:
             ttl=2147483647  # Close to max 32-bit integer
         )
         
-        with mock.patch('agent_memory.storage.redis_stm.ResilientRedisClient'):
+        with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client'):
             # Should initialize with high TTL
             store = RedisSTMStore(config)
             assert store.config.ttl == 2147483647

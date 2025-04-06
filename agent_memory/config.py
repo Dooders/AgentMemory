@@ -12,6 +12,7 @@ class RedisSTMConfig:
     port: int = 6379
     db: int = 0  # STM uses database 0
     password: Optional[str] = None
+    use_mock: bool = False  # Whether to use MockRedis instead of real Redis
 
     # Memory settings
     ttl: int = 86400  # 24 hours
@@ -39,6 +40,7 @@ class RedisIMConfig:
     port: int = 6379
     db: int = 1  # IM uses database 1
     password: Optional[str] = None
+    use_mock: bool = False  # Whether to use MockRedis instead of real Redis
 
     # Memory settings
     ttl: int = 604800  # 7 days

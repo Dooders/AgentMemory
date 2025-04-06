@@ -11,6 +11,7 @@ from typing import Any, Dict, Generator, List, Optional, Set
 import redis
 
 from .serialization import MemorySerializer, deserialize_memory, serialize_memory
+from agent_memory.storage.mockredis import MockRedis
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ class RedisConnectionManager:
         db: int = 0,
         password: Optional[str] = None,
         decode_responses: bool = True,
+        use_mock: bool = False,
     ) -> redis.Redis:
         """Get or create a Redis connection.
 
@@ -165,25 +167,29 @@ class RedisConnectionManager:
             db: Redis database number
             password: Redis password (if required)
             decode_responses: Whether to decode response bytes to strings
+            use_mock: Whether to use MockRedis instead of real Redis
 
         Returns:
             Redis client instance
         """
         # Create a connection key
-        conn_key = f"{host}:{port}:{db}"
+        conn_key = f"{host}:{port}:{db}:{use_mock}"
 
         # Reuse existing connection if available
         if conn_key in self.connections:
             return self.connections[conn_key]
 
         # Create a new connection
-        client = redis.Redis(
-            host=host,
-            port=port,
-            db=db,
-            password=password,
-            decode_responses=decode_responses,
-        )
+        if use_mock:
+            client = MockRedis()
+        else:
+            client = redis.Redis(
+                host=host,
+                port=port,
+                db=db,
+                password=password,
+                decode_responses=decode_responses,
+            )
 
         # Store for reuse
         self.connections[conn_key] = client
