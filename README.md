@@ -208,7 +208,7 @@ This allows you to develop and test your agent memory system without setting up 
 - Efficient storage of essential information
 - Abstract feature vectors
 
-## Advanced Features
+## Advanced Features (in-development)
 
 ### Neural Compression
 The system uses an autoencoder architecture to generate compressed embeddings:
