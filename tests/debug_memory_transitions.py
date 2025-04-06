@@ -91,7 +91,7 @@ def debug_memory_system():
         logger.error(f"Memory not found in LTM after transition: {original_memory_id}")
     
     # Check database directly
-    from check_db import check_database
+    from tests.check_db import check_database
     logger.info("Checking database content:")
     check_database()
 

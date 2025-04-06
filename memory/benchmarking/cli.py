@@ -254,14 +254,14 @@ def results_command(args: argparse.Namespace) -> int:
         print("Error: Must specify a results command")
         return 1
 
-    # Create results manager
-    results_dir = args.results_dir or "benchmark_results"
-    results_manager = BenchmarkResults(results_dir)
+    # Initialize results manager
+    results_dir = args.results_dir or "benchmarks/results"
+    results = BenchmarkResults(results_dir)
 
     try:
         if args.results_command == "list":
             # List available results
-            result_files = results_manager.list_results(args.category, args.benchmark)
+            result_files = results.list_results(args.category, args.benchmark)
 
             if not result_files:
                 if args.category and args.benchmark:
@@ -279,7 +279,7 @@ def results_command(args: argparse.Namespace) -> int:
             print(f"Found {len(result_files)} result files:")
             for filepath in result_files:
                 try:
-                    result = results_manager.load_result(filepath)
+                    result = results.load_result(filepath)
                     cat = result.get("category", "unknown")
                     bench = result.get("benchmark", "unknown")
                     timestamp = result.get("timestamp", "unknown")
@@ -293,7 +293,7 @@ def results_command(args: argparse.Namespace) -> int:
             # Generate a report
             output_dir = args.output_dir
             try:
-                report_path = results_manager.generate_report(
+                report_path = results.generate_report(
                     args.category, args.benchmark, output_dir
                 )
                 print(f"Report generated: {report_path}")
