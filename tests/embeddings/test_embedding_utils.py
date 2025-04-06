@@ -1,4 +1,4 @@
-"""Unit tests for agent_memory.embeddings utility functions.
+"""Unit tests for memory.embeddings utility functions.
 
 This test suite covers:
 1. Text embedding utility functions

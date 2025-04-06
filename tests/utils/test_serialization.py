@@ -1,6 +1,6 @@
 """Unit tests for serialization utilities.
 
-This module contains tests for the serialization module in agent_memory/utils.
+This module contains tests for the serialization module in memory/utils.
 """
 
 import datetime

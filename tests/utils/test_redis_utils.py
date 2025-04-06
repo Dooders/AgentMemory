@@ -1,6 +1,6 @@
 """Unit tests for Redis utilities.
 
-This module contains tests for the redis_utils module in agent_memory/utils.
+This module contains tests for the redis_utils module in memory/utils.
 """
 
 import struct
@@ -354,7 +354,7 @@ class TestRedisUtilityFunctions(unittest.TestCase):
         mock_client.scan_iter.assert_called_once_with(match="mem:*", count=100)
         self.assertEqual(mock_client.get.call_count, 2)
     
-    @patch('agent_memory.utils.redis_utils.logger')
+    @patch('memory.utils.redis_utils.logger')
     def test_redis_create_index(self, mock_logger, _):
         """Test creating a Redis index."""
         mock_client = MagicMock()

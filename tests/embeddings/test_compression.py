@@ -1,4 +1,4 @@
-"""Unit tests for agent_memory.embeddings.compression module.
+"""Unit tests for memory.embeddings.compression module.
 
 This test suite covers the vector compression functionality for memory embeddings.
 """

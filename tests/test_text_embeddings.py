@@ -4,7 +4,7 @@
 # from unittest.mock import patch, MagicMock
 # import numpy as np
 
-# # Add the project root to the Python path so we can import agent_memory
+# # Add the project root to the Python path so we can import memory
 # sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # # Create a complete mock for SentenceTransformer before importing anything

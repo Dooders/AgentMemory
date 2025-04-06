@@ -7,10 +7,10 @@ The tests use pytest fixtures and mocks to isolate the AgentMemorySystem from it
 dependencies for focused testing of the system's logic.
 
 To run these tests:
-    pytest tests/test_agent_memory_system.py
+    pytest tests/test_memory_system.py
 
 To run with coverage:
-    pytest tests/test_agent_memory_system.py --cov=agent_memory.core
+    pytest tests/test_memory_system.py --cov=memory.core
 
 Test categories:
 - TestAgentMemorySystemBasics: Tests for initialization and configuration
@@ -83,7 +83,7 @@ def memory_system(mock_memory_agent):
     AgentMemorySystem._instance = None
     
     # Mock MemoryAgent creation
-    with mock.patch("agent_memory.core.MemoryAgent", return_value=mock_memory_agent):
+    with mock.patch("memory.core.MemoryAgent", return_value=mock_memory_agent):
         system = AgentMemorySystem.get_instance(config)
     
     return system
@@ -166,7 +166,7 @@ class TestAgentManagement:
         assert agent_id not in memory_system.agents
         
         # Mock the MemoryAgent constructor to return a specific agent
-        with mock.patch("agent_memory.core.MemoryAgent", return_value=mock_memory_agent):
+        with mock.patch("memory.core.MemoryAgent", return_value=mock_memory_agent):
             agent = memory_system.get_memory_agent(agent_id)
         
         assert agent_id in memory_system.agents

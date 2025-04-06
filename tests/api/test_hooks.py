@@ -300,7 +300,7 @@ class TestMemoryHooks:
         )
 
         # Need to patch at module level to catch the decorator's call to get_instance
-        with patch("agent_memory.api.hooks.AgentMemorySystem") as mock_cls:
+        with patch("memory.api.hooks.AgentMemorySystem") as mock_cls:
             mock_cls.get_instance.side_effect = Exception("Test error")
 
             try:
@@ -350,7 +350,7 @@ class TestMemoryHooks:
     def test_with_memory_initialization(self, test_agent, mock_memory_system):
         """Test memory attribute initialization with with_memory decorator."""
         # Create a fresh agent without memory attributes
-        with patch("agent_memory.api.hooks.AgentMemorySystem") as mock_system:
+        with patch("memory.api.hooks.AgentMemorySystem") as mock_system:
             # Configure the mock to not automatically set memory_system
             # so we can test that with_memory properly sets it
             fresh_agent = TestAgent(
@@ -469,7 +469,7 @@ class TestMemoryHooks:
 
         # Try to apply with_memory decorator - this should work despite non-standard agent
         with patch(
-            "agent_memory.api.hooks.AgentMemorySystem.get_instance",
+            "memory.api.hooks.AgentMemorySystem.get_instance",
             return_value=mock_memory_system,
         ):
             try:
@@ -613,7 +613,7 @@ class TestMemoryHooks:
 
     def test_redis_failure_recovery(self, test_agent):
         """Test recovery from Redis failure scenarios."""
-        with patch("agent_memory.api.hooks.AgentMemorySystem") as mock_system_cls:
+        with patch("memory.api.hooks.AgentMemorySystem") as mock_system_cls:
             # Set up mock to simulate Redis failure then recovery
             mock_instance = Mock()
             mock_system_cls.get_instance.return_value = mock_instance

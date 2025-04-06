@@ -24,7 +24,7 @@ class TestRedisSTMEdgeCases:
         self.mock_redis = mock.MagicMock()
         
         # Mock the RedisFactory.create_client method instead of ResilientRedisClient
-        self.redis_factory_patcher = mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client')
+        self.redis_factory_patcher = mock.patch('memory.storage.redis_stm.RedisFactory.create_client')
         self.mock_redis_factory = self.redis_factory_patcher.start()
         self.mock_redis_factory.return_value = self.mock_redis
         
@@ -285,7 +285,7 @@ class TestRedisSTMEdgeCases:
     def test_circuit_breaker_functionality(self):
         """Test that circuit breaker pattern is used in Redis client."""
         # The RedisSTMStore should use RedisFactory.create_client with circuit breaker settings
-        with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client') as mock_factory:
+        with mock.patch('memory.storage.redis_stm.RedisFactory.create_client') as mock_factory:
             # Create configuration
             config = RedisSTMConfig(
                 host="localhost",
@@ -343,7 +343,7 @@ class TestRedisSTMEdgeCases:
             ttl=3600
         )
         
-        with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client'):
+        with mock.patch('memory.storage.redis_stm.RedisFactory.create_client'):
             # Should initialize with long namespace
             store = RedisSTMStore(config)
             assert store._key_prefix == long_namespace
@@ -371,7 +371,7 @@ class TestRedisSTMEdgeCases:
             ttl=2147483647  # Close to max 32-bit integer
         )
         
-        with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client'):
+        with mock.patch('memory.storage.redis_stm.RedisFactory.create_client'):
             # Should initialize with high TTL
             store = RedisSTMStore(config)
             assert store.config.ttl == 2147483647

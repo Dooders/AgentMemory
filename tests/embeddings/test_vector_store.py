@@ -1,4 +1,4 @@
-"""Unit tests for agent_memory.embeddings.vector_store module.
+"""Unit tests for memory.embeddings.vector_store module.
 
 This test suite covers:
 1. RedisVectorIndex - Redis-based vector storage and retrieval
@@ -172,7 +172,7 @@ def mock_indices():
 
 def test_vector_store_init_with_redis(mock_redis_client):
     """Test initializing VectorStore with Redis."""
-    with patch('agent_memory.embeddings.vector_store.RedisVectorIndex') as mock_redis_index:
+    with patch('memory.embeddings.vector_store.RedisVectorIndex') as mock_redis_index:
         store = VectorStore(redis_client=mock_redis_client, namespace="test")
         
         # Should create three Redis indices

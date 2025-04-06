@@ -124,7 +124,7 @@ class TestRedisRecoveryQueue(unittest.TestCase):
         self.assertEqual(enqueue_calls[0][1]["priority"], 3)  # NORMAL priority
         self.assertEqual(enqueue_calls[1][1]["priority"], 2)  # HIGH priority
 
-    @patch('agent_memory.storage.redis_client.RecoveryQueue')
+    @patch('memory.storage.redis_client.RecoveryQueue')
     def test_recovery_queue_integration(self, mock_recovery_queue_class):
         """Test integration with the real RecoveryQueue."""
         # Create a mock queue instance
@@ -132,7 +132,7 @@ class TestRedisRecoveryQueue(unittest.TestCase):
         mock_recovery_queue_class.return_value = mock_queue_instance
         
         # Create a new instance with the patched RecoveryQueue
-        with patch('agent_memory.storage.redis_client.RecoveryQueue', mock_recovery_queue_class):
+        with patch('memory.storage.redis_client.RecoveryQueue', mock_recovery_queue_class):
             client = ResilientRedisClient(
                 client_name="recovery-test-real",
                 retry_policy=self.retry_policy,

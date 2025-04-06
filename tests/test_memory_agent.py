@@ -11,7 +11,7 @@ To run these tests:
     pytest tests/test_memory_agent.py
 
 To run with coverage:
-    pytest tests/test_memory_agent.py --cov=agent_memory
+    pytest tests/test_memory_agent.py --cov=memory
 
 Test categories:
 - TestMemoryAgentBasics: Tests for initialization and configuration
@@ -92,14 +92,14 @@ def memory_agent(mock_stm_store, mock_im_store, mock_ltm_store,
     agent_id = "test-agent"
     config = MemoryConfig()
     config.autoencoder_config.use_neural_embeddings = True
-    config.ltm_config.db_path = "test_agent_memory.db"  # Set a valid db path
+    config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
     
     # Mock store classes before instantiating the agent
-    with mock.patch("agent_memory.memory_agent.RedisSTMStore") as mock_stm_class, \
-         mock.patch("agent_memory.memory_agent.RedisIMStore") as mock_im_class, \
-         mock.patch("agent_memory.memory_agent.SQLiteLTMStore") as mock_ltm_class, \
-         mock.patch("agent_memory.memory_agent.CompressionEngine"), \
-         mock.patch("agent_memory.memory_agent.AutoencoderEmbeddingEngine"):
+    with mock.patch("memory.memory_agent.RedisSTMStore") as mock_stm_class, \
+         mock.patch("memory.memory_agent.RedisIMStore") as mock_im_class, \
+         mock.patch("memory.memory_agent.SQLiteLTMStore") as mock_ltm_class, \
+         mock.patch("memory.memory_agent.CompressionEngine"), \
+         mock.patch("memory.memory_agent.AutoencoderEmbeddingEngine"):
         
         # Configure the mock classes to return our mock instances
         mock_stm_class.return_value = mock_stm_store
@@ -124,13 +124,13 @@ class TestMemoryAgentBasics:
         agent_id = "test-agent"
         config = MemoryConfig()
         config.autoencoder_config.use_neural_embeddings = True
-        config.ltm_config.db_path = "test_agent_memory.db"  # Set a valid db path
+        config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
         
-        with mock.patch("agent_memory.memory_agent.RedisSTMStore") as mock_stm, \
-             mock.patch("agent_memory.memory_agent.RedisIMStore") as mock_im, \
-             mock.patch("agent_memory.memory_agent.SQLiteLTMStore") as mock_ltm, \
-             mock.patch("agent_memory.memory_agent.CompressionEngine") as mock_ce, \
-             mock.patch("agent_memory.memory_agent.AutoencoderEmbeddingEngine") as mock_ae:
+        with mock.patch("memory.memory_agent.RedisSTMStore") as mock_stm, \
+             mock.patch("memory.memory_agent.RedisIMStore") as mock_im, \
+             mock.patch("memory.memory_agent.SQLiteLTMStore") as mock_ltm, \
+             mock.patch("memory.memory_agent.CompressionEngine") as mock_ce, \
+             mock.patch("memory.memory_agent.AutoencoderEmbeddingEngine") as mock_ae:
             
             agent = MemoryAgent(agent_id, config)
             
@@ -149,12 +149,12 @@ class TestMemoryAgentBasics:
         agent_id = "test-agent"
         config = MemoryConfig()
         config.autoencoder_config.use_neural_embeddings = False
-        config.ltm_config.db_path = "test_agent_memory.db"  # Set a valid db path
+        config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
         
-        with mock.patch("agent_memory.memory_agent.RedisSTMStore"), \
-             mock.patch("agent_memory.memory_agent.RedisIMStore"), \
-             mock.patch("agent_memory.memory_agent.SQLiteLTMStore"), \
-             mock.patch("agent_memory.memory_agent.CompressionEngine"):
+        with mock.patch("memory.memory_agent.RedisSTMStore"), \
+             mock.patch("memory.memory_agent.RedisIMStore"), \
+             mock.patch("memory.memory_agent.SQLiteLTMStore"), \
+             mock.patch("memory.memory_agent.CompressionEngine"):
             
             agent = MemoryAgent(agent_id, config)
             assert agent.embedding_engine is None

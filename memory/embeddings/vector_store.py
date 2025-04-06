@@ -495,7 +495,7 @@ class VectorStore:
         stm_dimension: int = 384,
         im_dimension: int = 128,
         ltm_dimension: int = 32,
-        namespace: str = "agent_memory",
+        namespace: str = "memory",
     ):
         """Initialize the vector store.
 

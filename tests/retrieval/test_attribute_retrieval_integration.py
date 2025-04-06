@@ -65,7 +65,7 @@ class TestAttributeRetrievalIntegration:
     @pytest.fixture
     def stm_store(self, mock_redis_client):
         """Create a RedisSTMStore with mocked Redis client."""
-        with patch('agent_memory.storage.redis_client.ResilientRedisClient') as mock_redis_cls:
+        with patch('memory.storage.redis_client.ResilientRedisClient') as mock_redis_cls:
             mock_redis_cls.return_value = mock_redis_client
             config = RedisSTMConfig()
             config.namespace = "test_agent"
@@ -75,7 +75,7 @@ class TestAttributeRetrievalIntegration:
     @pytest.fixture
     def im_store(self, mock_redis_client):
         """Create a RedisIMStore with mocked Redis client."""
-        with patch('agent_memory.storage.redis_client.ResilientRedisClient') as mock_redis_cls:
+        with patch('memory.storage.redis_client.ResilientRedisClient') as mock_redis_cls:
             mock_redis_cls.return_value = mock_redis_client
             config = RedisIMConfig()
             config.namespace = "test_agent"
