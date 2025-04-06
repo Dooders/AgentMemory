@@ -1,4 +1,95 @@
-"""API interface for the agent memory system."""
+"""Agent Memory API Interface Module
+
+This module provides the main API interface for interacting with the agent memory system,
+offering a comprehensive set of operations for storing, retrieving, and managing agent
+memories across different memory tiers.
+
+Key components:
+
+1. AgentMemoryAPI: The primary interface class that provides methods for storing
+   agent states, retrieving memories by various criteria, performing semantic searches,
+   and managing memory lifecycle.
+
+2. Memory Exceptions: A hierarchy of exception classes for different types of memory
+   operations, enabling precise error handling and diagnostics.
+
+3. Caching Utilities: Tools for performance optimization, including a TTL-based
+   caching decorator for expensive memory operations like semantic searches.
+
+4. Logging Utilities: Standardized logging with context for better debugging and
+   monitoring of memory operations.
+
+The API follows a tiered memory architecture inspired by human memory systems:
+- Short-Term Memory (STM): Recent, high-fidelity memories with detailed information
+- Intermediate Memory (IM): Medium-term memories with moderate compression
+- Long-Term Memory (LTM): Persistent, compressed memories retaining core information
+
+Usage example:
+```python
+from memory.api import AgentMemoryAPI
+from memory.config import MemoryConfig
+
+# Initialize API with custom configuration
+config = MemoryConfig(
+    stm_config={"memory_limit": 1000},
+    im_config={"memory_limit": 10000},
+    ltm_config={"memory_limit": 100000}
+)
+memory_api = AgentMemoryAPI(config)
+
+# Store an agent memory
+memory_id = memory_api.store({
+    "agent_id": "agent-001",
+    "step_number": 42,
+    "content": {
+        "observation": "The user asked about their schedule",
+        "thought": "I should check their calendar",
+        "action": "query_calendar"
+    }
+})
+
+# Retrieve memories by similarity
+query = "What was the user's question about their schedule?"
+similar_memories = memory_api.search_by_content(
+    query=query,
+    limit=5,
+    tier="stm"  # Search in short-term memory
+)
+
+# Retrieve memories by time range
+recent_memories = memory_api.get_memories_by_time_range(
+    start_time=time.time() - 3600,  # Last hour
+    end_time=time.time(),
+    agent_id="agent-001"
+)
+
+# Get memory statistics
+stats = memory_api.get_statistics(agent_id="agent-001")
+print(f"Total memories: {stats['total_memories']}")
+print(f"STM: {stats['stm_count']}, IM: {stats['im_count']}, LTM: {stats['ltm_count']}")
+
+# Run memory maintenance
+memory_api.run_maintenance(agent_id="agent-001")
+```
+
+Exception handling example:
+```python
+from memory.api import AgentMemoryAPI
+from memory.api.memory_api import MemoryStoreException, MemoryRetrievalException
+
+memory_api = AgentMemoryAPI()
+
+try:
+    memory = memory_api.get_memory("non_existent_id")
+except MemoryRetrievalException as e:
+    print(f"Memory retrieval error: {e}")
+
+try:
+    memories = memory_api.search_by_content("query", tier="invalid_tier")
+except MemoryConfigException as e:
+    print(f"Configuration error: {e}")
+```
+"""
 
 import heapq
 import logging

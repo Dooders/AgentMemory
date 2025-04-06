@@ -1,7 +1,61 @@
-"""Pydantic models for agent memory system.
+"""Agent Memory Models Module
 
-This module defines data models used throughout the agent memory system,
-providing validation, serialization, and better type safety.
+This module defines structured data models used throughout the agent memory system,
+providing validation, serialization, and consistent typing for memory operations.
+These models serve as the foundation for representing agent states, actions, and
+their relationships in memory.
+
+Key components:
+
+1. AgentState: A standardized representation of an agent's state at a point in time,
+   including positional information, health, resources, and other core attributes
+   common across many agent types.
+
+2. ActionData: A comprehensive record of an agent action, capturing both the state
+   before and after the action, execution metrics, and contextual information
+   needed for memory retrieval and importance calculation.
+
+3. ActionResult: A lightweight representation of an action's outcome, used as the
+   return value for agent action methods, providing a consistent interface for
+   memory hooks.
+
+The models in this module are built using Pydantic, enabling automatic validation,
+serialization to various formats, and schema generation. They provide a consistent
+interface for memory operations while allowing for extensibility through additional
+fields and inheritance.
+
+Usage example:
+```python
+from memory.api.models import AgentState, ActionResult
+from memory.api import AgentMemoryAPI
+
+# Create an agent state
+state = AgentState(
+    agent_id="agent-001",
+    step_number=42,
+    health=0.8,
+    position_x=10.5,
+    position_y=20.3,
+    extra_data={
+        "inventory": ["apple", "sword"],
+        "current_goal": "find the treasure"
+    }
+)
+
+# Convert to dictionary for storage
+state_dict = state.as_dict()
+
+# Create an action result
+result = ActionResult(
+    action_type="move",
+    params={"direction": "north", "distance": 1.5},
+    reward=0.25
+)
+
+# Store in memory system
+memory_api = AgentMemoryAPI()
+memory_id = memory_api.store_state(state_dict)
+```
 """
 
 from typing import Any, Dict, List, Optional, Union
