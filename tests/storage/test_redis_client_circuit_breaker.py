@@ -11,8 +11,8 @@ from unittest.mock import MagicMock, patch
 
 import redis
 
-from agent_memory.storage.redis_client import ResilientRedisClient
-from agent_memory.utils.error_handling import (
+from memory.storage.redis_client import ResilientRedisClient
+from memory.utils.error_handling import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,

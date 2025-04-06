@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import redis
 
-from agent_memory.utils.redis_utils import (
+from memory.utils.redis_utils import (
     serialize_memory_entry,
     deserialize_memory_entry,
     serialize_vector,

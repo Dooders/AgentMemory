@@ -8,12 +8,12 @@ strategies, and how to create custom search strategies.
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from agent_memory.config import MemoryConfig
-from agent_memory.core import AgentMemorySystem
-from agent_memory.search.model import SearchModel
-from agent_memory.search.strategies.base import SearchStrategy
-from agent_memory.search.strategies.similarity import SimilaritySearchStrategy
-from agent_memory.search.strategies.combined import CombinedSearchStrategy
+from memory.config import MemoryConfig
+from memory.core import AgentMemorySystem
+from memory.search.model import SearchModel
+from memory.search.strategies.base import SearchStrategy
+from memory.search.strategies.similarity import SimilaritySearchStrategy
+from memory.search.strategies.combined import CombinedSearchStrategy
 
 
 # Set up logging

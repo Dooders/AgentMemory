@@ -1,6 +1,6 @@
 import unittest
 import time
-from agent_memory.storage.mockredis import MockRedis
+from memory.storage.mockredis import MockRedis
 
 class TestMockRedis(unittest.TestCase):
     def setUp(self):

@@ -602,7 +602,7 @@ The `AsyncResilientRedisClient` is designed to work well with asyncio-based web 
 
 ```python
 from fastapi import FastAPI, Depends
-from agent_memory.storage.async_redis_client import AsyncResilientRedisClient
+from memory.storage.async_redis_client import AsyncResilientRedisClient
 
 app = FastAPI()
 redis_client = None

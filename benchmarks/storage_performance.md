@@ -14,7 +14,7 @@ Measure the rate at which the system can store new memories in each tier.
 
 ### Code Example
 ```python
-from agent_memory import AgentMemorySystem, MemoryConfig
+from memory import AgentMemorySystem, MemoryConfig
 import time
 import random
 

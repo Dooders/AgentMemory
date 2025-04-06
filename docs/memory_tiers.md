@@ -285,8 +285,8 @@ def calculate_importance(memory: Dict[str, Any]) -> float:
 The memory system provides a unified interface for accessing all memory tiers through the central API:
 
 ```python
-from agent_memory.core import AgentMemorySystem
-from agent_memory.config import MemoryConfig
+from memory.core import AgentMemorySystem
+from memory.config import MemoryConfig
 
 # Initialize the memory system
 memory_system = AgentMemorySystem.get_instance(MemoryConfig())

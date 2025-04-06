@@ -17,14 +17,14 @@ from typing import Any, Dict, List, Optional, Union
 # Add the project root directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from agent_memory.config import (
+from memory.config import (
     AutoencoderConfig,
     MemoryConfig,
     RedisIMConfig,
     RedisSTMConfig,
     SQLiteLTMConfig,
 )
-from agent_memory.core import AgentMemorySystem
+from memory.core import AgentMemorySystem
 
 # Path constants
 LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")

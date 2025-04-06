@@ -37,7 +37,7 @@ nn_mock.Dropout.return_value = MagicMock()
 sys.modules["torch"] = torch_mock
 
 # Import after mocking
-from agent_memory.embeddings.autoencoder import (
+from memory.embeddings.autoencoder import (
     AgentStateDataset,
     AutoencoderEmbeddingEngine,
     NumericExtractor,

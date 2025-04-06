@@ -23,7 +23,7 @@ from sklearn.metrics import mean_squared_error
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agent_memory.embeddings.autoencoder import (
+from memory.embeddings.autoencoder import (
     AgentStateDataset,
     AutoencoderEmbeddingEngine,
     StateAutoencoder,

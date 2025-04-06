@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from agent_memory import AgentMemorySystem, MemoryConfig, RedisSTMConfig, RedisIMConfig, SQLiteLTMConfig
-from agent_memory.config import AutoencoderConfig
-from agent_memory.api.hooks import install_memory_hooks
+from memory import AgentMemorySystem, MemoryConfig, RedisSTMConfig, RedisIMConfig, SQLiteLTMConfig
+from memory.config import AutoencoderConfig
+from memory.api.hooks import install_memory_hooks
 
 # Define a simple maze environment
 class MazeEnvironment:

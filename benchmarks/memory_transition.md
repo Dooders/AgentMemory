@@ -15,7 +15,7 @@ Measure how accurately the system preserves information when transferring memori
 
 ### Code Example
 ```python
-from agent_memory import AgentMemorySystem, MemoryConfig
+from memory import AgentMemorySystem, MemoryConfig
 import time
 import numpy as np
 from sklearn.metrics import mean_squared_error

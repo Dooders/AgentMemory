@@ -1,7 +1,7 @@
 import unittest
 import time
 import threading
-from agent_memory.storage.mockredis import MockRedis
+from memory.storage.mockredis import MockRedis
 
 class TestPubSub(unittest.TestCase):
     def setUp(self):

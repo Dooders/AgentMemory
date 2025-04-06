@@ -15,7 +15,7 @@ Measure the time required to perform similarity-based retrieval across different
 
 ### Code Example
 ```python
-from agent_memory import AgentMemorySystem, MemoryConfig
+from memory import AgentMemorySystem, MemoryConfig
 import time
 import random
 import numpy as np

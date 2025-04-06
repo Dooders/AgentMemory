@@ -17,7 +17,7 @@ from unittest.mock import patch, MagicMock, call
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Import after path setup
-from agent_memory.embeddings.vector_store import (
+from memory.embeddings.vector_store import (
     VectorIndex, 
     InMemoryVectorIndex, 
     RedisVectorIndex,

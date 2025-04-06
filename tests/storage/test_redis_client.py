@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, call, patch
 
 import redis
 
-from agent_memory.storage.redis_client import ResilientRedisClient, exponential_backoff
-from agent_memory.utils.error_handling import (
+from memory.storage.redis_client import ResilientRedisClient, exponential_backoff
+from memory.utils.error_handling import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,

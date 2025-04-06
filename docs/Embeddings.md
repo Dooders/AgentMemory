@@ -49,8 +49,8 @@ Common utility functions used across the embedding modules, including cosine sim
 ### Basic Usage with TextEmbeddingEngine
 
 ```python
-from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
-from agent_memory.embeddings.vector_store import VectorStore
+from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.vector_store import VectorStore
 
 # Initialize embedding engine
 embedding_engine = TextEmbeddingEngine(model_name="all-MiniLM-L6-v2")  # Smaller model
@@ -85,8 +85,8 @@ for memory in similar_memories:
 ### Using Memory Compression
 
 ```python
-from agent_memory.embeddings.compression import CompressionEngine
-from agent_memory.config import AutoencoderConfig
+from memory.embeddings.compression import CompressionEngine
+from memory.config import AutoencoderConfig
 
 # Initialize compression engine
 config = AutoencoderConfig()
@@ -120,7 +120,7 @@ original_memory = compression_engine.decompress(ltm_memory)
 ### Working with VectorStore and Multiple Memory Tiers
 
 ```python
-from agent_memory.embeddings import TextEmbeddingEngine, VectorStore
+from memory.embeddings import TextEmbeddingEngine, VectorStore
 import redis
 
 # Create Redis client for production use

@@ -26,9 +26,9 @@ import pytest
 import time
 import logging
 
-from agent_memory.config import MemoryConfig
-from agent_memory.core import AgentMemorySystem
-from agent_memory.memory_agent import MemoryAgent
+from memory.config import MemoryConfig
+from memory.core import AgentMemorySystem
+from memory.memory_agent import MemoryAgent
 
 
 @pytest.fixture

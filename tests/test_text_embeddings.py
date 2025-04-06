@@ -18,7 +18,7 @@
 # sys.modules['sentence_transformers'].SentenceTransformer = MagicMock(return_value=sentence_transformer_mock)
 
 # # Now we can safely import the TextEmbeddingEngine
-# from agent_memory.embeddings.text_embeddings import TextEmbeddingEngine
+# from memory.embeddings.text_embeddings import TextEmbeddingEngine
 
 # def test_text_embedding_engine_init():
 #     """Test that TextEmbeddingEngine initializes correctly."""

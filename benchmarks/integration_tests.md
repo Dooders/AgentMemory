@@ -15,8 +15,8 @@ Measure the performance impact of integrating the memory system via its API inte
 
 ### Code Example
 ```python
-from agent_memory import AgentMemorySystem, MemoryConfig
-from agent_memory.api.memory_api import MemoryAPI
+from memory import AgentMemorySystem, MemoryConfig
+from memory.api.memory_api import MemoryAPI
 import time
 import numpy as np
 import random
@@ -108,8 +108,8 @@ Evaluate the performance and resource impact of using memory hooks for agent int
 
 ### Code Example
 ```python
-from agent_memory import MemoryConfig
-from agent_memory.api.hooks import install_memory_hooks, BaseAgent
+from memory import MemoryConfig
+from memory.api.hooks import install_memory_hooks, BaseAgent
 
 class TestAgentWithoutHooks:
     def __init__(self):
@@ -265,8 +265,8 @@ Evaluate integration with popular agent frameworks and measure the performance i
 import gym
 import time
 import numpy as np
-from agent_memory import AgentMemorySystem, MemoryConfig
-from agent_memory.api.hooks import integrate_with_rllib  # Hypothetical integration
+from memory import AgentMemorySystem, MemoryConfig
+from memory.api.hooks import integrate_with_rllib  # Hypothetical integration
 
 def benchmark_rllib_integration(env_name="CartPole-v1", training_iterations=10):
     # Setup memory system

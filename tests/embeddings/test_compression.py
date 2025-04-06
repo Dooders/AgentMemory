@@ -6,7 +6,7 @@ This test suite covers the vector compression functionality for memory embedding
 import numpy as np
 import pytest
 
-from agent_memory.embeddings.vector_compression import (
+from memory.embeddings.vector_compression import (
     CompressionConfig,
     compress_vector_rp,
     decompress_vector_rp,

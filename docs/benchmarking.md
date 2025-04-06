@@ -214,7 +214,7 @@ Benchmark results are stored in a structured JSON format:
 The benchmarking system uses a configuration system to customize benchmark parameters:
 
 ```python
-from agent_memory.benchmarking.config import BenchmarkConfig
+from memory.benchmarking.config import BenchmarkConfig
 
 # Create default config
 config = BenchmarkConfig()
@@ -233,7 +233,7 @@ config.save("custom_config.json")
 The `BenchmarkResults` class provides methods for analyzing benchmark results:
 
 ```python
-from agent_memory.benchmarking.results import BenchmarkResults
+from memory.benchmarking.results import BenchmarkResults
 
 # Initialize results manager
 results = BenchmarkResults("benchmark_results")

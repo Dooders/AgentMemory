@@ -252,8 +252,8 @@ config = MemoryConfig(
 ## Using the Agent Memory System
 
 ```python
-from agent_memory.core import AgentMemorySystem
-from agent_memory.config import MemoryConfig
+from memory.core import AgentMemorySystem
+from memory.config import MemoryConfig
 
 # Get the singleton instance with default configuration
 memory_system = AgentMemorySystem.get_instance()

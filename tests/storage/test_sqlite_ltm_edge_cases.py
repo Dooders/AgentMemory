@@ -15,9 +15,9 @@ import numpy as np
 import pytest
 import sqlite3
 
-from agent_memory.config import SQLiteLTMConfig
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
-from agent_memory.utils.error_handling import SQLitePermanentError, SQLiteTemporaryError
+from memory.config import SQLiteLTMConfig
+from memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.utils.error_handling import SQLitePermanentError, SQLiteTemporaryError
 
 
 class TestSQLiteLTMStoreEdgeCases:

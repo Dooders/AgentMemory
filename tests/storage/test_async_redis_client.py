@@ -11,8 +11,8 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as redis
 
-from agent_memory.storage.async_redis_client import AsyncResilientRedisClient
-from agent_memory.utils.error_handling import (
+from memory.storage.async_redis_client import AsyncResilientRedisClient
+from memory.utils.error_handling import (
     AsyncCircuitBreaker,
     AsyncStoreOperation,
     Priority,

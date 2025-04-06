@@ -15,8 +15,8 @@ Measure the information retention and quality of neural embeddings after compres
 
 ### Code Example
 ```python
-from agent_memory import AgentMemorySystem, MemoryConfig
-from agent_memory.embeddings.autoencoder import AutoEncoder
+from memory import AgentMemorySystem, MemoryConfig
+from memory.embeddings.autoencoder import AutoEncoder
 import numpy as np
 from sklearn.metrics import mean_squared_error
 

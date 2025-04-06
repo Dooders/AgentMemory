@@ -89,7 +89,7 @@ agent_memory/
 ### Basic Usage
 
 ```python
-from agent_memory import AgentMemorySystem, MemoryConfig
+from memory import AgentMemorySystem, MemoryConfig
 
 # Initialize memory system
 memory_system = AgentMemorySystem.get_instance(MemoryConfig())
@@ -112,9 +112,9 @@ memory_system.store_agent_action(
 ### Using Memory Hooks
 
 ```python
-from agent_memory import MemoryConfig
-from agent_memory.api.hooks import install_memory_hooks
-from agent_memory.api.hooks import BaseAgent
+from memory import MemoryConfig
+from memory.api.hooks import install_memory_hooks
+from memory.api.hooks import BaseAgent
 
 @install_memory_hooks
 class MyAgent(BaseAgent):
@@ -126,7 +126,7 @@ class MyAgent(BaseAgent):
 ### Custom Configuration
 
 ```python
-from agent_memory import MemoryConfig, RedisSTMConfig
+from memory import MemoryConfig, RedisSTMConfig
 
 config = MemoryConfig(
     stm_config=RedisSTMConfig(
@@ -145,7 +145,7 @@ memory_system = AgentMemorySystem.get_instance(config)
 For development or testing without a real Redis server, you can use the built-in MockRedis implementation:
 
 ```python
-from agent_memory import MemoryConfig, RedisSTMConfig, RedisIMConfig
+from memory import MemoryConfig, RedisSTMConfig, RedisIMConfig
 
 # Configure STM with MockRedis
 stm_config = RedisSTMConfig(
@@ -221,7 +221,7 @@ Memories automatically transition between tiers based on:
 ### Vector Similarity Search
 Find similar memories using embedding-based similarity search:
 ```python
-from agent_memory import AgentMemorySystem
+from memory import AgentMemorySystem
 
 similar_states = AgentMemorySystem.get_instance().retrieve_similar_states(
     agent_id="agent1",

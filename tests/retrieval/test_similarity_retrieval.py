@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from agent_memory.retrieval.similarity import SimilarityRetrieval
+from memory.retrieval.similarity import SimilarityRetrieval
 
 
 class TestSimilarityRetrieval:

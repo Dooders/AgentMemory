@@ -13,9 +13,9 @@ from unittest import mock
 import pytest
 import redis
 
-from agent_memory.config import RedisIMConfig
-from agent_memory.storage.redis_im import RedisIMStore
-from agent_memory.utils.error_handling import (
+from memory.config import RedisIMConfig
+from memory.storage.redis_im import RedisIMStore
+from memory.utils.error_handling import (
     Priority,
     RedisTimeoutError,
     RedisUnavailableError,

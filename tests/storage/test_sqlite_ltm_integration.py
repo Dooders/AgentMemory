@@ -13,8 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import pytest
 
-from agent_memory.config import SQLiteLTMConfig
-from agent_memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.config import SQLiteLTMConfig
+from memory.storage.sqlite_ltm import SQLiteLTMStore
 
 
 class TestSQLiteLTMStoreIntegration:

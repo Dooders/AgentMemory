@@ -11,7 +11,7 @@ from pydantic import ValidationError
 sys.modules["torch"] = MagicMock()
 sys.modules["agent_memory.embeddings.autoencoder"] = MagicMock()
 
-from agent_memory.api.memory_api import (
+from memory.api.memory_api import (
     AgentMemoryAPI,
     MemoryConfigException,
     MemoryMaintenanceException,
@@ -19,7 +19,7 @@ from agent_memory.api.memory_api import (
     MemoryStoreException,
     cacheable,
 )
-from agent_memory.api.types import (
+from memory.api.types import (
     ConfigUpdate,
     MemoryChangeRecord,
     MemoryEntry,
@@ -30,9 +30,9 @@ from agent_memory.api.types import (
     QueryResult,
     SimilaritySearchResult,
 )
-from agent_memory.config import MemoryConfig
-from agent_memory.config.models import MemoryConfigModel
-from agent_memory.core import AgentMemorySystem
+from memory.config import MemoryConfig
+from memory.config.models import MemoryConfigModel
+from memory.core import AgentMemorySystem
 
 
 class TestAgentMemoryAPI:
@@ -1320,7 +1320,7 @@ class TestAgentMemoryAPI:
     def test_caching_functionality(self, api):
         """Test the caching functionality."""
         # Import the cacheable decorator
-        from agent_memory.api.memory_api import cacheable
+        from memory.api.memory_api import cacheable
 
         # Test cache with a simple function to avoid mock complexity
         test_cache_calls = 0
@@ -1383,7 +1383,7 @@ class TestAgentMemoryAPI:
 
     def test_cacheable_on_methods(self, api):
         """Test that the cacheable decorator works on class methods."""
-        from agent_memory.api.memory_api import cacheable
+        from memory.api.memory_api import cacheable
 
         # Create a simple class with a cached method for testing
         class TestClass:

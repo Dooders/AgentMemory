@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent_memory.utils.error_handling import (
+from memory.utils.error_handling import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,
