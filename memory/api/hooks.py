@@ -1,4 +1,60 @@
-"""Memory hooks for integrating with agent lifecycle events."""
+"""Agent Memory Hooks Module
+
+This module provides integration mechanisms to automatically capture and retrieve
+agent memories throughout the agent lifecycle. It offers decorators and utility functions
+that hook into standard agent operations without requiring significant code changes
+to existing agent implementations.
+
+Key components:
+
+1. BaseAgent: A minimal agent interface with standard lifecycle methods that can be
+   extended to create memory-aware agents.
+
+2. install_memory_hooks: Class decorator that modifies agent classes to automatically
+   capture memories during initialization, action execution, and state retrieval.
+
+3. with_memory: Instance decorator that adds memory capabilities to existing agent
+   instances without modifying their original class.
+
+4. Hook Utilities: Helper functions for handling memory errors, configuration
+   extraction, and memory attribute initialization.
+
+Memory hooks provide seamless integration with the agent memory system by capturing
+agent states before and after actions, calculating state differences and importance
+scores, and storing relevant memories in the appropriate memory tiers.
+
+Usage example:
+```python
+from memory.api.hooks import install_memory_hooks, BaseAgent
+from memory.config import MemoryConfig
+
+# Define an agent class with memory integration
+@install_memory_hooks
+class MyAgent(BaseAgent):
+    def __init__(self, config=None, agent_id=None):
+        super().__init__(config, agent_id)
+        # Agent-specific initialization
+
+    def act(self, observation):
+        # Memory hooks automatically capture state before this method
+        action_result = self.plan_and_execute(observation)
+        # Memory hooks automatically capture state after this method
+        return action_result
+
+    def get_state(self):
+        # Return current agent state
+        state = super().get_state()
+        state.extra_data["custom_field"] = self.some_internal_state
+        return state
+
+# Create an agent with memory enabled
+agent_config = {"memory_config": MemoryConfig(enable_memory_hooks=True)}
+agent = MyAgent(config=agent_config, agent_id="agent-001")
+
+# Use the agent normally - memories are created automatically
+result = agent.act({"user_input": "What's the weather today?"})
+```
+"""
 
 import functools
 import logging
