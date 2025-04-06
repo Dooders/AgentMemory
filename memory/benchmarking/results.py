@@ -17,7 +17,7 @@ import pandas as pd
 class BenchmarkResults:
     """Class for managing benchmark results."""
 
-    def __init__(self, results_dir: str = "benchmark_results"):
+    def __init__(self, results_dir: str = "benchmarks/results"):
         """Initialize the results manager.
 
         Args:
