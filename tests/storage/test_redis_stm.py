@@ -72,8 +72,8 @@ def mock_redis_client():
 @pytest.fixture
 def stm_store(mock_redis_client):
     """Create a RedisSTMStore with a mock Redis client."""
-    with mock.patch('agent_memory.storage.redis_stm.ResilientRedisClient') as mock_client_class:
-        mock_client_class.return_value = mock_redis_client
+    with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client') as mock_factory:
+        mock_factory.return_value = mock_redis_client
         
         config = RedisSTMConfig(
             host="localhost",
@@ -98,18 +98,19 @@ def test_init():
         ttl=7200
     )
     
-    with mock.patch('agent_memory.storage.redis_stm.ResilientRedisClient') as mock_client:
+    with mock.patch('agent_memory.storage.redis_stm.RedisFactory.create_client') as mock_factory:
         store = RedisSTMStore(config)
         
-        # Verify client was created with correct parameters
-        mock_client.assert_called_once_with(
+        # Verify create_client was called with correct parameters
+        mock_factory.assert_called_once_with(
             client_name="stm",
+            use_mock=config.use_mock,
             host="redis-host",
             port=6380,
             db=1,
             password="password",
             circuit_threshold=3,
-            circuit_reset_timeout=300
+            circuit_reset_timeout=300,
         )
         
         assert store.config is config

@@ -14,6 +14,7 @@ import redis
 
 from agent_memory.config import RedisIMConfig
 from agent_memory.storage.redis_client import ResilientRedisClient
+from agent_memory.storage.redis_factory import RedisFactory
 from agent_memory.utils.error_handling import (
     Priority,
     RedisTimeoutError,
@@ -72,9 +73,10 @@ class RedisIMStore:
         self.config = config
         self._key_prefix = config.namespace
 
-        # Create resilient Redis client
-        self.redis = ResilientRedisClient(
+        # Create resilient Redis client using the factory
+        self.redis = RedisFactory.create_client(
             client_name="im",
+            use_mock=config.use_mock,
             host=config.host,
             port=config.port,
             db=config.db,
