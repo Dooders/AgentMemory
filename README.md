@@ -15,12 +15,14 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 ## Features
 
 - **Hierarchical Storage**: Automatic memory transition between STM, IM, and LTM tiers
-- **Neural Compression**: Autoencoder-based embedding generation for efficient storage (in-development)
+- **Neural Compression**: Autoencoder-based embedding generation for efficient storage
 - **Flexible Integration**: Easy integration with existing agent systems via API or hooks
 - **Priority-Based Memory**: Importance scoring for intelligent memory retention
 - **Vector Search**: Similarity-based memory retrieval using embeddings
 - **Configurable**: Extensive configuration options for all components
 - **Direct Imports**: Import all key classes directly from the root package
+- **Hybrid Retrieval**: Combine vector and attribute-based search for optimal recall
+- **Asynchronous Support**: Async interfaces for high-performance applications
 
 ## Directory Structure
 
@@ -30,34 +32,58 @@ memory/
 ├── core.py              # Core memory system implementation
 ├── config.py            # Configuration classes
 ├── memory_agent.py      # Memory agent implementation
+├── config/              # Configuration components
 ├── embeddings/          # Neural embedding components
+│   ├── __init__.py
 │   ├── autoencoder.py   # Autoencoder for compression
 │   ├── vector_store.py  # Vector storage utilities
-│   └── compression.py   # Compression algorithms
+│   ├── compression.py   # Compression algorithms
+│   ├── text_embeddings.py # Text embedding utilities
+│   ├── utils.py         # Embedding utility functions
+│   └── vector_compression.py # Vector compression methods
 ├── storage/             # Storage backend implementations
+│   ├── __init__.py
 │   ├── redis_stm.py     # Redis STM storage
 │   ├── redis_im.py      # Redis IM storage
-│   └── sqlite_ltm.py    # SQLite LTM storage
+│   ├── sqlite_ltm.py    # SQLite LTM storage
+│   ├── redis_client.py  # Redis client implementation
+│   ├── async_redis_client.py # Async Redis client
+│   ├── redis_factory.py # Redis connection factory
+│   └── mockredis/       # Mock Redis implementation for testing
 ├── retrieval/           # Memory retrieval components
 │   ├── similarity.py    # Similarity search
 │   ├── temporal.py      # Time-based retrieval
 │   └── attribute.py     # Attribute-based retrieval
+├── search/              # Search components
 ├── api/                 # API interfaces
 │   ├── memory_api.py    # Main API interface
 │   └── hooks.py         # Agent integration hooks
-└── utils/               # Utility functions
-    ├── serialization.py
-    └── redis_utils.py
+├── utils/               # Utility functions
+│   ├── serialization.py
+│   └── redis_utils.py
+└── benchmarking/        # Performance benchmarking tools
 ```
 
 ## Requirements
 
 - Python 3.8+
-- PyTorch
 - Redis
-- SQLite
-- NumPy
 - SQLAlchemy
+- NumPy
+- pandas
+- PyTorch
+- transformers
+- pydantic
+- typing-extensions
+- jsonschema
+- pyarrow
+- tenacity
+- tqdm
+- loguru
+- python-dotenv
+- deepdiff
+- faiss-cpu
+- sqlite3-plus
 
 ## Installation
 
@@ -205,7 +231,7 @@ This allows you to develop and test your agent memory system without setting up 
 
 ## Advanced Features
 
-### Neural Compression (in-development)
+### Neural Compression
 The system uses an autoencoder architecture to generate compressed embeddings:
 - STM: 384-dimensional embeddings
 - IM: 128-dimensional embeddings
@@ -227,6 +253,20 @@ similar_states = AgentMemorySystem.get_instance().retrieve_similar_states(
     agent_id="agent1",
     query_state=current_state,
     k=10
+)
+```
+
+### Hybrid Retrieval
+Combine vector-based and attribute-based search for optimal recall:
+```python
+from memory import AgentMemorySystem
+
+memories = AgentMemorySystem.get_instance().hybrid_retrieve(
+    agent_id="agent1",
+    query_state=current_state,
+    k=10,
+    vector_weight=0.7,
+    attribute_weight=0.3
 )
 ```
 ---
