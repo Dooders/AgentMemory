@@ -29,61 +29,40 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 ```
 memory/
 ├── __init__.py
-├── core.py              # Core memory system implementation
-├── config.py            # Configuration classes
-├── memory_agent.py      # Memory agent implementation
-├── config/              # Configuration components
-├── embeddings/          # Neural embedding components
+├── core.py                     # Core memory system implementation
+├── config.py                   # Configuration classes
+├── memory_agent.py             # Memory agent implementation
+├── config/                     # Configuration components
+├── embeddings/                 # Neural embedding components
 │   ├── __init__.py
-│   ├── autoencoder.py   # Autoencoder for compression
-│   ├── vector_store.py  # Vector storage utilities
-│   ├── compression.py   # Compression algorithms
-│   ├── text_embeddings.py # Text embedding utilities
-│   ├── utils.py         # Embedding utility functions
-│   └── vector_compression.py # Vector compression methods
-├── storage/             # Storage backend implementations
+│   ├── autoencoder.py          # Autoencoder for compression
+│   ├── vector_store.py         # Vector storage utilities
+│   ├── compression.py          # Compression algorithms
+│   ├── text_embeddings.py      # Text embedding utilities
+│   ├── utils.py                # Embedding utility functions
+│   └── vector_compression.py   # Vector compression methods
+├── storage/                    # Storage backend implementations
 │   ├── __init__.py
-│   ├── redis_stm.py     # Redis STM storage
-│   ├── redis_im.py      # Redis IM storage
-│   ├── sqlite_ltm.py    # SQLite LTM storage
-│   ├── redis_client.py  # Redis client implementation
-│   ├── async_redis_client.py # Async Redis client
-│   ├── redis_factory.py # Redis connection factory
-│   └── mockredis/       # Mock Redis implementation for testing
-├── retrieval/           # Memory retrieval components
-│   ├── similarity.py    # Similarity search
-│   ├── temporal.py      # Time-based retrieval
-│   └── attribute.py     # Attribute-based retrieval
-├── search/              # Search components
-├── api/                 # API interfaces
-│   ├── memory_api.py    # Main API interface
-│   └── hooks.py         # Agent integration hooks
-├── utils/               # Utility functions
+│   ├── redis_stm.py            # Redis STM storage
+│   ├── redis_im.py             # Redis IM storage
+│   ├── sqlite_ltm.py           # SQLite LTM storage
+│   ├── redis_client.py         # Redis client implementation
+│   ├── async_redis_client.py   # Async Redis client
+│   ├── redis_factory.py        # Redis connection factory
+│   └── mockredis/              # Mock Redis implementation for testing
+├── retrieval/                  # Memory retrieval components
+│   ├── similarity.py           # Similarity search
+│   ├── temporal.py             # Time-based retrieval
+│   └── attribute.py            # Attribute-based retrieval
+├── search/                     # Search components
+├── api/                        # API interfaces
+│   ├── memory_api.py           # Main API interface
+│   └── hooks.py                # Agent integration hooks
+├── utils/                      # Utility functions
 │   ├── serialization.py
 │   └── redis_utils.py
-└── benchmarking/        # Performance benchmarking tools
+└── benchmarking/               # Performance benchmarking tools
 ```
-
-## Requirements
-
-- Python 3.8+
-- Redis
-- SQLAlchemy
-- NumPy
-- pandas
-- PyTorch
-- transformers
-- pydantic
-- typing-extensions
-- jsonschema
-- pyarrow
-- tenacity
-- tqdm
-- loguru
-- python-dotenv
-- deepdiff
-- faiss-cpu
-- sqlite3-plus
 
 ## Installation
 
