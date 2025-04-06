@@ -174,10 +174,21 @@ class RedisFactory:
             Async Redis client instance
         """
         if use_mock:
-            logger.info(f"Creating async MockRedis client '{client_name}'")
-            # For async client with MockRedis, we need a different approach
-            # since AsyncResilientRedisClient uses a different Redis library
-            client = AsyncResilientRedisClient(
+            logger.info(f"Creating MockRedis client '{client_name}'")
+            
+            # Create a custom ResilientRedisClient that uses MockRedis
+            class MockResilientRedisClient(ResilientRedisClient):
+                def _create_redis_client(self):
+                    # Override the method to return a MockRedis instance
+                    return MockRedis(
+                        host=self.connection_params["connection_pool"].connection_kwargs.get("host"),
+                        port=self.connection_params["connection_pool"].connection_kwargs.get("port"),
+                        db=self.connection_params["connection_pool"].connection_kwargs.get("db"),
+                        password=self.connection_params["connection_pool"].connection_kwargs.get("password"),
+                    )
+            
+            # Create client with MockRedis via dependency injection
+            return MockResilientRedisClient(
                 client_name=client_name,
                 host=host,
                 port=port,
@@ -193,12 +204,6 @@ class RedisFactory:
                 max_connections=max_connections,
                 health_check_interval=health_check_interval,
             )
-            
-            # Replace client's Redis implementation with MockRedis
-            # Note: This is a simplified approach that might need additional work
-            # for full compatibility with async operations
-            client._use_mock = True
-            return client
         else:
             logger.info(f"Creating real async Redis client '{client_name}' (host={host}, port={port}, db={db})")
             # Create client with real Redis
