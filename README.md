@@ -25,7 +25,7 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 ## Directory Structure
 
 ```
-agent_memory/
+memory/
 ├── __init__.py
 ├── core.py              # Core memory system implementation
 ├── config.py            # Configuration classes

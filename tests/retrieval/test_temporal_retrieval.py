@@ -287,7 +287,7 @@ class TestTemporalRetrieval:
         """Test retrieving a narrative sequence when central memory is not found."""
         mock_stm_store.get.return_value = None
         
-        with patch('agent_memory.retrieval.temporal.logger') as mock_logger:
+        with patch('memory.retrieval.temporal.logger') as mock_logger:
             result = retriever.retrieve_narrative_sequence(memory_id="nonexistent")
             
             # Check that the correct warnings were logged
@@ -308,7 +308,7 @@ class TestTemporalRetrieval:
         
         mock_stm_store.get.return_value = central_memory
         
-        with patch('agent_memory.retrieval.temporal.logger') as mock_logger:
+        with patch('memory.retrieval.temporal.logger') as mock_logger:
             result = retriever.retrieve_narrative_sequence(memory_id="mem_no_step")
             
             # Check that the correct warnings were logged

@@ -1,4 +1,4 @@
-"""Unit tests for agent_memory.embeddings modules.
+"""Unit tests for memory.embeddings modules.
 
 This test suite covers:
 1. TextEmbeddingEngine - text-to-vector encoding with context weights

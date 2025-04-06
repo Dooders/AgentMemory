@@ -24,7 +24,7 @@ from memory.utils.error_handling import (
 def mock_redis_client():
     """Create a mock Redis client for testing."""
     with mock.patch(
-        "agent_memory.storage.redis_client.ResilientRedisClient"
+        "memory.storage.redis_client.ResilientRedisClient"
     ) as mock_client:
         # Configure the mock to return success for store operations
         mock_client.return_value.store_with_retry.return_value = True
@@ -118,7 +118,7 @@ def im_store(mock_redis_client):
         host="localhost",
         port=6379,
         db=1,
-        namespace="test_agent_memory:im",
+        namespace="test_memory:im",
         ttl=604800,  # 7 days
     )
     store = RedisIMStore(config)
@@ -139,7 +139,7 @@ def test_init():
     )
 
     with mock.patch(
-        "agent_memory.storage.redis_im.RedisFactory.create_client"
+        "memory.storage.redis_im.RedisFactory.create_client"
     ) as mock_factory:
         store = RedisIMStore(config)
 
@@ -341,7 +341,7 @@ def test_get_memory(im_store):
 
     # Verify hgetall was called with correct key
     im_store.redis.hgetall.assert_called_with(
-        "test_agent_memory:im:agent1:memory:memory1"
+        "test_memory:im:agent1:memory:memory1"
     )
 
     # Verify eval was called for update metadata
@@ -443,7 +443,7 @@ def test_get_by_timerange(im_store):
     # Verify zrangebyscore was called with correct parameters
     im_store.redis.zrangebyscore.assert_called_once()
     args, kwargs = im_store.redis.zrangebyscore.call_args
-    assert args[0] == "test_agent_memory:im:agent1:timeline"
+    assert args[0] == "test_memory:im:agent1:timeline"
     assert kwargs["min"] == 0
     assert kwargs["max"] > time.time()
     assert kwargs["start"] == 0
@@ -509,7 +509,7 @@ def test_get_by_importance(im_store):
     # Verify zrangebyscore was called with correct parameters
     im_store.redis.zrangebyscore.assert_called_once()
     args, kwargs = im_store.redis.zrangebyscore.call_args
-    assert args[0] == "test_agent_memory:im:agent1:importance"
+    assert args[0] == "test_memory:im:agent1:importance"
     assert kwargs["min"] == 0.4
     assert kwargs["max"] == 0.8
     assert kwargs["start"] == 0
@@ -620,7 +620,7 @@ def test_count(im_store):
     assert count == 2
 
     # Verify zcard was called with correct key
-    im_store.redis.zcard.assert_called_once_with("test_agent_memory:im:agent1:memories")
+    im_store.redis.zcard.assert_called_once_with("test_memory:im:agent1:memories")
 
 
 def test_count_redis_error(im_store):
@@ -775,7 +775,7 @@ def test_get_all(im_store):
     # Verify zrange was called with correct parameters
     im_store.redis.zrange.assert_called_once()
     args, kwargs = im_store.redis.zrange.call_args
-    assert args[0] == "test_agent_memory:im:agent1:memories"
+    assert args[0] == "test_memory:im:agent1:memories"
     assert args[1] == 0
     assert args[2] == 9  # limit - 1
     assert kwargs["desc"] is True
@@ -794,9 +794,9 @@ def test_get_size(im_store):
     # Mock scan_iter to return a list of keys
     im_store.redis.scan_iter = mock.MagicMock(
         return_value=[
-            "test_agent_memory:im:agent1:memory:memory1",
-            "test_agent_memory:im:agent1:memory:memory2",
-            "test_agent_memory:im:agent1:memory:memory3",
+            "test_memory:im:agent1:memory:memory1",
+            "test_memory:im:agent1:memory:memory2",
+            "test_memory:im:agent1:memory:memory3",
         ]
     )
 
@@ -835,7 +835,7 @@ def test_get_size(im_store):
 
     # Verify scan_iter was called with correct pattern
     im_store.redis.scan_iter.assert_called_once_with(
-        match="test_agent_memory:im:agent1:memory:*"
+        match="test_memory:im:agent1:memory:*"
     )
 
     # Verify pipeline was created and executed
@@ -904,12 +904,12 @@ def test_search_similar_with_vector_search(im_store):
     # Set up mock response for vector search
     mock_search_results = [
         2,  # Number of results
-        b"test_agent_memory:im:agent1:memory:memory1",
+        b"test_memory:im:agent1:memory:memory1",
         [
             [b"$", b'{"memory_id":"memory1","content":"Test memory 1"}'],
             [b"__vector_score", b"0.8"],
         ],
-        b"test_agent_memory:im:agent1:memory:memory2",
+        b"test_memory:im:agent1:memory:memory2",
         [
             [b"$", b'{"memory_id":"memory2","content":"Test memory 2"}'],
             [b"__vector_score", b"0.6"],
@@ -993,7 +993,7 @@ def test_search_by_attributes_redis(im_store):
     # Set up mock response for attribute search
     mock_search_results = [
         1,  # Number of results
-        b"test_agent_memory:im:agent1:memory:memory1",
+        b"test_memory:im:agent1:memory:memory1",
         [
             [
                 b"$",
@@ -1041,9 +1041,9 @@ def test_search_by_step_range_redis(im_store):
     # Set up mock response for step range search
     mock_search_results = [
         2,  # Number of results
-        b"test_agent_memory:im:agent1:memory:memory1",
+        b"test_memory:im:agent1:memory:memory1",
         [[b"$", b'{"memory_id":"memory1","step_number":5,"content":"Step 5"}']],
-        b"test_agent_memory:im:agent1:memory:memory2",
+        b"test_memory:im:agent1:memory:memory2",
         [[b"$", b'{"memory_id":"memory2","step_number":6,"content":"Step 6"}']],
     ]
 
@@ -1102,7 +1102,7 @@ def test_cosine_similarity():
         host="localhost",
         port=6379,
         db=1,
-        namespace="test_agent_memory:im",
+        namespace="test_memory:im",
     )
     store = RedisIMStore(config)
 

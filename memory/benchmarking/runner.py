@@ -30,12 +30,12 @@ class BenchmarkRunner:
     
     # Mapping of benchmark categories to their module paths
     BENCHMARK_MODULES = {
-        "storage": "agent_memory.benchmarking.benchmarks.storage",
-        "compression": "agent_memory.benchmarking.benchmarks.compression",
-        "memory_transition": "agent_memory.benchmarking.benchmarks.memory_transition",
-        "retrieval": "agent_memory.benchmarking.benchmarks.retrieval",
-        "scalability": "agent_memory.benchmarking.benchmarks.scalability",
-        "integration": "agent_memory.benchmarking.benchmarks.integration"
+        "storage": "memory.benchmarking.benchmarks.storage",
+        "compression": "memory.benchmarking.benchmarks.compression",
+        "memory_transition": "memory.benchmarking.benchmarks.memory_transition",
+        "retrieval": "memory.benchmarking.benchmarks.retrieval",
+        "scalability": "memory.benchmarking.benchmarks.scalability",
+        "integration": "memory.benchmarking.benchmarks.integration"
     }
     
     def __init__(self, config: Optional[BenchmarkConfig] = None,

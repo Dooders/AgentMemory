@@ -28,7 +28,7 @@ from memory.core import AgentMemorySystem
 
 # Path constants
 LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../agent_memory.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../memory.db")
 
 
 def setup_logging(demo_name: str) -> logging.Logger:

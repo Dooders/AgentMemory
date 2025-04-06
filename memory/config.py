@@ -19,7 +19,7 @@ class RedisSTMConfig:
     memory_limit: int = 1000  # Max entries per agent
 
     # Redis key prefixes
-    namespace: str = "agent_memory:stm"
+    namespace: str = "memory:stm"
 
     @property
     def connection_params(self):
@@ -48,7 +48,7 @@ class RedisIMConfig:
     compression_level: int = 1  # Level 1 compression
 
     # Redis key prefixes
-    namespace: str = "agent_memory:im"
+    namespace: str = "memory:im"
 
     @property
     def connection_params(self):
@@ -65,14 +65,14 @@ class RedisIMConfig:
 class SQLiteLTMConfig:
     """Configuration for Long-Term Memory (SQLite)."""
 
-    db_path: str = "agent_memory.db"
+    db_path: str = "memory.db"
 
     # Memory settings
     compression_level: int = 2  # Level 2 compression
     batch_size: int = 100  # Number of entries to batch write
 
     # Table naming
-    table_prefix: str = "agent_ltm"
+    table_prefix: str = "memory_ltm"
 
 
 @dataclass

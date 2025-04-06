@@ -1,6 +1,6 @@
 """Unit tests for error handling utilities.
 
-This module contains tests for the error_handling module in agent_memory/utils.
+This module contains tests for the error_handling module in memory/utils.
 """
 
 import enum

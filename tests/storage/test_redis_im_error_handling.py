@@ -26,7 +26,7 @@ from memory.utils.error_handling import (
 def mock_redis_client():
     """Create a mock Redis client for testing error handling."""
     with mock.patch(
-        "agent_memory.storage.redis_client.ResilientRedisClient"
+        "memory.storage.redis_client.ResilientRedisClient"
     ) as mock_client:
         # Configure the mock with basic functionality
         mock_client.return_value.pipeline.return_value = mock.MagicMock()
@@ -40,7 +40,7 @@ def im_store(mock_redis_client):
         host="localhost",
         port=6379,
         db=1,
-        namespace="test_agent_memory:im",
+        namespace="test_memory:im",
         ttl=604800,  # 7 days
     )
     store = RedisIMStore(config)
@@ -53,7 +53,7 @@ def im_store(mock_redis_client):
 @pytest.fixture
 def mock_logger():
     """Create a mock logger to test logging behavior."""
-    with mock.patch("agent_memory.storage.redis_im.logger") as mock_logger:
+    with mock.patch("memory.storage.redis_im.logger") as mock_logger:
         yield mock_logger
 
 

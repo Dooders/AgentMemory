@@ -502,7 +502,7 @@ async def test_store_with_retry_failure_critical_priority(async_client):
     state_data = {"key": "value"}
 
     with patch(
-        "agent_memory.storage.async_redis_client.async_exponential_backoff", AsyncMock()
+        "memory.storage.async_redis_client.async_exponential_backoff", AsyncMock()
     ) as mock_backoff:
         result = await async_client.store_with_retry(
             agent_id, state_data, store_func, priority=Priority.CRITICAL
@@ -528,7 +528,7 @@ async def test_store_with_retry_failure_critical_all_retries_fail(async_client):
     async_client.critical_retry_attempts = 2
 
     with patch(
-        "agent_memory.storage.async_redis_client.async_exponential_backoff", AsyncMock()
+        "memory.storage.async_redis_client.async_exponential_backoff", AsyncMock()
     ):
         result = await async_client.store_with_retry(
             agent_id, state_data, store_func, priority=Priority.CRITICAL
