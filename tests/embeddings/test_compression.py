@@ -3,18 +3,10 @@
 This test suite covers the vector compression functionality for memory embeddings.
 """
 
-import os
-import sys
-from unittest.mock import MagicMock, patch
-
 import numpy as np
 import pytest
 
-# Add the project root to the Python path if needed
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# Import after path setup
-from agent_memory.embeddings.compression import (
+from agent_memory.embeddings.vector_compression import (
     CompressionConfig,
     compress_vector_rp,
     decompress_vector_rp,
