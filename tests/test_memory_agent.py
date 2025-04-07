@@ -27,7 +27,7 @@ import unittest.mock as mock
 import pytest
 
 from memory.config import MemoryConfig, AutoencoderConfig
-from memory.memory_agent import MemoryAgent
+from memory.agent_memory import MemoryAgent
 
 
 @pytest.fixture

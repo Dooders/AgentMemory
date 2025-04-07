@@ -180,7 +180,7 @@ def run_experiment(episodes=20, memory_enabled=True):
     env = MazeEnvironment(size=size, obstacles=obstacles)
     
     # Create agent based on memory flag
-    agent_id = "memory_agent" if memory_enabled else "standard_agent"
+    agent_id = "agent_memory" if memory_enabled else "standard_agent"
     if memory_enabled:
         # Completely disable memory compression and neural embeddings
         # 1. Create autoencoder config with neural embeddings disabled

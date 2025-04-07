@@ -64,7 +64,7 @@ The memory system maintains five specialized indices for efficient retrieval ope
 The Agent Memory API is available as part of the agent state memory system. Import it directly:
 
 ```python
-from memory.core import AgentMemorySystem
+from memory.api import AgentMemoryAPI
 ```
 
 ## Basic Usage
@@ -72,25 +72,25 @@ from memory.core import AgentMemorySystem
 ### Initialization
 
 ```python
-from memory.core import AgentMemorySystem
+from memory.api import AgentMemoryAPI
 from memory.config import MemoryConfig
 
 # Initialize with default configuration
-memory_system = AgentMemorySystem.get_instance()
+memory_api = AgentMemoryAPI()
 
 # Or, initialize with custom configuration
 config = MemoryConfig(
     cleanup_interval=100,
     stm_config={"memory_limit": 10000}
 )
-memory_system = AgentMemorySystem.get_instance(config)
+memory_api = AgentMemoryAPI(config)
 ```
 
 ### Storing Agent Information
 
 ```python
 # Store an agent's state
-memory_system.store_agent_state(
+memory_api.store_agent_state(
     agent_id="agent-123",
     state_data={
         "position": [10, 20],
@@ -102,7 +102,7 @@ memory_system.store_agent_state(
 )
 
 # Store an interaction
-memory_system.store_agent_interaction(
+memory_api.store_agent_interaction(
     agent_id="agent-123",
     interaction_data={
         "interaction_type": "conversation",
@@ -114,7 +114,7 @@ memory_system.store_agent_interaction(
 )
 
 # Store an action
-memory_system.store_agent_action(
+memory_api.store_agent_action(
     agent_id="agent-123",
     action_data={
         "action_type": "trade",
@@ -127,11 +127,44 @@ memory_system.store_agent_action(
 )
 ```
 
+### Using Structured Models
+
+The API provides structured data models for consistent representation of agent states and actions:
+
+```python
+from memory.api import AgentState, ActionResult, ActionData
+
+# Create a structured agent state
+agent_state = AgentState(
+    agent_id="agent-123",
+    step_number=1234,
+    health=0.85,
+    position_x=10,
+    position_y=20,
+    extra_data={"inventory": {"wood": 5, "stone": 2}}
+)
+
+# Store the state using the model
+state_dict = agent_state.as_dict()
+memory_api.store_agent_state(
+    agent_id=agent_state.agent_id,
+    state_data=state_dict,
+    step_number=agent_state.step_number
+)
+
+# Create an action result
+result = ActionResult(
+    action_type="trade",
+    params={"target": "agent-456", "item": "wood"},
+    reward=0.5
+)
+```
+
 ### Retrieving Memories
 
 ```python
 # Get memory agent instance for more specialized operations
-memory_agent = memory_system.get_memory_agent("agent-123")
+memory_agent = memory_api.get_memory_agent("agent-123")
 
 # Get recent states
 recent_states = memory_agent.retrieve_recent_states(
@@ -141,14 +174,14 @@ recent_states = memory_agent.retrieve_recent_states(
 
 # Find similar states
 current_state = {"position": [12, 22], "health": 0.8}
-similar_states = memory_system.retrieve_similar_states(
+similar_states = memory_api.retrieve_similar_states(
     agent_id="agent-123",
     query_state=current_state,
     k=5
 )
 
 # Get memories within a time range
-memories = memory_system.retrieve_by_time_range(
+memories = memory_api.retrieve_by_time_range(
     agent_id="agent-123",
     start_step=1000,
     end_step=2000,
@@ -156,7 +189,7 @@ memories = memory_system.retrieve_by_time_range(
 )
 
 # Find memories with specific attributes
-trading_memories = memory_system.retrieve_by_attributes(
+trading_memories = memory_api.retrieve_by_attributes(
     agent_id="agent-123",
     attributes={"action_type": "trade", "outcome": "success"},
     memory_type="action"
@@ -167,19 +200,62 @@ trading_memories = memory_system.retrieve_by_attributes(
 
 ```python
 # Force memory maintenance (tier transitions)
-memory_system.force_memory_maintenance(agent_id="agent-123")
+memory_api.force_memory_maintenance(agent_id="agent-123")
 
 # Get memory statistics
-stats = memory_system.get_memory_statistics(agent_id="agent-123")
+stats = memory_api.get_memory_statistics(agent_id="agent-123")
 print(f"Total memories: {stats['total_memories']}")
 print(f"Memory distribution: {stats['memory_type_distribution']}")
 
 # Clear the cache to free up memory and ensure fresh results
-memory_system.clear_cache()
+memory_api.clear_cache()
 
 # Configure cache TTL for balancing memory usage and performance
-memory_system.set_cache_ttl(300)  # 5 minutes
+memory_api.set_cache_ttl(300)  # 5 minutes
 ```
+
+## Memory Hooks System
+
+The Agent Memory API includes a hooks system that allows automatic capture of agent memories during agent execution without modifying existing agent logic.
+
+### Using Memory Hooks
+
+```python
+from memory.api import install_memory_hooks, BaseAgent, with_memory
+
+# Option 1: Class decorator approach
+@install_memory_hooks
+class MyAgent(BaseAgent):
+    def __init__(self, config=None, agent_id=None):
+        super().__init__(config, agent_id)
+        # Agent-specific initialization
+        
+    def act(self, observation):
+        # Memory hooks automatically capture state before and after this method
+        # Process the observation and determine action
+        result = self.process(observation)
+        return result
+        
+    def get_state(self):
+        # Return the current agent state
+        state = super().get_state()
+        state.extra_data["custom_field"] = self.some_internal_state
+        return state
+
+# Option 2: Instance decorator approach for existing agents
+agent = ExistingAgentClass()
+memory_enhanced_agent = with_memory(agent, agent_id="agent-456")
+
+# Now use the agent normally - memories are created automatically
+result = memory_enhanced_agent.act({"user_input": "What's the weather today?"})
+```
+
+The hooks system automatically:
+- Captures agent state before and after actions
+- Calculates state differences to identify important changes
+- Stores states, actions, and their results in memory
+- Associates memories with the correct agent and step number
+- Handles error conditions gracefully to prevent disrupting agent execution
 
 ## Advanced Usage
 
@@ -190,7 +266,7 @@ memory_system.set_cache_ttl(300)  # 5 minutes
 embedding = [0.1, 0.2, 0.3, ...]  # Your embedding vector
 
 # Search using the raw embedding
-memory_agent = memory_system.get_memory_agent("agent-123")
+memory_agent = memory_api.get_memory_agent("agent-123")
 similar_memories = memory_agent.search_by_embedding(
     query_embedding=embedding,
     k=10,
@@ -202,13 +278,36 @@ similar_memories = memory_agent.search_by_embedding(
 
 ```python
 # Get memory agent instance
-memory_agent = memory_system.get_memory_agent("agent-123")
+memory_agent = memory_api.get_memory_agent("agent-123")
 
 # Search by content pattern 
 memories = memory_agent.search_by_content(
     content_query="trade wood",
     k=5
 )
+```
+
+### Caching Expensive Operations
+
+The API includes a caching system to improve performance for expensive operations:
+
+```python
+from memory.api import cacheable
+
+# Create a cached function with a 60-second TTL
+@cacheable(ttl=60)
+def expensive_memory_operation(agent_id, query):
+    # Complex, expensive operation...
+    return results
+
+# First call computes the result
+result1 = expensive_memory_operation("agent-123", "find wood")
+
+# Second call with same parameters uses cached result
+result2 = expensive_memory_operation("agent-123", "find wood")  # Uses cache
+
+# Different parameters will compute new result
+result3 = expensive_memory_operation("agent-123", "find stone")  # New computation
 ```
 
 ## Memory Retrieval Process
@@ -351,7 +450,7 @@ API methods implement several error recovery approaches:
 ### Example Error Handling
 
 ```python
-from memory.api.memory_api import AgentMemoryAPI, MemoryStoreException, MemoryRetrievalException
+from memory.api import AgentMemoryAPI, MemoryStoreException, MemoryRetrievalException
 
 memory_api = AgentMemoryAPI()
 
@@ -524,7 +623,7 @@ config = MemoryConfig(
     )
 )
 
-memory_system = AgentMemorySystem.get_instance(config)
+memory_api = AgentMemoryAPI(config)
 ```
 
 ## Integration with Agent Systems

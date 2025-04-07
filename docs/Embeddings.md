@@ -44,6 +44,15 @@ Implements vector storage and similarity search capabilities for efficient memor
 
 Common utility functions used across the embedding modules, including cosine similarity calculations, dictionary flattening, and text conversion.
 
+### 6. VectorCompression
+
+Provides specialized functionality for compressing and decompressing embedding vectors, supporting multiple compression methods.
+
+- Quantization methods to reduce bit depth while maintaining semantic similarity
+- Random projection techniques for dimensionality reduction
+- Configuration options for different memory tiers (STM, IM, LTM)
+- Configurable compression settings through CompressionConfig
+
 ## Usage Examples
 
 ### Basic Usage with TextEmbeddingEngine
@@ -117,6 +126,43 @@ ltm_memory = compression_engine.compress(memory, level=2)
 original_memory = compression_engine.decompress(ltm_memory)
 ```
 
+### Using VectorCompression
+
+```python
+from memory.embeddings.vector_compression import quantize_vector, dequantize_vector, compress_vector_rp, decompress_vector_rp, CompressionConfig
+import numpy as np
+
+# Initialize configuration
+config = CompressionConfig(
+    enabled=True,
+    method="random_projection",
+    stm_dimension=768,
+    im_dimension=256,
+    ltm_dimension=64
+)
+
+# Example high-dimensional vector
+original_vector = np.random.rand(768) * 2 - 1  # Values between -1 and 1
+
+# Quantization example (reduce bit depth)
+quantized = quantize_vector(original_vector, bits=8)
+dequantized = dequantize_vector(quantized, bits=8)
+
+# Random projection for dimension reduction
+# Compress from 768 to 256 dimensions (for intermediate memory)
+compressed_im = compress_vector_rp(original_vector, target_dim=config.im_dimension)
+# Compress further to 64 dimensions (for long-term memory)
+compressed_ltm = compress_vector_rp(original_vector, target_dim=config.ltm_dimension)
+
+# Decompress back from LTM dimension to original
+decompressed_vector = decompress_vector_rp(compressed_ltm, original_dim=768)
+
+# Print similarity between original and reconstructed vectors
+from memory.embeddings.utils import cosine_similarity
+print(f"Quantization similarity: {cosine_similarity(original_vector, dequantized)}")
+print(f"RP compression similarity: {cosine_similarity(original_vector, decompressed_vector)}")
+```
+
 ### Working with VectorStore and Multiple Memory Tiers
 
 ```python
@@ -174,7 +220,7 @@ The embeddings module requires the following dependencies:
 
 ```
 sentence-transformers
-numpy
+numpy (required for vector calculations and compression)
 redis (optional, for Redis backend)
 torch (required for AutoEncoder)
 ```
@@ -198,4 +244,9 @@ pip install sentence-transformers numpy redis torch
 
 4. **Redis for production**: Use the Redis backend for production deployments to enable persistence and scaling.
 
-5. **Custom training**: For specialized domains, consider training the AutoEncoder on domain-specific data for improved performance. 
+5. **Custom training**: For specialized domains, consider training the AutoEncoder on domain-specific data for improved performance.
+
+6. **Vector compression strategy**: Choose the appropriate vector compression method based on your needs:
+   - Quantization: Use for reducing storage size while maintaining original dimensionality
+   - Random projection: Use for aggressive dimensionality reduction when memory footprint is critical
+   - AutoEncoder: Use when maximum semantic fidelity is required despite compression 

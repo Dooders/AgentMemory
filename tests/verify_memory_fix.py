@@ -8,7 +8,7 @@ import sys
 from typing import Dict, Any
 
 from memory.config import MemoryConfig
-from memory.memory_agent import MemoryAgent
+from memory.agent_memory import MemoryAgent
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)

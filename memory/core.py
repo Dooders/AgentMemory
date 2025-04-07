@@ -6,7 +6,7 @@ import time
 import uuid
 
 from memory.config import MemoryConfig
-from memory.memory_agent import MemoryAgent
+from memory.agent_memory import MemoryAgent
 
 logger = logging.getLogger(__name__)
 
