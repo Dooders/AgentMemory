@@ -30,8 +30,9 @@ def determine_memory_tier(memory_agent, memory_id):
         elif memory_agent.ltm_store.get(memory_id):
             return "LTM"
     except Exception as e:
-        pass
-
+        log_print(logger, f"Exception in determine_memory_tier: {e}", level="error")
+        import traceback
+        log_print(logger, traceback.format_exc(), level="error")
     return "Unknown"
 
 
