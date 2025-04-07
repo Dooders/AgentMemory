@@ -60,12 +60,20 @@ class Pipeline:
         self.commands.append(lambda: self.redis.get(*args, **kwargs))
         return self
 
+    def delete(self, *args, **kwargs):
+        self.commands.append(lambda: self.redis.delete(*args, **kwargs))
+        return self
+
     def hset(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.hset(*args, **kwargs))
         return self
 
     def hget(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.hget(*args, **kwargs))
+        return self
+
+    def hgetall(self, *args, **kwargs):
+        self.commands.append(lambda: self.redis.hgetall(*args, **kwargs))
         return self
 
     # Sorted Set Operations

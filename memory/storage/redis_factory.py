@@ -65,26 +65,7 @@ class RedisFactory:
         Returns:
             Redis client instance
         """
-        # Return ResilientRedisClient instance directly when use_resilient_client=True
-        if use_resilient_client:
-            logger.info(f"Creating ResilientRedisClient '{client_name}' directly (host={host}, port={port}, db={db})")
-            return ResilientRedisClient(
-                client_name=client_name,
-                host=host,
-                port=port,
-                db=db,
-                password=password,
-                socket_timeout=socket_timeout,
-                socket_connect_timeout=socket_connect_timeout,
-                circuit_threshold=circuit_threshold,
-                circuit_reset_timeout=circuit_reset_timeout,
-                critical_retry_attempts=critical_retry_attempts,
-                retry_base_delay=retry_base_delay,
-                retry_max_delay=retry_max_delay,
-                max_connections=max_connections,
-                health_check_interval=health_check_interval,
-            )
-        
+        # Even with use_resilient_client=True, respect the use_mock parameter
         if use_mock:
             logger.info(f"Creating MockRedis client '{client_name}'")
             # Override Redis class to use MockRedis

@@ -32,6 +32,8 @@ This directory contains demonstration scripts that showcase the main features of
 
 ## Running the Demos
 
+The demos use MockRedis by default, so no real Redis server is required to run them.
+
 You can run individual demos directly:
 
 ```bash
@@ -42,6 +44,15 @@ Or run all demos in sequence:
 
 ```bash
 python -m demos.run_all_demos
+```
+
+### Redis Configuration
+
+If you want to use a real Redis server instead of MockRedis, you can modify the configuration in each demo:
+
+```python
+# To use a real Redis server instead of MockRedis
+memory_system = create_memory_system(use_mock_redis=False)
 ```
 
 ## Acceptance Criteria Validation

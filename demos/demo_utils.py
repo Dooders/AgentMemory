@@ -207,8 +207,9 @@ def create_memory_system(
     cleanup_interval: int = 10,
     enable_hooks: bool = False,
     description: str = "demo",
-    use_embeddings: bool = True,
+    use_embeddings: bool = False,  # Set to False by default
     embedding_type: str = "text",  # "text" or "autoencoder"
+    use_mock_redis: bool = True,  # Default to using mockredis
 ) -> AgentMemorySystem:
     """Create and configure a memory system with customizable parameters.
 
@@ -225,6 +226,7 @@ def create_memory_system(
         description: Description of this memory system instance
         use_embeddings: Whether to enable neural embeddings
         embedding_type: Type of embeddings to use ("text" or "autoencoder")
+        use_mock_redis: Whether to use MockRedis instead of real Redis
 
     Returns:
         Configured AgentMemorySystem instance
@@ -234,6 +236,7 @@ def create_memory_system(
         port=6379,
         memory_limit=stm_limit,
         ttl=stm_ttl,
+        use_mock=use_mock_redis,
     )
 
     im_config = RedisIMConfig(
@@ -241,6 +244,7 @@ def create_memory_system(
         port=6379,
         memory_limit=im_limit,
         compression_level=im_compression_level,
+        use_mock=use_mock_redis,
     )
 
     ltm_config = SQLiteLTMConfig(
