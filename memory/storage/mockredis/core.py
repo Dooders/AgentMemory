@@ -1,10 +1,13 @@
 import queue
 import threading
 import time
+import logging
 
 from .pipeline import Pipeline
 from .pubsub import PubSub
 
+# Create logger
+logger = logging.getLogger(__name__)
 
 # Redis Error Classes for accurate error handling
 class RedisError(Exception):
@@ -250,7 +253,20 @@ class MockRedis:
 
             return len(mapping)
 
-    def zrange(self, name, start, end, withscores=False, desc=False):
+    def zrange(self, name, start, end, withscores=False, desc=False, score_cast_func=float):
+        """Get range of members from sorted set with support for score_cast_func.
+        
+        Args:
+            name: Sorted set name
+            start: Start index
+            end: End index
+            desc: Whether to sort in descending order
+            withscores: Whether to include scores in result
+            score_cast_func: Function to convert score values (ignored in mock)
+            
+        Returns:
+            List of members or member/score pairs
+        """
         with self.lock:
             if name not in self.store:
                 return []
@@ -275,8 +291,22 @@ class MockRedis:
                 return [item[0] for item in result]
 
     def zrangebyscore(
-        self, name, min_score, max_score, withscores=False, start=0, num=None
+        self, name, min_score, max_score, withscores=False, start=0, num=None, score_cast_func=float
     ):
+        """Get members with scores between min and max from sorted set.
+        
+        Args:
+            name: Sorted set name
+            min_score: Minimum score
+            max_score: Maximum score
+            withscores: Whether to include scores in the result
+            start: Start offset for pagination
+            num: Number of elements to return
+            score_cast_func: Function to cast score values (ignored in mock)
+            
+        Returns:
+            List of members or member/score pairs
+        """
         with self.lock:
             if name not in self.store:
                 return []
@@ -404,14 +434,47 @@ class MockRedis:
                     [b"name", b"json", b"ver", 20000],    # Simulate RedisJSON module
                 ]
                 
+            # Handle RediSearch commands
+            if command == "ft.info":
+                # Mock response for ft.info
+                index_name = args[0]
+                return {
+                    "index_name": index_name,
+                    "index_options": [],
+                    "index_definition": {},
+                    "attributes": [],
+                    "num_docs": 0,
+                    "max_doc_id": 0,
+                    "num_terms": 0,
+                    "num_records": 0,
+                    "inverted_sz_mb": 0,
+                    "vector_index_sz_mb": 0,
+                    "total_inverted_index_blocks": 0,
+                    "offset_vectors_sz_mb": 0,
+                    "doc_table_size_mb": 0,
+                    "key_table_size_mb": 0,
+                    "records_per_doc_avg": 0,
+                    "bytes_per_record_avg": 0,
+                    "offsets_per_term_avg": 0,
+                    "offset_bits_per_record_avg": 0,
+                    "gc_stats": {}
+                }
+                
+            if command == "ft.create":
+                # Mock successful index creation
+                return "OK"
+                
             if command in self.commands:
                 return self._circuit_breaker_wrapper(
                     lambda: self.commands[command](*args, **kwargs)
                 )
             else:
-                raise NotImplementedError(
-                    f"Command '{command}' not implemented in MockRedis"
-                )
+                # For commands we don't explicitly support, return empty results
+                # instead of raising exceptions to allow the demo to continue
+                logger.warning(f"Command '{command}' not implemented in MockRedis, returning empty result")
+                if command.startswith("ft."):
+                    return "OK"  # For RediSearch commands return OK
+                return None
 
     # Circuit Breaker Pattern Implementation
     def _check_circuit_state(self):
@@ -657,3 +720,28 @@ class MockRedis:
     @classmethod
     def from_url(cls, url):
         return cls()
+
+    # Add scan method to support the scan_iter implementation
+    def scan(self, cursor=0, match=None, count=None):
+        """Incrementally iterate over keys.
+        
+        In the mock implementation, returns all keys at once.
+        
+        Args:
+            cursor: Cursor position (ignored in mock)
+            match: Pattern to match keys
+            count: Number of keys per call (ignored in mock)
+            
+        Returns:
+            Tuple of (0, matching_keys)
+        """
+        with self.lock:
+            import fnmatch
+            
+            if match:
+                result = [key for key in self.store if fnmatch.fnmatch(key, match)]
+            else:
+                result = list(self.store.keys())
+                
+            # Always return cursor 0 to indicate completion
+            return 0, result

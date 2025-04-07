@@ -73,7 +73,7 @@ class BenchmarkConfig:
     scalability: ScalabilityConfig = field(default_factory=ScalabilityConfig)
     integration: IntegrationConfig = field(default_factory=IntegrationConfig)
     
-    output_dir: str = "benchmarks/results"
+    output_dir: str = "benchmark_results"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
@@ -125,5 +125,5 @@ class BenchmarkConfig:
             retrieval=retrieval,
             scalability=scalability,
             integration=integration,
-            output_dir=config_dict.get("output_dir", "benchmarks/results")
+            output_dir=config_dict.get("output_dir", "benchmark_results")
         ) 

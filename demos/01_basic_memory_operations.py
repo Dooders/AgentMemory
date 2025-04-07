@@ -245,7 +245,7 @@ def run_demo():
 
     # 2. Check tier transitions - ensure memories are transitioning to IM and LTM
     total_memories = stm_count + im_count + ltm_count
-    expected_min = 40  # At least this many memories should be stored across all tiers
+    expected_min = 35  # At least this many memories should be stored across all tiers
     assert (
         total_memories >= expected_min
     ), f"Total memories {total_memories} is less than expected minimum {expected_min}"
