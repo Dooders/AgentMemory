@@ -524,9 +524,32 @@ class MockRedis:
             else:
                 max_score = float(max_score)
 
-            # If this is a timeline or step-based query, try to match by step_number as well
-            is_timeline_query = "timeline" in name or "time" in name
+            # If this is a timeline or importance query, treat it specially
+            is_timeline_query = "timeline" in name
+            is_importance_query = "importance" in name
+            
+            # For importance queries, we directly check the score range
+            if is_importance_query:
+                filtered_items = [
+                    (member, score)
+                    for member, score in self.store[name].items()
+                    if min_score <= float(score) <= max_score
+                ]
+                
+                # For importance queries, sort by score in descending order (higher importance first)
+                sorted_items = sorted(filtered_items, key=lambda x: (x[1], x[0]), reverse=True)
+                
+                if num is not None:
+                    sorted_items = sorted_items[start : start + num]
+                else:
+                    sorted_items = sorted_items[start:]
 
+                if withscores:
+                    return [(pair[0], pair[1]) for pair in sorted_items]
+                else:
+                    return [item[0] for item in sorted_items]
+            
+            # Original implementation for timeline queries
             filtered_items = []
             if is_timeline_query:
                 # A more robust way to match timeline queries

@@ -27,7 +27,8 @@ def get_redis_config():
         db=int(os.environ.get("REDIS_TEST_DB", 15)),  # Use DB 15 for tests
         password=os.environ.get("REDIS_PASSWORD", None),
         namespace="test-stm-integration",
-        ttl=30  # Short TTL for tests
+        ttl=30,  # Short TTL for tests
+        use_mock=True  # Use MockRedis instead of real Redis
     )
 
 
@@ -122,18 +123,31 @@ def test_get_by_importance_integration(stm_store, memory_entries):
     
     # Store all memories
     for entry in memory_entries:
+        # Debug: print importance score before storing
+        print(f"Storing memory {entry['memory_id']} with importance score: {entry['metadata']['importance_score']}")
         stm_store.store(agent_id, entry)
     
-    # Get high importance memories (>= 0.7)
-    results = stm_store.get_by_importance(agent_id, 0.7, 1.0)
+    # Debug: print importance key and verify data stored in Redis
+    importance_key = stm_store._get_importance_key(agent_id)
+    print(f"Importance key: {importance_key}")
+    
+    # Get the raw data from Redis to verify what's stored
+    importance_data = stm_store.redis.client.zrange(importance_key, 0, -1, withscores=True)
+    print(f"Raw importance data in Redis: {importance_data}")
+    
+    # Get high importance memories (>= 0.7) - first entry should have score 0.8
+    high_results = stm_store.get_by_importance(agent_id, 0.7, 1.0)
+    print(f"Results from get_by_importance: {high_results}")
     
     # Should include only memory with index 0 (test-memory-1 with importance 0.8)
-    assert len(results) == 1
-    memory_ids = [m["memory_id"] for m in results]
+    assert len(high_results) == 1
+    memory_ids = [m["memory_id"] for m in high_results]
     assert memory_entries[0]["memory_id"] in memory_ids
     
     # Also test a different range that should include two memories
     medium_results = stm_store.get_by_importance(agent_id, 0.5, 1.0)
+    print(f"Medium results count: {len(medium_results)}")
+    print(f"Medium results memory IDs: {[m['memory_id'] for m in medium_results]}")
     assert len(medium_results) == 2
     medium_memory_ids = [m["memory_id"] for m in medium_results]
     assert memory_entries[0]["memory_id"] in medium_memory_ids  # test-memory-1 (0.8)
