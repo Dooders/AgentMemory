@@ -28,7 +28,7 @@ import logging
 
 from memory.config import MemoryConfig
 from memory.core import AgentMemorySystem
-from memory.memory_agent import MemoryAgent
+from memory.agent_memory import MemoryAgent
 
 
 @pytest.fixture

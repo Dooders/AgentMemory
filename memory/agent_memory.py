@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 from memory.config import MemoryConfig
 from memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
 from memory.embeddings.compression import CompressionEngine
+
 # from memory.embeddings.text_embeddings import TextEmbeddingEngine
 from memory.storage.redis_im import RedisIMStore
 from memory.storage.redis_stm import RedisSTMStore

@@ -31,6 +31,8 @@ The benchmarking system includes several categories of benchmarks, each focusing
 5. **Scalability**: Measures system performance under increasing load (agent count scaling, memory size scaling)
 6. **Integration Tests**: Evaluates integration with existing agent systems (API overhead, real-world integration)
 
+> **Note:** Currently, only the Storage Performance benchmark category is fully implemented. Other categories are planned for future development.
+
 ## Architecture
 
 The benchmarking system consists of several components:
@@ -41,11 +43,58 @@ The benchmarking system consists of several components:
 - **Benchmark Implementations**: Individual benchmark modules for each category
 - **CLI Interface**: Command-line tools for running benchmarks and analyzing results
 
+## Dependencies
+
+The benchmarking system requires the following dependencies:
+
+```
+pandas
+matplotlib
+```
+
+These are used for data analysis and visualization of benchmark results.
+
+## Folder Structure
+
+```
+memory/benchmarking/
+├── __init__.py                   # Package initialization
+├── cli.py                       # Command-line interface
+├── config.py                    # Configuration classes
+├── runner.py                    # Benchmark runner
+├── results.py                   # Results handling
+├── README.md                    # Quick start documentation
+└── benchmarks/                  # Individual benchmark implementations
+    ├── __init__.py              # Benchmark package initialization
+    └── storage.py               # Storage benchmarks
+```
+
 ## Running Benchmarks
 
 ### Command Line Interface
 
 The benchmarking system provides a command-line interface for running benchmarks:
+
+#### Windows (PowerShell)
+
+```powershell
+# Run all benchmarks
+python -m memory.benchmarking.cli run
+
+# Run a specific category
+python -m memory.benchmarking.cli run --category storage
+
+# Run a specific benchmark
+python -m memory.benchmarking.cli run --category storage --benchmark write_throughput
+
+# Run benchmarks in parallel
+python -m memory.benchmarking.cli run --parallel --workers 8
+
+# Run with custom configuration
+python -m memory.benchmarking.cli run --config custom_config.json
+```
+
+#### Unix/Linux/MacOS
 
 ```bash
 # Run all benchmarks
@@ -68,13 +117,13 @@ python scripts/benchmark.py run --config custom_config.json
 
 ```bash
 # List available results
-python scripts/benchmark.py results list
+python -m memory.benchmarking.cli results list
 
 # Generate a report from results
-python scripts/benchmark.py results report --category storage
+python -m memory.benchmarking.cli results report --category storage
 
 # Compare results with a baseline
-python scripts/benchmark.py compare --current-dir results/run1 --baseline-dir results/baseline
+python -m memory.benchmarking.cli compare --current-dir results/run1 --baseline-dir results/baseline
 ```
 
 ## Creating Custom Benchmarks
@@ -256,20 +305,35 @@ fig = results.plot_comparison(
 results.save_plot(fig, "storage_throughput.png")
 ```
 
+## Working with Results in Windows PowerShell
+
+In Windows PowerShell, you can use the following commands to work with benchmark results:
+
+```powershell
+# List available results
+python -m memory.benchmarking.cli results list --results-dir .\benchmark_results
+
+# Generate a report
+python -m memory.benchmarking.cli results report --category storage --results-dir .\benchmark_results --output-dir .\reports
+
+# Compare two result sets
+python -m memory.benchmarking.cli compare --current-dir .\results\current --baseline-dir .\results\baseline
+```
+
 ## Integration with CI/CD
 
 The benchmarking system can be integrated with CI/CD pipelines to automatically detect performance regressions:
 
 ```bash
 # Run benchmarks and compare with baseline
-python scripts/benchmark.py run --output-dir results/current
-python scripts/benchmark.py compare --current-dir results/current --baseline-dir results/baseline --threshold 0.1
+python -m memory.benchmarking.cli run --output-dir results/current
+python -m memory.benchmarking.cli compare --current-dir results/current --baseline-dir results/baseline --threshold 0.1
 
 # Exit code 2 indicates performance regression
-if [ $? -eq 2 ]; then
-  echo "Performance regression detected!"
+if ($LASTEXITCODE -eq 2) {
+  Write-Host "Performance regression detected!"
   exit 1
-fi
+}
 ```
 
 ## Best Practices

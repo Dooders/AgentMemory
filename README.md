@@ -31,7 +31,7 @@ memory/
 ├── __init__.py
 ├── core.py                     # Core memory system implementation
 ├── config.py                   # Configuration classes
-├── memory_agent.py             # Memory agent implementation
+├── memory.py                   # Agent memory implementation
 ├── config/                     # Configuration components
 ├── embeddings/                 # Neural embedding components
 │   ├── __init__.py
@@ -187,6 +187,20 @@ This allows you to develop and test your agent memory system without setting up 
 | password | Redis password | None |
 | use_mock | Use MockRedis instead of real Redis | False |
 | ttl | Time-to-live for memories in seconds | 86400 (STM), 604800 (IM) |
+
+## Documentation
+
+Explore the comprehensive documentation to understand the system components and APIs:
+
+- [Memory API](docs/memory_api.md) - Complete API reference for working with the memory system
+- [Agent Memory](docs/agent_memory.md) - Core MemoryAgent implementation and usage
+- [Memory System](docs/memory_system.md) - Overview of the hierarchical memory architecture
+- [Memory Configuration](docs/memory_config.md) - Configuration options for all components
+- [Memory Tiers](docs/memory_tiers.md) - Details on the three memory tiers and their characteristics
+- [Embeddings](docs/embeddings.md) - Neural embedding generation for memory compression
+- [Benchmarking](docs/benchmarking.md) - Performance benchmarks and optimization
+- [Redis Stores](docs/redis_stm_store.md) - Redis-based storage implementation details
+- [SQLite Store](docs/sqlite_ltm_store.md) - SQLite-based long-term memory storage
 
 ## Memory Tiers
 
