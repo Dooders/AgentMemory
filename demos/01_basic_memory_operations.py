@@ -18,12 +18,20 @@ from demo_utils import (
 
 def determine_memory_tier(memory_agent, memory_id):
     """Reliably determine which tier a memory is in."""
-    if memory_agent.stm_store.exists(memory_id):
-        return "STM"
-    elif memory_agent.im_store.exists(memory_id):
-        return "IM"
-    elif memory_agent.ltm_store.exists(memory_id):
-        return "LTM"
+    # Try retrieval-based checks
+    try:
+        # Check if retrievable from STM
+        if memory_agent.stm_store.get(memory_agent.agent_id, memory_id):
+            return "STM"
+        # Check if retrievable from IM
+        elif memory_agent.im_store.get(memory_agent.agent_id, memory_id):
+            return "IM"
+        # Check if retrievable from LTM
+        elif memory_agent.ltm_store.get(memory_id):
+            return "LTM"
+    except Exception as e:
+        pass
+
     return "Unknown"
 
 
@@ -270,8 +278,10 @@ def run_demo():
         # Use the higher-level API method that knows how to search across all tiers
         memories = memory_system.retrieve_by_time_range(agent_id, step, step)
         for memory in memories:
-            # FIX #3: Use improved tier determination function
-            memory_id = memory.get("id", "")
+            # Get memory ID - handle both 'id' and 'memory_id' fields
+            memory_id = memory.get("id", memory.get("memory_id", ""))
+
+            # Try to determine which tier the memory is in
             tier = (
                 determine_memory_tier(memory_agent, memory_id)
                 if memory_id
@@ -314,21 +324,51 @@ def run_demo():
 
             found = False
             for memory in stm_memories + im_memories + ltm_memories:
+                # Check both timestamp and step_number
                 mem_timestamp = memory.get("timestamp")
+                mem_step = memory.get("step_number")
+
                 try:
-                    if isinstance(mem_timestamp, (str, float)):
-                        mem_timestamp = int(float(mem_timestamp))
-                    if mem_timestamp == missing_step:
-                        log_print(
-                            logger,
-                            f"Found memory for step {missing_step} through direct store access",
-                        )
-                        memory_type = memory.get("type", "unknown")
-                        log_print(logger, f"  - Memory type: {memory_type}")
-                        milestone_memories.append(memory)
-                        missing_steps.discard(missing_step)
-                        found = True
-                except (ValueError, TypeError):
+                    # Check timestamp match
+                    if mem_timestamp is not None:
+                        if isinstance(mem_timestamp, (str, float)):
+                            mem_timestamp = int(float(mem_timestamp))
+                        if mem_timestamp == missing_step:
+                            memory_id = memory.get(
+                                "id", memory.get("memory_id", "unknown")
+                            )
+                            log_print(
+                                logger,
+                                f"Found memory for step {missing_step} through timestamp match (ID: {memory_id})",
+                            )
+                            memory_type = memory.get("type", "unknown")
+                            log_print(logger, f"  - Memory type: {memory_type}")
+                            milestone_memories.append(memory)
+                            missing_steps.discard(missing_step)
+                            found = True
+                            break
+
+                    # Check step_number match
+                    if mem_step is not None:
+                        if isinstance(mem_step, (str, float)):
+                            mem_step = int(float(mem_step))
+                        if mem_step == missing_step:
+                            memory_id = memory.get(
+                                "id", memory.get("memory_id", "unknown")
+                            )
+                            log_print(
+                                logger,
+                                f"Found memory for step {missing_step} through step_number match (ID: {memory_id})",
+                            )
+                            memory_type = memory.get("type", "unknown")
+                            log_print(logger, f"  - Memory type: {memory_type}")
+                            milestone_memories.append(memory)
+                            missing_steps.discard(missing_step)
+                            found = True
+                            break
+
+                except (ValueError, TypeError) as e:
+                    log_print(logger, f"Error comparing timestamps: {e}")
                     continue
 
             if not found:
@@ -356,7 +396,11 @@ def run_demo():
     memory_types_found = {"state": 0, "action": 0, "interaction": 0}
     log_print(logger, "\nMemory types found in milestones:")
     for memory in milestone_memories:
+        # Check both direct type field and metadata.memory_type
         memory_type = memory.get("type")
+        if memory_type is None and "metadata" in memory:
+            memory_type = memory.get("metadata", {}).get("memory_type")
+
         log_print(logger, f"Memory type found: {memory_type}")
         if memory_type in memory_types_found:
             memory_types_found[memory_type] += 1
