@@ -1,8 +1,23 @@
 """
 Demo 1: Basic Memory Operations
 
-This demo shows how to initialize the AgentMemorySystem and perform basic
-memory storage operations across the three memory tiers.
+This demo showcases the core functionality of the AgentMemorySystem by demonstrating:
+
+1. Initialization of a memory system with custom settings for each memory tier
+2. Storage of different memory types (state, action, interaction) with varying priorities
+3. Automatic memory transitions between tiers (STM → IM → LTM) based on priority and time
+4. Memory maintenance processes that manage the lifecycle of memories
+5. Retrieval of memories from different tiers
+6. Validation of memory operations and tier transitions
+
+The demo simulates an agent storing memories over time, showing how high-priority 
+memories are preserved while less important ones may be compressed or removed.
+It illustrates the three-tier memory architecture:
+- Short-Term Memory (STM): Recent, readily accessible memories
+- Intermediate Memory (IM): Important memories from the recent past
+- Long-Term Memory (LTM): Critical memories preserved for long-term storage
+
+This provides a foundation for understanding the memory system's capabilities.
 """
 
 import time
