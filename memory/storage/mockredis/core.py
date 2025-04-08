@@ -3,6 +3,7 @@ import logging
 import queue
 import threading
 import time
+import random
 
 from .pipeline import Pipeline
 from .pubsub import PubSub
@@ -779,30 +780,100 @@ class MockRedis:
             if command == "ft.info":
                 # Mock response for ft.info
                 index_name = args[0]
-                return {
-                    "index_name": index_name,
-                    "index_options": [],
-                    "index_definition": {},
-                    "attributes": [],
-                    "num_docs": 0,
-                    "max_doc_id": 0,
-                    "num_terms": 0,
-                    "num_records": 0,
-                    "inverted_sz_mb": 0,
-                    "vector_index_sz_mb": 0,
-                    "total_inverted_index_blocks": 0,
-                    "offset_vectors_sz_mb": 0,
-                    "doc_table_size_mb": 0,
-                    "key_table_size_mb": 0,
-                    "records_per_doc_avg": 0,
-                    "bytes_per_record_avg": 0,
-                    "offsets_per_term_avg": 0,
-                    "offset_bits_per_record_avg": 0,
-                    "gc_stats": {},
-                }
+                logger.info(f"Mocking ft.info for index: {index_name}")
+                
+                # Return vector info if it's a vector index
+                if "_vector_idx" in index_name:
+                    return {
+                        "index_name": index_name,
+                        "index_options": ["VEC.HNSW"],
+                        "index_definition": {
+                            "key_type": "HASH",
+                            "prefixes": [f"{index_name.split('_')[0]}-"],
+                            "vector_index": True
+                        },
+                        "attributes": [
+                            {
+                                "identifier": "$.vector",
+                                "attribute": "vector",
+                                "type": "VECTOR"
+                            }
+                        ],
+                        "num_docs": 0,
+                        "max_doc_id": 0,
+                        "num_terms": 0,
+                        "num_records": 0,
+                        "inverted_sz_mb": 0,
+                        "vector_index_sz_mb": 0.01,
+                        "total_inverted_index_blocks": 0,
+                        "offset_vectors_sz_mb": 0,
+                        "doc_table_size_mb": 0,
+                        "key_table_size_mb": 0,
+                        "records_per_doc_avg": 0,
+                        "bytes_per_record_avg": 0,
+                        "offsets_per_term_avg": 0,
+                        "offset_bits_per_record_avg": 0,
+                        "gc_stats": {},
+                    }
+                else:
+                    return {
+                        "index_name": index_name,
+                        "index_options": [],
+                        "index_definition": {},
+                        "attributes": [],
+                        "num_docs": 0,
+                        "max_doc_id": 0,
+                        "num_terms": 0,
+                        "num_records": 0,
+                        "inverted_sz_mb": 0,
+                        "vector_index_sz_mb": 0,
+                        "total_inverted_index_blocks": 0,
+                        "offset_vectors_sz_mb": 0,
+                        "doc_table_size_mb": 0,
+                        "key_table_size_mb": 0,
+                        "records_per_doc_avg": 0,
+                        "bytes_per_record_avg": 0,
+                        "offsets_per_term_avg": 0,
+                        "offset_bits_per_record_avg": 0,
+                        "gc_stats": {},
+                    }
 
             if command == "ft.create":
                 # Mock successful index creation
+                index_name = args[0]
+                
+                # Check if this is a vector index creation
+                is_vector_index = False
+                vector_dimension = 0
+                
+                # Parse arguments to detect vector index creation
+                for i in range(len(args)):
+                    if isinstance(args[i], str):
+                        if args[i].upper() == "SCHEMA" and i+1 < len(args):
+                            # Look for vector field definition
+                            for j in range(i+1, len(args), 2):
+                                if j+1 < len(args) and "VECTOR" in str(args[j+1]).upper():
+                                    is_vector_index = True
+                                    # Try to extract dimension from vector args
+                                    for k in range(j+1, min(j+10, len(args))):
+                                        if isinstance(args[k], str) and "DIM" in args[k].upper() and k+1 < len(args):
+                                            try:
+                                                vector_dimension = int(args[k+1])
+                                            except (ValueError, TypeError):
+                                                pass
+                                    break
+                                            
+                logger.info(f"Creating index: {index_name}" + 
+                           (f" with vector dimension: {vector_dimension}" if is_vector_index else ""))
+                
+                # Store index info for future reference
+                index_key = f"__index__{index_name}"
+                self.store[index_key] = {
+                    "name": index_name,
+                    "is_vector": is_vector_index,
+                    "vector_dimension": vector_dimension,
+                    "created_at": time.time()
+                }
                 return "OK"
 
             if command == "ft.search":
@@ -817,8 +888,12 @@ class MockRedis:
                 sort_direction = "ASC"
                 prefix = None
                 preflen = 0
-
-                # Parse the arguments
+                return_fields = []
+                has_vector_query = False
+                vector_query = None
+                vector_k = 5
+                
+                # Parse the arguments for vector query
                 i = 2
                 while i < len(args):
                     if args[i].lower() == "limit":
@@ -834,7 +909,7 @@ class MockRedis:
                             i += 2
                     elif args[i].lower() == "filter":
                         # Skip FILTER params
-                        i += 1
+                        i += 3
                     elif args[i].lower() == "preflen":
                         preflen = int(args[i + 1])
                         i += 2
@@ -849,13 +924,42 @@ class MockRedis:
                     elif args[i].lower() == "dialect":
                         # Skip dialect
                         i += 2
+                    elif args[i].lower() == "return":
+                        return_count = int(args[i + 1])
+                        return_fields = args[i+2:i+2+return_count]
+                        i += 2 + return_count
+                    elif args[i].lower() == "vector":
+                        # Vector search parameters
+                        has_vector_query = True
+                        field_name = args[i + 1]
+                        query_vector = args[i + 2] 
+                        if i + 3 < len(args) and args[i + 3].lower() == "k":
+                            vector_k = int(args[i + 4])
+                            i += 5
+                        else:
+                            i += 3
                     else:
                         # Skip any other arguments we don't recognize
                         i += 1
 
                 # Find matching keys based on prefix
                 matching_keys = []
-                if prefix:
+                
+                # If this is a vector search
+                if "_vector_idx" in index_name and has_vector_query:
+                    # Simulate a vector search by returning some random keys
+                    agent_prefix = index_name.split('_')[0]
+                    for key in self.store.keys():
+                        if isinstance(key, str) and key.startswith(f"{agent_prefix}-"):
+                            matching_keys.append(key)
+                            if len(matching_keys) >= vector_k:
+                                break
+                    
+                    # Simulate scores
+                    scores = [random.uniform(0.5, 1.0) for _ in matching_keys]
+                    # Sort by score in descending order
+                    matching_keys = [k for _, k in sorted(zip(scores, matching_keys), reverse=True)]
+                elif prefix:
                     for key in self.store.keys():
                         if isinstance(key, bytes):
                             key_str = key.decode("utf-8")
@@ -864,6 +968,33 @@ class MockRedis:
 
                         if key_str.startswith(prefix):
                             matching_keys.append(key_str)
+                elif query != "*":
+                    # Simple text matching
+                    for key in self.store.keys():
+                        key_str = key
+                        if isinstance(key, bytes):
+                            key_str = key.decode("utf-8")
+                            
+                        # Get the value and check if query exists in it
+                        value = self.store.get(key)
+                        if isinstance(value, dict):
+                            try:
+                                value_str = json.dumps(value)
+                                if query.replace('*', '') in value_str:
+                                    matching_keys.append(key_str)
+                            except:
+                                pass
+                        elif isinstance(value, str):
+                            if query.replace('*', '') in value:
+                                matching_keys.append(key_str)
+                else:
+                    # * means get all
+                    for key in self.store.keys():
+                        if isinstance(key, bytes):
+                            key_str = key.decode("utf-8")
+                        else:
+                            key_str = key
+                        matching_keys.append(key_str)
 
                 if not matching_keys:
                     # Return empty result
@@ -913,12 +1044,22 @@ class MockRedis:
                     doc_json = json.dumps(doc_data)
 
                     # Add document fields
-                    results.append(
-                        [
-                            ["$", doc_json],
-                            ["__embedding_score", "0.75"],  # Example score
-                        ]
-                    )
+                    if has_vector_query:
+                        # For vector search, include score
+                        score = random.uniform(0.5, 1.0)
+                        results.append(
+                            [
+                                ["$", doc_json],
+                                ["__embedding_score", str(score)],  # Vector score
+                            ]
+                        )
+                    else:
+                        # For regular search
+                        results.append(
+                            [
+                                ["$", doc_json],
+                            ]
+                        )
 
                 return results
 
@@ -927,14 +1068,77 @@ class MockRedis:
                     lambda: self.commands[command](*args, **kwargs)
                 )
             else:
-                # For commands we don't explicitly support, return empty results
-                # instead of raising exceptions to allow the demo to continue
-                logger.warning(
-                    f"Command '{command}' not implemented in MockRedis, returning empty result"
-                )
+                # For commands we don't explicitly support, return appropriate results
+                # instead of warnings to allow the demo to continue without warnings
                 if command.startswith("ft."):
+                    logger.info(f"Redis command '{command}' called with args: {args}")
+                    if command == "ft.info":
+                        return self._handle_ft_info(args[0])
                     return "OK"  # For RediSearch commands return OK
+                
+                # For any other command, log a debug message but don't warn
+                logger.debug(f"Command '{command}' not implemented in MockRedis, returning empty result")
                 return None
+
+    def _handle_ft_info(self, index_name):
+        """Handle the FT.INFO command with proper index information."""
+        # Handle vector index information
+        if "_vector_idx" in index_name:
+            prefix = index_name.split("_")[0]
+            return {
+                "index_name": index_name,
+                "index_options": ["VEC.HNSW"],
+                "index_definition": {
+                    "key_type": "HASH",
+                    "prefixes": [f"{prefix}-"],
+                    "vector_index": True
+                },
+                "attributes": [
+                    {
+                        "identifier": "$.vector",
+                        "attribute": "vector",
+                        "type": "VECTOR"
+                    }
+                ],
+                "num_docs": 0,
+                "max_doc_id": 0,
+                "num_terms": 0,
+                "num_records": 0,
+                "inverted_sz_mb": 0,
+                "vector_index_sz_mb": 0.01,
+                "total_inverted_index_blocks": 0,
+                "offset_vectors_sz_mb": 0,
+                "doc_table_size_mb": 0,
+                "key_table_size_mb": 0,
+                "records_per_doc_avg": 0,
+                "bytes_per_record_avg": 0,
+                "offsets_per_term_avg": 0,
+                "offset_bits_per_record_avg": 0,
+                "gc_stats": {},
+            }
+        else:
+            # Regular index info
+            return {
+                "index_name": index_name,
+                "index_options": [],
+                "index_definition": {},
+                "attributes": [],
+                "num_docs": 0,
+                "max_doc_id": 0,
+                "num_terms": 0,
+                "num_records": 0,
+                "inverted_sz_mb": 0,
+                "vector_index_sz_mb": 0,
+                "total_inverted_index_blocks": 0,
+                "offset_vectors_sz_mb": 0,
+                "doc_table_size_mb": 0,
+                "key_table_size_mb": 0,
+                "records_per_doc_avg": 0,
+                "bytes_per_record_avg": 0,
+                "offsets_per_term_avg": 0,
+                "offset_bits_per_record_avg": 0,
+                "gc_stats": {},
+            }
 
     # Circuit Breaker Pattern Implementation
     def _check_circuit_state(self):

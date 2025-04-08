@@ -231,6 +231,8 @@ def create_memory_system(
     Returns:
         Configured AgentMemorySystem instance
     """
+    print(f"Creating memory system with embeddings={use_embeddings}, type={embedding_type}")
+    
     stm_config = RedisSTMConfig(
         host="127.0.0.1",
         port=6379,
