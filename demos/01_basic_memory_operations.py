@@ -10,7 +10,7 @@ This demo showcases the core functionality of the AgentMemorySystem by demonstra
 5. Retrieval of memories from different tiers
 6. Validation of memory operations and tier transitions
 
-The demo simulates an agent storing memories over time, showing how high-priority 
+The demo simulates an agent storing memories over time, showing how high-priority
 memories are preserved while less important ones may be compressed or removed.
 It illustrates the three-tier memory architecture:
 - Short-Term Memory (STM): Recent, readily accessible memories
@@ -20,6 +20,7 @@ It illustrates the three-tier memory architecture:
 This provides a foundation for understanding the memory system's capabilities.
 """
 
+import logging
 import time
 
 # Import common utilities for demos
@@ -29,6 +30,10 @@ from demo_utils import (
     print_memory_details,
     setup_logging,
 )
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def determine_memory_tier(memory_agent, memory_id):
@@ -47,6 +52,7 @@ def determine_memory_tier(memory_agent, memory_id):
     except Exception as e:
         log_print(logger, f"Exception in determine_memory_tier: {e}", level="error")
         import traceback
+
         log_print(logger, traceback.format_exc(), level="error")
     return "Unknown"
 

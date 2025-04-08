@@ -429,13 +429,19 @@ class MemoryAgent:
         Returns:
             List of memory entries sorted by similarity to query state
         """
+        # If no embedding engine is available, return an empty list or fall back to attribute-based search
+        if not self.embedding_engine:
+            logger.warning("Neural embeddings disabled - similarity search unavailable. Falling back to attribute-based search.")
+            # Fallback: Use attribute search for the memory type if specified
+            if memory_type:
+                return self.retrieve_by_attributes({"memory_type": memory_type})[:k]
+            # Otherwise just return an empty list
+            return []
+
         # Generate query embedding
-        if self.embedding_engine:
-            query_embedding = self.embedding_engine.encode_stm(
-                query_state, context_weights
-            )
-        else:
-            raise RuntimeError("Neural embeddings required for similarity search")
+        query_embedding = self.embedding_engine.encode_stm(
+            query_state, context_weights
+        )
 
         # Search in each tier with appropriate embedding level
         results = []
@@ -923,9 +929,16 @@ class MemoryAgent:
                 attribute_filters["inventory"] = query_state["inventory"]
 
         # Get more results than needed from both methods
-        vector_results = self.retrieve_similar_states(
-            query_state, k=k * 2, memory_type=memory_type, threshold=0.2
-        )
+        vector_results = []
+        if self.embedding_engine:
+            vector_results = self.retrieve_similar_states(
+                query_state, k=k * 2, memory_type=memory_type, threshold=0.2
+            )
+        else:
+            logger.warning("Neural embeddings disabled - using only attribute-based search for hybrid retrieval")
+            # When no embedding engine is available, use only attribute-based search with higher weight
+            attribute_weight = 1.0
+            vector_weight = 0.0
 
         # Only use attribute search if we have filters
         attr_results = []
