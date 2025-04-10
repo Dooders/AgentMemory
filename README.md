@@ -11,7 +11,6 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 2. **Intermediate Memory (IM)**: Compressed mid-term storage with Redis + TTL
 3. **Long-Term Memory (LTM)**: Highly compressed long-term storage using SQLite
 
-
 ## Features
 
 - **Hierarchical Storage**: Automatic memory transition between STM, IM, and LTM tiers
@@ -222,9 +221,9 @@ Explore the comprehensive documentation to understand the system components and 
 - Efficient storage of essential information
 - Abstract feature vectors
 
-## Advanced Features (in-development)
+## Advanced Features
 
-### Neural Compression
+### Neural Compression (in-development)
 The system uses an autoencoder architecture to generate compressed embeddings:
 - STM: 384-dimensional embeddings
 - IM: 128-dimensional embeddings
@@ -237,7 +236,7 @@ Memories automatically transition between tiers based on:
 - Access frequency
 - Storage capacity limits
 
-### Vector Similarity Search
+### Vector Similarity Search (in-development)
 Find similar memories using embedding-based similarity search:
 ```python
 from memory import AgentMemorySystem
