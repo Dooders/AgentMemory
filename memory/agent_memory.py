@@ -991,3 +991,80 @@ class MemoryAgent:
         # Sort by final score
         scored_results.sort(key=lambda x: x.get("hybrid_score", 0), reverse=True)
         return scored_results[:k]
+
+    def flush_to_ltm(self, include_stm: bool = True, include_im: bool = True, force: bool = False) -> Dict[str, int]:
+        """Flush memories from STM and/or IM to LTM storage.
+
+        Args:
+            include_stm: Whether to flush STM memories
+            include_im: Whether to flush IM memories
+            force: If True, bypass LTM whitelist filtering for memory types
+
+        Returns:
+            Dictionary containing counts of memories processed:
+            {
+                'stm_stored': int,
+                'stm_filtered': int,
+                'im_stored': int,
+                'im_filtered': int
+            }
+
+        Raises:
+            Exception: If the memory flush fails after maximum retry attempts
+        """
+        results = {
+            'stm_stored': 0,
+            'stm_filtered': 0,
+            'im_stored': 0,
+            'im_filtered': 0
+        }
+
+        max_retries = 3
+        retry_count = 0
+        backoff_factor = 2  # Exponential backoff factor
+
+        while retry_count <= max_retries:
+            try:
+                # Flush STM memories if requested
+                if include_stm:
+                    stm_memories = self.stm_store.get_all()
+                    if stm_memories:
+                        stored, filtered = self.ltm_store.flush_memories(stm_memories, force=force)
+                        results['stm_stored'] = stored
+                        results['stm_filtered'] = filtered
+                        # Clear STM after successful flush
+                        if stored > 0:
+                            self.stm_store.clear()
+
+                # Flush IM memories if requested
+                if include_im:
+                    im_memories = self.im_store.get_all()
+                    if im_memories:
+                        stored, filtered = self.ltm_store.flush_memories(im_memories, force=force)
+                        results['im_stored'] = stored
+                        results['im_filtered'] = filtered
+                        # Clear IM after successful flush
+                        if stored > 0:
+                            self.im_store.clear()
+
+                logger.info(
+                    f"Memory flush complete - STM: {results['stm_stored']} stored, "
+                    f"{results['stm_filtered']} filtered; IM: {results['im_stored']} stored, "
+                    f"{results['im_filtered']} filtered"
+                )
+                return results
+
+            except Exception as e:
+                retry_count += 1
+                if retry_count <= max_retries:
+                    wait_time = backoff_factor ** retry_count
+                    logger.warning(f"Error during memory flush (attempt {retry_count}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Failed to flush memory after {max_retries} attempts: {e}")
+                    # Either propagate the error or return partial results
+                    if results['stm_stored'] > 0 or results['im_stored'] > 0:
+                        logger.info("Returning partial results from successful operations")
+                        return results
+                    else:
+                        raise Exception(f"Memory flush failed completely: {e}")
