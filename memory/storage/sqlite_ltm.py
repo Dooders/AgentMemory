@@ -220,6 +220,26 @@ class SQLiteLTMStore:
             logger.error("Cannot store memory without a memory_id")
             return False
 
+        # Apply whitelist filtering if enabled
+        if self.config.whitelist_enabled:
+            # Check if memory type is whitelisted
+            memory_type = memory_entry.get("type")
+            allow_all_types = "*" in self.config.whitelisted_types
+            if not allow_all_types and memory_type not in self.config.whitelisted_types:
+                logger.debug(
+                    "Memory type %s not in whitelist, skipping LTM storage",
+                    memory_type
+                )
+                return True  # Return True as this is expected behavior
+
+            # Filter memory entry to only include whitelisted fields if not using wildcard
+            if "*" not in self.config.whitelisted_fields:
+                filtered_entry = {}
+                for field in self.config.whitelisted_fields:
+                    if field in memory_entry:
+                        filtered_entry[field] = memory_entry[field]
+                memory_entry = filtered_entry
+
         try:
             memory_id = memory_entry["memory_id"]
 
@@ -345,6 +365,34 @@ class SQLiteLTMStore:
         """
         if not memory_entries:
             return True
+
+        # Apply whitelist filtering if enabled
+        if self.config.whitelist_enabled:
+            allow_all_types = "*" in self.config.whitelisted_types
+            allow_all_fields = "*" in self.config.whitelisted_fields
+            
+            filtered_entries = []
+            for entry in memory_entries:
+                # Check if memory type is whitelisted
+                memory_type = entry.get("type")
+                if not allow_all_types and memory_type not in self.config.whitelisted_types:
+                    logger.debug(
+                        "Memory type %s not in whitelist, skipping from batch",
+                        memory_type
+                    )
+                    continue
+
+                # Filter entry to only include whitelisted fields if not using wildcard
+                if not allow_all_fields:
+                    filtered_entry = {}
+                    for field in self.config.whitelisted_fields:
+                        if field in entry:
+                            filtered_entry[field] = entry[field]
+                    filtered_entries.append(filtered_entry)
+                else:
+                    filtered_entries.append(entry)
+            
+            memory_entries = filtered_entries
 
         # Check if any entry is missing memory_id
         all_valid = True
@@ -1242,3 +1290,69 @@ class SQLiteLTMStore:
         except Exception as e:
             logger.error(f"Error in search_by_step_range: {e}")
             return []
+
+    def flush_memories(self, memories: List[Dict[str, Any]], force: bool = False) -> Tuple[int, int]:
+        """Flush a list of memories to LTM storage, respecting whitelist settings.
+
+        Args:
+            memories: List of memory entries to flush to LTM
+            force: If True, bypass whitelist filtering for memory types (but still filter fields)
+
+        Returns:
+            Tuple of (number of memories stored, number of memories filtered out)
+        """
+        if not memories:
+            return (0, 0)
+
+        stored_count = 0
+        filtered_count = 0
+
+        # Apply whitelist filtering if enabled and not forced
+        if self.config.whitelist_enabled and not force:
+            allow_all_types = "*" in self.config.whitelisted_types
+            allow_all_fields = "*" in self.config.whitelisted_fields
+            
+            filtered_entries = []
+            for entry in memories:
+                # Check if memory type is whitelisted
+                memory_type = entry.get("type")
+                if not allow_all_types and memory_type not in self.config.whitelisted_types:
+                    logger.debug(
+                        "Memory type %s not in whitelist during flush, filtering out",
+                        memory_type
+                    )
+                    filtered_count += 1
+                    continue
+
+                # Filter entry to only include whitelisted fields if not using wildcard
+                if not allow_all_fields:
+                    filtered_entry = {}
+                    for field in self.config.whitelisted_fields:
+                        if field in entry:
+                            filtered_entry[field] = entry[field]
+                    filtered_entries.append(filtered_entry)
+                else:
+                    filtered_entries.append(entry)
+            
+            memories = filtered_entries
+
+        try:
+            # Process memories in batches to avoid memory issues
+            batch_size = self.config.batch_size
+            for i in range(0, len(memories), batch_size):
+                batch = memories[i:i + batch_size]
+                success = self.store_batch(batch)
+                if success:
+                    stored_count += len(batch)
+                else:
+                    filtered_count += len(batch)
+                    logger.warning(f"Failed to store batch of {len(batch)} memories during flush")
+
+            logger.info(
+                f"Flushed memories to LTM: {stored_count} stored, {filtered_count} filtered out"
+            )
+            return (stored_count, filtered_count)
+
+        except Exception as e:
+            logger.error(f"Error during memory flush: {e}")
+            return (stored_count, filtered_count)

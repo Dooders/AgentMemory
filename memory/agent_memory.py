@@ -991,3 +991,61 @@ class MemoryAgent:
         # Sort by final score
         scored_results.sort(key=lambda x: x.get("hybrid_score", 0), reverse=True)
         return scored_results[:k]
+
+    def flush_to_ltm(self, include_stm: bool = True, include_im: bool = True, force: bool = False) -> Dict[str, int]:
+        """Flush memories from STM and/or IM to LTM storage.
+
+        Args:
+            include_stm: Whether to flush STM memories
+            include_im: Whether to flush IM memories
+            force: If True, bypass LTM whitelist filtering for memory types
+
+        Returns:
+            Dictionary containing counts of memories processed:
+            {
+                'stm_stored': int,
+                'stm_filtered': int,
+                'im_stored': int,
+                'im_filtered': int
+            }
+        """
+        results = {
+            'stm_stored': 0,
+            'stm_filtered': 0,
+            'im_stored': 0,
+            'im_filtered': 0
+        }
+
+        try:
+            # Flush STM memories if requested
+            if include_stm:
+                stm_memories = self.stm_store.get_all()
+                if stm_memories:
+                    stored, filtered = self.ltm_store.flush_memories(stm_memories, force=force)
+                    results['stm_stored'] = stored
+                    results['stm_filtered'] = filtered
+                    # Clear STM after successful flush
+                    if stored > 0:
+                        self.stm_store.clear()
+
+            # Flush IM memories if requested
+            if include_im:
+                im_memories = self.im_store.get_all()
+                if im_memories:
+                    stored, filtered = self.ltm_store.flush_memories(im_memories, force=force)
+                    results['im_stored'] = stored
+                    results['im_filtered'] = filtered
+                    # Clear IM after successful flush
+                    if stored > 0:
+                        self.im_store.clear()
+
+            logger.info(
+                f"Memory flush complete - STM: {results['stm_stored']} stored, "
+                f"{results['stm_filtered']} filtered; IM: {results['im_stored']} stored, "
+                f"{results['im_filtered']} filtered"
+            )
+            return results
+
+        except Exception as e:
+            logger.error(f"Error during memory flush: {e}")
+            return results
