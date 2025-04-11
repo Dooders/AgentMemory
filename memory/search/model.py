@@ -68,15 +68,22 @@ class SearchModel:
             return False
         
         # If removing the default strategy, set a new default if possible
-        if strategy_name == self.default_strategy and self.strategies:
-            # Pick the first available strategy as the new default
-            self.default_strategy = next(iter(self.strategies.keys()))
-            logger.debug("Set new default search strategy to %s", self.default_strategy)
-        elif strategy_name == self.default_strategy:
-            # No other strategies available
-            self.default_strategy = None
-        
-        del self.strategies[strategy_name]
+        if strategy_name == self.default_strategy:
+            # Remove the current strategy first to avoid selecting it again
+            del self.strategies[strategy_name]
+            
+            # Pick another strategy as the new default if any are left
+            if self.strategies:
+                self.default_strategy = next(iter(self.strategies.keys()))
+                logger.debug("Set new default search strategy to %s", self.default_strategy)
+            else:
+                # No other strategies available
+                self.default_strategy = None
+                logger.debug("No strategies left, default strategy set to None")
+        else:
+            # Not removing the default strategy
+            del self.strategies[strategy_name]
+            
         logger.debug("Unregistered search strategy: %s", strategy_name)
         return True
     
