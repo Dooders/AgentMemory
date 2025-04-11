@@ -135,7 +135,7 @@ class CombinedSearchStrategy(SearchStrategy):
                 combined_score = (base_score * 0.7 + position_score * 0.3) * strategy_weight
                 
                 # Store or update in combined results
-                if memory_id not in all_results or combined_score > all_results[memory_id].get("combined_score", 0.0):
+                if memory_id not in all_results or combined_score > all_results[memory_id].get("metadata", {}).get("combined_score", 0.0):
                     memory_copy = memory.copy()
                     if "metadata" not in memory_copy:
                         memory_copy["metadata"] = {}

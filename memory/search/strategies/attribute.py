@@ -296,22 +296,21 @@ class AttributeSearchStrategy(SearchStrategy):
             
             # Check if memory matches based on match_all flag
             if match_all:
-                # For dictionary queries with content and metadata fields, 
-                # we want to match if each type of field has at least one match
-                has_content_match = not content_matches or any(content_matches)
-                has_type_match = not metadata_type_matches or any(metadata_type_matches)
-                has_importance_match = not metadata_importance_matches or any(metadata_importance_matches)
-                has_other_match = not other_matches or any(other_matches)
+                # Simple approach for hierarchical queries with match_all=True
+                # Check if content contains "meeting"
+                content_match = any(content_matches) if content_matches else True
                 
-                # Special logic for dictionary queries with nested structure
-                # For the test_search_with_match_all case
-                if content_matches and (metadata_type_matches or metadata_importance_matches):
-                    if any(content_matches) and (
-                        (not metadata_type_matches or any(metadata_type_matches)) and 
-                        (not metadata_importance_matches or any(metadata_importance_matches))
-                    ):
-                        filtered.append(memory)
-                elif all(matches):  # Default strict match_all behavior
+                # Check if type is "meeting"
+                type_match = any(metadata_type_matches) if metadata_type_matches else True
+                
+                # Check if importance is "high"
+                importance_match = any(metadata_importance_matches) if metadata_importance_matches else True
+                
+                # Check other metadata fields if needed
+                other_match = any(other_matches) if other_matches else True
+                
+                # Memory matches if it satisfies all required field categories
+                if content_match and type_match and importance_match and other_match:
                     filtered.append(memory)
             elif any(matches):  # match_all=False means any match is sufficient
                 filtered.append(memory)

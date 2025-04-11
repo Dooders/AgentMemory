@@ -21,6 +21,7 @@ from memory.utils.error_handling import (
     RetryPolicy,
     StoreOperation,
 )
+from memory.storage.mockredis import MockRedis
 
 
 class TestResilientRedisClient(unittest.TestCase):
@@ -599,53 +600,45 @@ class TestResilientRedisClient(unittest.TestCase):
 class TestResilientRedisClientIntegration(unittest.TestCase):
     """Integration tests for ResilientRedisClient.
 
-    These tests require a running Redis server.
-    Skip these tests if Redis is not available.
+    These tests use MockRedis to avoid requiring a real Redis server.
     """
 
     @classmethod
     def setUpClass(cls):
         """Set up test fixtures for the class."""
-        # Try to connect to Redis, skip tests if not available
-        try:
-            r = redis.Redis(host="localhost", port=6379, db=15, socket_timeout=1)
-            r.ping()
-            cls.redis_available = True
-
-            # Create client for tests
-            cls.client = ResilientRedisClient(
-                client_name="integration-test",
-                host="localhost",
-                port=6379,
-                db=15,  # Use DB 15 for testing
-                socket_timeout=1.0,
-                socket_connect_timeout=1.0,
-            )
-
-            # Clear test database
-            r.flushdb()
-        except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError):
-            cls.redis_available = False
-            cls.client = None
+        # Use MockRedis instead of real Redis
+        cls.mock_redis = MockRedis()
+        
+        # Create client for tests and patch its Redis client with MockRedis
+        cls.client = ResilientRedisClient(
+            client_name="integration-test",
+            host="localhost",
+            port=6379,
+            db=15,  # Use DB 15 for testing
+            socket_timeout=1.0,
+            socket_connect_timeout=1.0,
+        )
+        
+        # Replace the real Redis client with MockRedis
+        cls.client.client = cls.mock_redis
 
     @classmethod
     def tearDownClass(cls):
         """Clean up after tests."""
-        if cls.redis_available and cls.client:
-            # Connect to Redis and clear the test database
-            r = redis.Redis(host="localhost", port=6379, db=15, socket_timeout=1)
-            r.flushdb()
-
+        if cls.client:
+            # Clear test database
+            cls.mock_redis.flushall()
             # Close client
             cls.client.close()
 
     def setUp(self):
-        """Skip tests if Redis is not available."""
-        if not self.redis_available:
-            self.skipTest("Redis server not available")
+        """Prepare for each test."""
+        # Clear data before each test
+        self.mock_redis = self.__class__.mock_redis
+        self.mock_redis.flushall()
 
     def test_basic_operations(self):
-        """Test basic Redis operations with actual Redis server."""
+        """Test basic Redis operations with MockRedis."""
         # Test set and get
         self.client.set("test_key", "test_value")
         result = self.client.get("test_key")
@@ -657,7 +650,7 @@ class TestResilientRedisClientIntegration(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_hash_operations(self):
-        """Test hash operations with actual Redis server."""
+        """Test hash operations with MockRedis."""
         # Test hset and hget
         self.client.hset("test_hash", "field1", "value1")
         result = self.client.hget("test_hash", "field1")
@@ -673,7 +666,7 @@ class TestResilientRedisClientIntegration(unittest.TestCase):
         self.assertEqual(result, expected)
 
     def test_sorted_set_operations(self):
-        """Test sorted set operations with actual Redis server."""
+        """Test sorted set operations with MockRedis."""
         # Test zadd
         mapping = {"member1": 1.0, "member2": 2.0, "member3": 3.0}
         self.client.zadd("test_zset", mapping)

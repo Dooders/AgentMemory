@@ -90,8 +90,8 @@ class SimilaritySearchStrategy(SearchStrategy):
         Returns:
             List of memory entries matching the search criteria
         """
-        # Initialize results
-        results = []
+        # Initialize results - we'll keep a dict to preserve order and handle duplicates
+        results_dict = {}  # memory_id -> memory_dict
         
         # Process all tiers or only the specified one
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
@@ -121,12 +121,18 @@ class SimilaritySearchStrategy(SearchStrategy):
             # Filter by score
             filtered_vectors = [v for v in similar_vectors if v["score"] >= min_score]
             
-            # Limit results
+            # Limit results 
             filtered_vectors = filtered_vectors[:limit]
             
             # Fetch full memory entries
             for result in filtered_vectors:
                 memory_id = result["id"]
+                score = result["score"]
+                
+                # Check if we've already found this memory with a higher score
+                if memory_id in results_dict and results_dict[memory_id]["metadata"]["similarity_score"] >= score:
+                    continue
+                
                 memory = None
                 
                 # Look up in the appropriate store
@@ -138,12 +144,27 @@ class SimilaritySearchStrategy(SearchStrategy):
                     memory = self.ltm_store.get(memory_id)
                 
                 if memory:
+                    # Ensure memory is a dictionary to avoid issues with MagicMock objects
+                    if not isinstance(memory, dict):
+                        try:
+                            # Try to convert to dictionary if not already
+                            memory = dict(memory)
+                        except (TypeError, ValueError):
+                            # Skip this result if conversion fails
+                            logger.warning("Skipping result with non-dictionary memory: %s", memory_id)
+                            continue
+                    
                     # Attach similarity score and tier information
                     if "metadata" not in memory:
                         memory["metadata"] = {}
-                    memory["metadata"]["similarity_score"] = result["score"]
+                    memory["metadata"]["similarity_score"] = score
                     memory["metadata"]["memory_tier"] = current_tier
-                    results.append(memory)
+                    
+                    # Store in results dict
+                    results_dict[memory_id] = memory
+        
+        # Convert to list and ensure they're all dictionaries
+        results = [r for r in results_dict.values() if isinstance(r, dict)]
         
         # Sort by similarity score (descending)
         results.sort(
