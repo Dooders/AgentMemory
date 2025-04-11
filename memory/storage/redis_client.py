@@ -595,8 +595,15 @@ class ResilientRedisClient:
             RedisTimeoutError: If operation times out
             RedisUnavailableError: If Redis is unavailable
         """
-        # Use scan_iter directly from the client
-        return list(self.client.scan_iter(match=match, count=count))
+        # Implement using scan with cursor
+        keys = []
+        cursor = 0
+        while True:
+            cursor, chunk = self.client.scan(cursor, match=match, count=count)
+            keys.extend(chunk)
+            if cursor == 0:
+                break
+        return keys
 
     def store_with_retry(
         self,

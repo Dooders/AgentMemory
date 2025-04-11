@@ -51,6 +51,11 @@ class SQLiteLTMConfig:
         self.batch_size = 100
         self.table_prefix = "ltm"
         self.use_mock = False
+        
+        # Whitelist settings
+        self.whitelist_enabled = True
+        self.whitelisted_types = ["*"]
+        self.whitelisted_fields = ["*"]
 
         # Update with any provided values
         for key, value in kwargs.items():

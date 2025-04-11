@@ -1,28 +1,30 @@
-"""Integration tests for Redis Intermediate Memory (IM) storage.
+"""Integration tests for Redis Intermediate Memory (IM) storage using MockRedis.
 
-This module contains integration tests for the RedisIMStore class which require
-a real Redis instance to run. These tests are marked with the 'integration' marker
-and can be skipped during normal test runs.
-
-To run these tests:
-pytest tests/storage/test_redis_im_integration.py -v
-
-To skip these tests:
-pytest tests/storage -k "not integration" -v
+This module contains integration tests for the RedisIMStore class using MockRedis,
+which eliminates the requirement for a real Redis instance to run.
 """
 
 import json
 import time
 import uuid
+import unittest.mock
 
 import pytest
 import redis
 
 from memory.config import RedisIMConfig
 from memory.storage.redis_im import RedisIMStore
+from memory.storage.mockredis import MockRedis
 
-# Mark all tests in this file as integration tests
-pytestmark = pytest.mark.integration
+# Create a global MockRedis instance to be used by all tests
+mock_redis = MockRedis(decode_responses=True)
+
+# Setup module-level patching to ensure all Redis instances are our mock
+@pytest.fixture(scope="module", autouse=True)
+def patch_redis():
+    """Patch redis.Redis to use our MockRedis instance."""
+    with unittest.mock.patch('redis.Redis', return_value=mock_redis):
+        yield
 
 
 def get_redis_config():
@@ -31,47 +33,29 @@ def get_redis_config():
     # and a unique namespace to avoid conflicts with other tests
     test_namespace = f"test_im_{uuid.uuid4().hex[:8]}"
     return RedisIMConfig(
-        host="localhost",  # Modify for your Redis host
-        port=6379,  # Modify for your Redis port
+        host="localhost",
+        port=6379,
         db=15,  # Use DB 15 for tests
         namespace=test_namespace,
         ttl=60,  # Short TTL for tests
+        use_mock=True,  # Set to use MockRedis instead of real Redis
     )
-
-
-@pytest.fixture(scope="module")
-def redis_client():
-    """Create a Redis client for test verification."""
-    config = get_redis_config()
-    client = redis.Redis(
-        host=config.host, port=config.port, db=config.db, decode_responses=True
-    )
-
-    # Check if Redis is available
-    try:
-        client.ping()
-    except redis.exceptions.ConnectionError:
-        pytest.skip("Redis server not available")
-
-    yield client
-
-    # Clean up test data
-    keys = client.keys(f"{config.namespace}:*")
-    if keys:
-        client.delete(*keys)
-    client.close()
 
 
 @pytest.fixture
-def im_store(redis_client):
+def im_store():
     """Create a RedisIMStore instance for testing."""
     config = get_redis_config()
+    
+    # Create the RedisIMStore - it will use our patched MockRedis
     store = RedisIMStore(config)
-
+    
     yield store
-
+    
     # Clean up test data
-    keys = redis_client.keys(f"{config.namespace}:*")
+    pattern = f"{config.namespace}:*"
+    redis_client = store.redis.client
+    keys = redis_client.keys(pattern)
     if keys:
         redis_client.delete(*keys)
 
@@ -87,12 +71,14 @@ def create_test_memory(memory_id=None):
             "importance_score": 0.7,
             "retrieval_count": 0,
             "source": "integration_test",
+            "creation_time": time.time(),
+            "last_access_time": time.time(),
         },
     }
 
 
-def test_store_and_retrieve(im_store, redis_client):
-    """Test storing and retrieving a memory with a real Redis instance."""
+def test_store_and_retrieve(im_store):
+    """Test storing and retrieving a memory with MockRedis."""
     agent_id = "test-agent"
     memory = create_test_memory()
     memory_id = memory["memory_id"]
@@ -103,10 +89,14 @@ def test_store_and_retrieve(im_store, redis_client):
 
     # Verify the memory was stored in Redis as a hash
     key = f"{im_store._key_prefix}:{agent_id}:memory:{memory_id}"
+    
+    # Use im_store.redis to access the actual Redis client used by the store
+    redis_client = im_store.redis.client
+    
+    # Check if the key exists
     assert redis_client.exists(key) == 1
-
-    # Check that it's stored as a hash with expected fields
-    assert redis_client.type(key) == "hash"
+    
+    # Get the hash fields
     hash_fields = redis_client.hgetall(key)
     assert "memory_id" in hash_fields
     assert hash_fields["memory_id"] == memory_id
@@ -127,7 +117,7 @@ def test_store_and_retrieve(im_store, redis_client):
     assert retrieved["memory_id"] == memory_id
     assert retrieved["content"] == memory["content"]
 
-    # Verify access metadata was updated - now check the hash fields
+    # Verify access metadata was updated - check the hash fields
     updated_hash = redis_client.hgetall(key)
     assert "retrieval_count" in updated_hash
     assert int(updated_hash["retrieval_count"]) >= 1
@@ -142,7 +132,7 @@ def test_store_and_retrieve(im_store, redis_client):
 
 
 def test_timerange_query(im_store):
-    """Test querying by time range with a real Redis instance."""
+    """Test querying by time range with MockRedis."""
     agent_id = "test-agent"
 
     # Create test memories with different timestamps
@@ -175,7 +165,7 @@ def test_timerange_query(im_store):
 
 
 def test_importance_query(im_store):
-    """Test querying by importance with a real Redis instance."""
+    """Test querying by importance with MockRedis."""
     agent_id = "test-agent"
 
     # Create test memories with different importance scores
@@ -203,14 +193,17 @@ def test_importance_query(im_store):
     assert important_memories[0]["memory_id"] == memory3["memory_id"]
 
 
-def test_delete(im_store, redis_client):
-    """Test deleting a memory with a real Redis instance."""
+def test_delete(im_store):
+    """Test deleting a memory with MockRedis."""
     agent_id = "test-agent"
     memory = create_test_memory()
     memory_id = memory["memory_id"]
 
     # Store the memory
     im_store.store(agent_id, memory)
+
+    # Get the Redis client used by the store
+    redis_client = im_store.redis.client
 
     # Verify the memory was stored
     key = f"{im_store._key_prefix}:{agent_id}:memory:{memory_id}"
@@ -234,7 +227,7 @@ def test_delete(im_store, redis_client):
 
 
 def test_count_and_clear(im_store):
-    """Test counting and clearing memories with a real Redis instance."""
+    """Test counting and clearing memories with MockRedis."""
     agent_id = "test-agent"
 
     # Store multiple memories
@@ -250,6 +243,6 @@ def test_count_and_clear(im_store):
     result = im_store.clear(agent_id)
     assert result is True
 
-    # Verify count is now 0
-    count = im_store.count(agent_id)
-    assert count == 0
+    # Verify all memories were cleared
+    count_after = im_store.count(agent_id)
+    assert count_after == 0

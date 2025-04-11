@@ -578,81 +578,87 @@ class MockRedis:
                                 and memory_id in key
                                 and ":memory:" in key
                             ):
-                                # Check if memory contains step_number or timestamp
                                 memory_data = self.store.get(key)
-
                                 if isinstance(memory_data, dict):
-                                    # Normalize step_number and timestamp to integers
+                                    # Check for step_number based matching
                                     step_number = memory_data.get("step_number")
                                     if step_number is not None:
-                                        # Convert step_number for reliable comparison
-                                        step_number = self._normalize_numeric_value(
-                                            step_number
-                                        )
-
-                                        if min_score <= float(step_number) <= max_score:
+                                        step_number = int(step_number)
+                                        if min_score <= step_number <= max_score:
                                             filtered_items.append(
                                                 (member_str, float(step_number))
                                             )
                                             break
 
-                                    # Check timestamp
+                                    # Fallback to timestamp
                                     timestamp = memory_data.get("timestamp")
                                     if timestamp is not None:
-                                        # Convert timestamp for reliable comparison
-                                        timestamp = self._normalize_numeric_value(
-                                            timestamp
-                                        )
-
-                                        # Check if normalized timestamp matches query range
-                                        if min_score <= float(timestamp) <= max_score:
+                                        timestamp = float(timestamp)
+                                        if min_score <= timestamp <= max_score:
                                             filtered_items.append(
                                                 (member_str, float(timestamp))
                                             )
                                             break
-
-                                    # Also check content.timestamp if it exists (nested timestamp)
-                                    content = memory_data.get("content")
-                                    if (
-                                        isinstance(content, dict)
-                                        and "timestamp" in content
-                                    ):
-                                        content_timestamp = (
-                                            self._normalize_numeric_value(
-                                                content["timestamp"]
-                                            )
-                                        )
-
-                                        if (
-                                            min_score
-                                            <= float(content_timestamp)
-                                            <= max_score
-                                        ):
-                                            filtered_items.append(
-                                                (member_str, float(content_timestamp))
-                                            )
-                                            break
             else:
-                # Standard score range filtering for non-timeline queries
+                # General case - filter by score range
                 filtered_items = [
                     (member, score)
                     for member, score in self.store[name].items()
                     if min_score <= float(score) <= max_score
                 ]
 
+            # Sort by score
             sorted_items = sorted(filtered_items, key=lambda x: (x[1], x[0]))
 
+            # Handle pagination
             if num is not None:
                 sorted_items = sorted_items[start : start + num]
             else:
                 sorted_items = sorted_items[start:]
 
             if withscores:
-                return [item for pair in sorted_items for item in pair]
+                return [
+                    (member, score_cast_func(score)) for member, score in sorted_items
+                ]
             else:
-                return [item[0] for item in sorted_items]
+                return [member for member, _ in sorted_items]
+
+    def zscore(self, name, value):
+        """Get the score of member in a sorted set.
+        
+        Args:
+            name: Sorted set name
+            value: Member to get score for
+            
+        Returns:
+            Score of member as a float, or None if member or set doesn't exist
+        """
+        with self.lock:
+            if name not in self.store:
+                return None
+                
+            # Get the score if it exists
+            score = self.store[name].get(value)
+            
+            if score is None:
+                # Try to handle case conversion if needed
+                if isinstance(value, str):
+                    for member in self.store[name]:
+                        if isinstance(member, str) and member.lower() == value.lower():
+                            return float(self.store[name][member])
+            
+            return float(score) if score is not None else None
 
     def zrem(self, name, *values):
+        """Remove members from a sorted set.
+
+        Args:
+            name: Sorted set name
+            *values: Members to remove
+
+        Returns:
+            Number of members removed
+        """
         with self.lock:
             if name not in self.store:
                 return 0
@@ -747,18 +753,62 @@ class MockRedis:
 
             return count
 
+    def type(self, key):
+        """Return the type of value stored at key.
+        
+        Args:
+            key: Key to check type of
+            
+        Returns:
+            String type name: "string", "hash", "list", "set", "zset" or "none" if key doesn't exist
+        """
+        with self.lock:
+            if key not in self.store:
+                return "none"
+                
+            value = self.store[key]
+            
+            if isinstance(value, dict):
+                # Check if it's a sorted set (has float values)
+                if value and all(isinstance(v, (int, float)) for v in value.values()):
+                    return "zset"
+                return "hash"
+            elif isinstance(value, list):
+                return "list"
+            elif isinstance(value, set):
+                return "set"
+            else:
+                return "string"
+
     # Scanning operations
     def scan_iter(self, match=None, count=None):
-        with self.lock:
-            import fnmatch
+        """Iterate over keys matching the given pattern.
 
-            if match:
-                for key in self.store:
-                    if fnmatch.fnmatch(key, match):
-                        yield key
-            else:
-                for key in self.store:
-                    yield key
+        Args:
+            match: Pattern to match (using glob-style patterns)
+            count: Number of keys to return in each batch (ignored in MockRedis)
+
+        Returns:
+            List of matching keys
+        """
+        if match:
+            return self.keys(match)
+        return list(self.store.keys())
+
+    def scan(self, cursor=0, match=None, count=None):
+        """Incrementally return keys matching a pattern.
+
+        Args:
+            cursor: Cursor position (ignored in MockRedis implementation)
+            match: Pattern to match (using glob-style patterns)
+            count: Number of keys to return in each batch (ignored in MockRedis)
+
+        Returns:
+            A tuple of (next_cursor, keys_list)
+        """
+        # MockRedis simplification: return all keys at once with cursor=0
+        keys = self.scan_iter(match=match, count=count)
+        return (0, keys)  # 0 cursor means no more keys
 
     # Advanced Client Features
     def execute_command(self, command, *args, **kwargs):
@@ -1387,60 +1437,48 @@ class MockRedis:
     def from_url(cls, url):
         return cls()
 
-    # Add scan method to support the scan_iter implementation
-    def scan(self, cursor=0, match=None, count=None):
-        """Incrementally iterate over keys.
+    def _normalize_numeric_value(self, value):
+        """Normalize numeric values to integers if they look like integers.
 
-        In the mock implementation, returns all keys at once.
+        This helps with consistent comparison of timestamp values, which might
+        come in as strings, floats, or integers.
 
         Args:
-            cursor: Cursor position (ignored in mock)
-            match: Pattern to match keys
-            count: Number of keys per call (ignored in mock)
+            value: Value to normalize
 
         Returns:
-            Tuple of (0, matching_keys)
+            Normalized value
+        """
+        if isinstance(value, str):
+            try:
+                if "." in value:
+                    float_val = float(value)
+                    # If it represents an integer, convert to int
+                    if float_val.is_integer():
+                        return int(float_val)
+                    return float_val
+                else:
+                    return int(value)
+            except (ValueError, TypeError):
+                return value
+        return value
+
+    def keys(self, pattern="*"):
+        """Find all keys matching the given pattern.
+
+        Args:
+            pattern: Pattern to match (using glob-style patterns)
+
+        Returns:
+            List of matching keys
         """
         with self.lock:
-            import fnmatch
-
-            if match:
-                result = [key for key in self.store if fnmatch.fnmatch(key, match)]
-            else:
-                result = list(self.store.keys())
-
-            # Always return cursor 0 to indicate completion
-            return 0, result
-
-    def _normalize_numeric_value(self, value):
-        """Helper method to normalize timestamps and step numbers for consistent comparison.
-
-        Args:
-            value: The value to normalize
-
-        Returns:
-            The normalized value (integer if possible, otherwise float or original)
-        """
-        if value is None:
-            return None
-
-        try:
-            if isinstance(value, str):
-                # Try to convert string to float first
-                float_value = float(value)
-                # Convert to int if it represents a whole number
-                if float_value.is_integer():
-                    return int(float_value)
-                return float_value
-            elif isinstance(value, float):
-                # Convert to int if it represents a whole number
-                if value.is_integer():
-                    return int(value)
-                return value
-            elif isinstance(value, (int, bool)):
-                return value
-        except (ValueError, TypeError):
-            pass
-
-        # Return original value if conversion failed
-        return value
+            all_keys = list(self.store.keys())
+            if pattern == "*":
+                return all_keys
+            
+            import re
+            # Convert Redis pattern to regex pattern
+            regex_pattern = pattern.replace("*", ".*").replace("?", ".")
+            regex = re.compile(f"^{regex_pattern}$")
+            return [key for key in all_keys if regex.match(key)]
