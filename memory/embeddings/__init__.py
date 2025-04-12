@@ -9,17 +9,21 @@ Key components:
 1. TextEmbeddingEngine: Uses sentence-transformers models to convert text and
    structured data into vector embeddings that capture semantic meaning.
 
-2. AutoEncoder: Provides dimensionality reduction through neural network-based
+2. CustomEmbeddingEngine: A lightweight alternative to TextEmbeddingEngine that
+   eliminates the sentence-transformers dependency. It uses a custom LSTM-based
+   model trained through knowledge distillation.
+
+3. AutoEncoder: Provides dimensionality reduction through neural network-based
    compression of embedding vectors, reducing storage requirements while
    preserving semantic similarity relationships.
 
-3. Compression: Contains utilities for compressing high-dimensional vectors into
+4. Compression: Contains utilities for compressing high-dimensional vectors into
    lower-dimensional representations for efficient storage and retrieval.
 
-4. VectorStore: Implements vector storage and similarity search capabilities,
+5. VectorStore: Implements vector storage and similarity search capabilities,
    including in-memory and Redis-backed vector indices for efficient retrieval.
 
-5. Utils: Common utility functions used across the embedding modules, including
+6. Utils: Common utility functions used across the embedding modules, including
    cosine similarity calculations, dictionary flattening, and text conversion.
 
 This module works with the agent memory system to encode memories into vector
@@ -28,11 +32,11 @@ similarity to support context-aware agent reasoning.
 
 Usage example:
 ```python
-from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.custom_embeddings import CustomEmbeddingEngine
 from memory.embeddings.vector_store import VectorStore
 
 # Initialize embedding engine
-embedding_engine = TextEmbeddingEngine()
+embedding_engine = CustomEmbeddingEngine()
 
 # Create vector embeddings for a memory
 memory_data = {"content": "The user asked about machine learning applications."}
@@ -58,6 +62,7 @@ from memory.embeddings.autoencoder import (
     StateAutoencoder,
 )
 # from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.custom_embeddings import CustomEmbeddingEngine
 from memory.embeddings.utils import (
     cosine_similarity,
     filter_dict_keys,
@@ -79,6 +84,7 @@ from memory.embeddings.vector_compression import (
 
 __all__ = [
     # "TextEmbeddingEngine",
+    "CustomEmbeddingEngine",
     "AutoencoderEmbeddingEngine",
     "NumericExtractor",
     "StateAutoencoder",
