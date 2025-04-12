@@ -319,9 +319,10 @@ class AbstractionEngine:
                     abstract_entry["content"]
                 )
 
-        # Update metadata
-        if "metadata" in abstract_entry:
-            abstract_entry["metadata"]["abstraction_level"] = level
+        # Initialize or update metadata
+        if "metadata" not in abstract_entry:
+            abstract_entry["metadata"] = {}
+        abstract_entry["metadata"]["abstraction_level"] = level
 
         return abstract_entry
 
