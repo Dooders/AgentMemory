@@ -8,7 +8,7 @@ This module is a core component of the AgentMemory system, providing the semanti
 
 ## Key Components
 
-### 1. TextEmbeddingEngine (WIP)
+### 1. TextEmbeddingEngine
 
 Uses sentence-transformers models to convert text and structured data into vector embeddings that capture semantic meaning.
 

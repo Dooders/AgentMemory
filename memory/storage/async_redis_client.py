@@ -2,6 +2,16 @@
 
 This module provides an asynchronous Redis client wrapper with circuit breaker and
 retry functionality for resilient Redis operations.
+
+Key features:
+- Non-blocking I/O for high-performance memory operations
+- Asynchronous circuit breaker pattern implementation
+- Robust error handling with async retries
+- Seamless integration with async applications
+- Full parity with synchronous client functionality
+
+This async client enables reliable memory operations for asynchronous agent
+applications that require non-blocking memory access patterns.
 """
 
 import asyncio

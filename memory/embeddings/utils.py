@@ -71,7 +71,18 @@ def object_to_text(obj: Any) -> str:
             return "empty"
         # Better handling of nested structures
         parts = []
+        
+        # Prioritize agent_id and emphasize it for better agent clustering
+        if "agent_id" in obj:
+            agent_id = obj["agent_id"]
+            agent_emphasis = f"agent_id: {agent_id} " * 5  # Repeat 5 times for stronger emphasis
+            parts.append(agent_emphasis)
+        
         for key, value in obj.items():
+            # Skip agent_id as we've already handled it specially
+            if key == "agent_id":
+                continue
+                
             # Format based on value type
             if isinstance(value, dict):
                 # For nested dictionaries like position

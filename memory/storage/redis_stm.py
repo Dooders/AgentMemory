@@ -2,6 +2,16 @@
 
 This module provides a Redis-based implementation of the Short-Term Memory
 storage tier with comprehensive error handling and recovery mechanisms.
+
+Key features:
+- High-resolution memory storage with full vector embeddings
+- Efficient storage and retrieval by time, importance, and similarity
+- Built-in resilience with circuit breaking and automatic retries
+- Memory filtering and searching by attributes and content
+- Step-based memory access for workflow-oriented reasoning
+
+This component serves as the intermediate storage layer in the memory hierarchy,
+sitting between immediate memory and long-term memory.
 """
 
 import json

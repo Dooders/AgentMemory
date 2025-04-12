@@ -110,11 +110,11 @@ class TemporalSearchStrategy(SearchStrategy):
             # Get all memories for the agent in this tier
             tier_memories = []
             if current_tier == "stm":
-                tier_memories = self.stm_store.get_all_for_agent(agent_id)
+                tier_memories = self.stm_store.get_all(agent_id)
             elif current_tier == "im":
-                tier_memories = self.im_store.get_all_for_agent(agent_id)
+                tier_memories = self.im_store.get_all(agent_id)
             else:  # ltm
-                tier_memories = self.ltm_store.get_all_for_agent(agent_id)
+                tier_memories = self.ltm_store.get_all(agent_id)
             
             # Filter memories by time range and metadata
             filtered_memories = self._filter_memories(

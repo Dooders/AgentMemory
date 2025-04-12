@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Agent Memory System is a hierarchical memory management system designed for intelligent agents. It provides a sophisticated way to store, retrieve, and manage agent experiences and states across different memory tiers with varying levels of detail and persistence.
+AgentMemory is a semantic memory management system designed for intelligent agents. It provides a sophisticated way to store, retrieve, and manage agent experiences and states across different memory tiers with varying levels of detail and persistence.
 
 ## System Architecture
 
@@ -42,11 +42,16 @@ graph TB
     MA --> |Manages| EH
 ```
 
-The system is composed of an AgentMemorySystem that serves as the singleton entry point, managing MemoryAgent instances for individual agents. Each MemoryAgent manages three memory tiers: Short-Term Memory (Redis-based), Intermediate Memory (Redis-based with TTL), and Long-Term Memory (SQLite-based), with distinct compression levels and persistence characteristics.
+The system is composed of an [AgentMemorySystem](../memory/core.py) that serves as the singleton entry point, managing [MemoryAgent](../memory/agent_memory.py) instances for individual agents. Each MemoryAgent manages three memory tiers: 
+- [Short-Term Memory](../memory/storage/redis_stm.py) (Redis-based)
+- [Intermediate Memory](../memory/storage/redis_im.py) (Redis-based with TTL)
+- [Long-Term Memory](../memory/storage/sqlite_ltm.py) (SQLite-based)
+
+Each tier has distinct compression levels and persistence characteristics.
 
 ## Core Components
 
-### 1. Agent Memory System (`AgentMemorySystem` class)
+### 1. Agent Memory System ([`AgentMemorySystem`](../memory/core.py) class)
 The central manager and entry point for the memory system, providing agent-specific memory access.
 
 ```python
@@ -65,7 +70,7 @@ config = MemoryConfig(
 memory_system = AgentMemorySystem.get_instance(config)
 ```
 
-### 2. Memory Agent (`MemoryAgent` class)
+### 2. Memory Agent ([`MemoryAgent`](../memory/agent_memory.py) class)
 Manages memory operations for a specific agent across all memory tiers.
 
 ```python
@@ -254,6 +259,121 @@ Statistics include:
 - Access patterns
 - Memory type distribution
 
+## Search API
+
+The Agent Memory System provides a sophisticated, strategy-based search framework powered by the [`SearchModel`](../memory/search/model.py) class and various search strategies. This design enables flexible, precise, and composable memory retrieval.
+
+### Search Strategies
+
+The system implements four primary search strategies:
+
+1. **Similarity Search**: Find memories based on semantic similarity using vector embeddings ([`SimilaritySearchStrategy`](../memory/search/strategies/similarity.py))
+2. **Temporal Search**: Retrieve memories based on time-related attributes ([`TemporalSearchStrategy`](../memory/search/strategies/temporal.py))
+3. **Attribute Search**: Search for memories with specific content or metadata values ([`AttributeSearchStrategy`](../memory/search/strategies/attribute.py))
+4. **Combined Search**: Integrate results from multiple strategies with configurable weights ([`CombinedSearchStrategy`](../memory/search/strategies/combined.py))
+
+### Strategy-Based Memory Search
+
+```python
+from memory.search import SearchModel
+from memory.search import SimilaritySearchStrategy, TemporalSearchStrategy
+from memory.search import AttributeSearchStrategy, CombinedSearchStrategy
+
+# Get search model from the memory system
+search_model = memory_system.get_search_model()
+
+# Semantic similarity search
+similar_memories = search_model.search(
+    query="meeting with client about project timeline",
+    agent_id="agent-123",
+    strategy_name="similarity",  # Optional if set as default
+    limit=5,
+    min_score=0.7,
+    tier="ltm"  # Optional - restricts to long-term memory
+)
+
+# Temporal search
+recent_memories = search_model.search(
+    query={
+        "start_time": "2023-06-01", 
+        "end_time": "2023-06-30"
+    },
+    agent_id="agent-123",
+    strategy_name="temporal",
+    limit=10,
+    recency_weight=1.5  # Emphasize more recent memories
+)
+
+# Attribute search
+attribute_memories = search_model.search(
+    query={
+        "content": "budget discussion",
+        "metadata": {
+            "type": "meeting",
+            "importance": "high"
+        }
+    },
+    agent_id="agent-123",
+    strategy_name="attribute",
+    match_all=True,  # All conditions must match (AND logic)
+    limit=10
+)
+
+# Combined strategy search
+comprehensive_results = search_model.search(
+    query="quarterly planning session",
+    agent_id="agent-123",
+    strategy_name="combined",
+    strategy_params={
+        "similarity": {"min_score": 0.6},
+        "temporal": {"recency_weight": 1.5},
+        "attribute": {"match_all": False}
+    },
+    limit=10
+)
+```
+
+### Filtering Results
+
+All search strategies support additional filtering through the `metadata_filter` parameter:
+
+```python
+# Filter results by metadata attributes
+filtered_results = search_model.search(
+    query="project discussion",
+    agent_id="agent-123",
+    metadata_filter={
+        "type": "meeting",
+        "project_id": "proj-123"
+    },
+    limit=10
+)
+```
+
+### Customizing Search Strategies
+
+For advanced use cases, you can customize the strategy weights in the combined strategy:
+
+```python
+# Get the combined strategy
+combined_strategy = search_model.strategies["combined"]
+
+# Update weights to emphasize different aspects
+combined_strategy.set_weights({
+    "similarity": 2.0,  # Increase semantic importance
+    "temporal": 0.5,    # Decrease temporal importance
+    "attribute": 1.0    # Keep attribute importance the same
+})
+```
+
+### Related Documentation
+
+For more detailed information about the search capabilities:
+- [Search System](search_system.md) - Comprehensive documentation of the search architecture and strategies
+- [Memory Tiers](memory_tiers.md) - How memory tiers affect search operations
+- [Embeddings](embeddings.md) - Details on the vector embeddings used in similarity search
+- [API Reference](memory_api.md#search-methods) - Complete API reference for all search methods
+
 ## Memory Maintenance
 
 The system includes automatic memory maintenance:
@@ -268,7 +388,15 @@ memory_system.force_memory_maintenance()
 ## Configuration
 
 The system is highly configurable through dataclasses:
+
+- [`MemoryConfig`](../memory/config.py)
+- [`RedisSTMConfig`](../memory/config.py)
+- [`RedisIMConfig`](../memory/config.py)
+- [`SQLiteLTMConfig`](../memory/config.py)
+- [`AutoencoderConfig`](../memory/config.py)
+
 ```python
+from memory.core import AgentMemorySystem
 from memory.config import MemoryConfig, RedisSTMConfig, RedisIMConfig, SQLiteLTMConfig, AutoencoderConfig
 
 config = MemoryConfig(
@@ -334,3 +462,18 @@ content_results = memory_system.search_by_content(
 
 # Get statistics
 stats = memory_system.get_memory_statistics(agent_id="agent_001") 
+```
+
+## Conclusion
+
+The Agent Memory System provides a comprehensive framework for managing agent memories across multiple tiers with sophisticated storage, retrieval, and search capabilities. Key benefits include:
+
+- **Hierarchical memory management** with short, intermediate, and long-term storage
+- **Powerful search capabilities** with multiple strategies for different retrieval needs
+- **Semantic and attribute-based** memory access for contextual understanding
+- **Automatic memory maintenance** with configurable policies for memory transfer and decay
+- **Flexible configuration** to adapt to different agent requirements and computational resources
+
+By leveraging this system, agents can maintain a rich history of their experiences, efficiently retrieve relevant information, and build a foundation for more sophisticated decision-making processes.
+
+For implementation details and API reference, consult the related documentation outlined in the previous sections.

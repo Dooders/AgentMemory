@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict, List
 
-# from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer
 
 from memory.embeddings.utils import object_to_text
 
@@ -27,10 +27,9 @@ class TextEmbeddingEngine:
                 For smaller size, try "all-MiniLM-L6-v2" which is (80MB).
         """
         try:
-            # self.model = SentenceTransformer(model_name)
+            self.model = SentenceTransformer(model_name)
             # Capture embedding dimensions
-            # self.embedding_dim = self.model.get_sentence_embedding_dimension()
-            raise NotImplementedError("SentenceTransformer not available")
+            self.embedding_dim = self.model.get_sentence_embedding_dimension()
         except NameError:
             logger.error(
                 "SentenceTransformer not available. Install with 'pip install sentence-transformers'"

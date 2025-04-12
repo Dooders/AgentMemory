@@ -73,9 +73,9 @@ class TestTemporalSearchStrategy(unittest.TestCase):
     def test_search_with_time_range(self):
         """Test search with explicit time range."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all_for_agent.return_value = self.sample_memories
-        self.mock_im_store.get_all_for_agent.return_value = []
-        self.mock_ltm_store.get_all_for_agent.return_value = []
+        self.mock_stm_store.get_all.return_value = self.sample_memories
+        self.mock_im_store.get_all.return_value = []
+        self.mock_ltm_store.get_all.return_value = []
         
         # Define a time range that includes only the two more recent memories
         start_time = (self.now - timedelta(days=1)).isoformat()
@@ -103,9 +103,9 @@ class TestTemporalSearchStrategy(unittest.TestCase):
     def test_search_with_dict_query(self):
         """Test search with a dictionary query specifying time range."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all_for_agent.return_value = []
-        self.mock_im_store.get_all_for_agent.return_value = self.sample_memories
-        self.mock_ltm_store.get_all_for_agent.return_value = []
+        self.mock_stm_store.get_all.return_value = []
+        self.mock_im_store.get_all.return_value = self.sample_memories
+        self.mock_ltm_store.get_all.return_value = []
         
         # Define time range in the query
         query = {
@@ -130,9 +130,9 @@ class TestTemporalSearchStrategy(unittest.TestCase):
     def test_search_with_recency_weight(self):
         """Test search with recency weighting."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all_for_agent.return_value = []
-        self.mock_im_store.get_all_for_agent.return_value = []
-        self.mock_ltm_store.get_all_for_agent.return_value = self.sample_memories
+        self.mock_stm_store.get_all.return_value = []
+        self.mock_im_store.get_all.return_value = []
+        self.mock_ltm_store.get_all.return_value = self.sample_memories
         
         # Perform search with high recency weight
         results_high_recency = self.strategy.search(
@@ -164,7 +164,7 @@ class TestTemporalSearchStrategy(unittest.TestCase):
     def test_search_with_metadata_filter(self):
         """Test search with metadata filtering."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all_for_agent.return_value = self.sample_memories
+        self.mock_stm_store.get_all.return_value = self.sample_memories
         
         # Perform search with metadata filter for importance=high
         results = self.strategy.search(
@@ -182,9 +182,9 @@ class TestTemporalSearchStrategy(unittest.TestCase):
     def test_search_all_tiers(self):
         """Test search across all memory tiers."""
         # Set up stores to return different memories in each tier
-        self.mock_stm_store.get_all_for_agent.return_value = [self.sample_memories[0]]
-        self.mock_im_store.get_all_for_agent.return_value = [self.sample_memories[1]]
-        self.mock_ltm_store.get_all_for_agent.return_value = [self.sample_memories[2]]
+        self.mock_stm_store.get_all.return_value = [self.sample_memories[0]]
+        self.mock_im_store.get_all.return_value = [self.sample_memories[1]]
+        self.mock_ltm_store.get_all.return_value = [self.sample_memories[2]]
         
         # Perform search across all tiers
         results = self.strategy.search(
