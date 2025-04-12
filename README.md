@@ -1,11 +1,13 @@
-# AgentMemory
+# TASM (Tiered Adaptive Semantic Memory)
 ![Status](https://img.shields.io/badge/status-In%20Development%20–%20Experimental%20%26%20Aspirational-blue)
 
-AgentMemory is a hierarchical memory system for intelligent agents that provides efficient storage, retrieval, and compression of agent states and experiences across multiple memory tiers.
+[TASM](docs/memory_system.md) is a tiered adaptive semantic memory system for intelligent agents that provides efficient storage, retrieval, and compression of agent states and experiences across multiple memory tiers.
+
+For detailed theoretical background, see the [Tiered Adaptive Semantic Memory white paper](https://github.com/Dooders/.github/blob/main/whitepapers/tasm/tiered_adaptive_semantic_memory.md).
 
 ## Overview
 
-The Agent Memory System implements a biologically-inspired memory architecture with three distinct memory tiers:
+The TASM system implements a biologically-inspired memory architecture with three distinct memory tiers:
 
 1. **Short-Term Memory (STM)**: High-resolution, rapid-access storage using Redis
 2. **Intermediate Memory (IM)**: Compressed mid-term storage with Redis + TTL
@@ -13,8 +15,9 @@ The Agent Memory System implements a biologically-inspired memory architecture w
 
 ## Features
 
-- **Hierarchical Storage**: Automatic memory transition between STM, IM, and LTM tiers
-- **Neural Compression**: Autoencoder-based embedding generation for efficient storage
+- **Tiered Storage**: Automatic memory transition between STM, IM, and LTM tiers
+- **Adaptive Management**: Intelligent memory maintenance based on importance and usage
+- **Semantic Representation**: Neural embeddings for meaningful content storage and retrieval
 - **Flexible Integration**: Easy integration with existing agent systems via API or hooks
 - **Priority-Based Memory**: Importance scoring for intelligent memory retention
 - **Vector Search**: Similarity-based memory retrieval using embeddings
@@ -95,7 +98,7 @@ memory/
 ```python
 from memory import AgentMemorySystem, MemoryConfig
 
-# Initialize memory system
+# Initialize TASM system
 memory_system = AgentMemorySystem.get_instance(MemoryConfig())
 
 # Store agent state
@@ -191,15 +194,13 @@ This allows you to develop and test your agent memory system without setting up 
 
 Explore the comprehensive documentation to understand the system components and APIs:
 
-- [Memory API](docs/memory_api.md) - Complete API reference for working with the memory system
+- [Memory API](docs/memory_api.md) - Complete API reference for working with the TASM system
 - [Agent Memory](docs/agent_memory.md) - Core MemoryAgent implementation and usage
-- [Memory System](docs/memory_system.md) - Overview of the hierarchical memory architecture
+- [Memory System](docs/memory_system.md) - Overview of the tiered memory architecture
 - [Memory Configuration](docs/memory_config.md) - Configuration options for all components
 - [Memory Tiers](docs/memory_tiers.md) - Details on the three memory tiers and their characteristics
 - [Embeddings](docs/embeddings.md) - Neural embedding generation for memory compression
 - [Benchmarking](docs/benchmarking.md) - Performance benchmarks and optimization
-- [Redis Stores](docs/redis_stm_store.md) - Redis-based storage implementation details
-- [SQLite Store](docs/sqlite_ltm_store.md) - SQLite-based long-term memory storage
 
 ## Memory Tiers
 

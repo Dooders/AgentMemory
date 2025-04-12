@@ -1,4 +1,4 @@
-"""Core classes for the agent memory system."""
+"""Core classes for the Tiered Adaptive Semantic Memory (TASM) system."""
 
 import logging
 from typing import Any, Dict, List, Optional, Union
@@ -10,11 +10,13 @@ from memory.agent_memory import MemoryAgent
 
 logger = logging.getLogger(__name__)
 
+# System constants
+SYSTEM_NAME = "TASM"  # Tiered Adaptive Semantic Memory
 
 class AgentMemorySystem:
-    """Central manager for all agent memory components.
+    """Central manager for the Tiered Adaptive Semantic Memory (TASM) system.
 
-    This class serves as the main entry point for the agent memory system,
+    This class serves as the main entry point for the TASM system,
     managing memory agents for multiple agents and providing global configuration.
 
     Attributes:
@@ -42,7 +44,7 @@ class AgentMemorySystem:
 
         # Configure logging
         logging.basicConfig(level=getattr(logging, config.logging_level))
-        logger.info("AgentMemorySystem initialized with configuration: %s", config)
+        logger.info("TASM system initialized with configuration: %s", config)
 
     def get_memory_agent(self, agent_id: str) -> MemoryAgent:
         """Get or create a MemoryAgent for the specified agent.

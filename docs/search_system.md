@@ -1,6 +1,6 @@
-# Memory Search System
+# TASM Search System
 
-The Agent Memory Search System provides a flexible and powerful framework for retrieving relevant memories from different memory tiers. This document explains the key components of the search system, demonstrates how to use various search strategies, and shows how to extend the system for custom search requirements.
+The TASM (Tiered Adaptive Semantic Memory) Search System provides a flexible and powerful framework for retrieving relevant memories from different memory tiers. This document explains the key components of the search system, demonstrates how to use various search strategies, and shows how to extend the system for custom search requirements.
 
 ## Overview
 
@@ -394,7 +394,7 @@ def retrieve_decision_support(agent_id, decision_topic, search_model):
 
 ## Conclusion
 
-The Agent Memory Search System provides a versatile and powerful framework for retrieving relevant memories using different search approaches. By leveraging the appropriate search strategies and combining them as needed, agents can efficiently access the information they need to make informed decisions and maintain contextual awareness.
+The TASM Search System provides a versatile and powerful framework for retrieving relevant memories using different search approaches. By leveraging the appropriate search strategies and combining them as needed, agents can efficiently access the information they need to make informed decisions and maintain contextual awareness.
 
 For more information on other components of the memory system, refer to:
 - [Agent Memory Overview](agent_memory.md)
