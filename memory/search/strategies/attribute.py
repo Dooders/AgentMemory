@@ -296,7 +296,7 @@ class AttributeSearchStrategy(SearchStrategy):
         
         for memory in memories:
             # Debug memory info
-            logger.debug(f"Checking memory: {memory['id']}")
+            logger.debug(f"Checking memory: {memory.get('memory_id')}")
             logger.debug(f"Memory content: {memory.get('content', {}).get('content', '')}")
             logger.debug(f"Memory metadata: {memory.get('content', {}).get('metadata', {})}")
             
@@ -358,7 +358,7 @@ class AttributeSearchStrategy(SearchStrategy):
                 logger.debug(f"Condition {i}: Match result = {match_result}")
             
             # Debug output for match_all
-            logger.debug(f"Memory {memory['id']} matches: {matches} for conditions: {query_conditions}")
+            logger.debug(f"Memory {memory.get('memory_id')} matches: {matches} for conditions: {query_conditions}")
             
             # Let's simplify the approach for match_all
             if match_all:
@@ -383,14 +383,14 @@ class AttributeSearchStrategy(SearchStrategy):
                         importance_match = True
                         break
                 
-                logger.debug(f"Match summary for {memory['id']}: content={content_match}, type={type_match}, importance={importance_match}")
+                logger.debug(f"Match summary for {memory.get('memory_id')}: content={content_match}, type={type_match}, importance={importance_match}")
                 
                 # All three conditions must match
                 if content_match and type_match and importance_match:
                     filtered_memories.append(memory)
-                    logger.debug(f"Memory {memory['id']} MATCHED ALL conditions")
+                    logger.debug(f"Memory {memory.get('memory_id')} MATCHED ALL conditions")
                 else:
-                    logger.debug(f"Memory {memory['id']} did NOT match all conditions")
+                    logger.debug(f"Memory {memory.get('memory_id')} did NOT match all conditions")
             elif not match_all and any(matches):
                 filtered_memories.append(memory)
         
@@ -429,7 +429,7 @@ class AttributeSearchStrategy(SearchStrategy):
         value = memory
         
         # Debug the field path and initial value
-        logger.debug(f"Getting field value for path '{field_path}' from memory {memory.get('id', 'unknown')}")
+        logger.debug(f"Getting field value for path '{field_path}' from memory {memory.get('memory_id', 'unknown')}")
         
         # Handle special case for content.content which might be directly in memory['content']
         if field_path == "content.content" and isinstance(memory.get("content"), str):
