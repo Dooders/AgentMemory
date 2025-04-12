@@ -146,9 +146,9 @@ class TemporalSearchStrategy(SearchStrategy):
     
     def _process_query(
         self,
-        query: Union[str, Dict[str, Any], List[float]],
-        start_time: Optional[Union[datetime, str]],
-        end_time: Optional[Union[datetime, str]],
+        query: Union[str, Dict[str, Any], List[float], int, float],
+        start_time: Optional[Union[datetime, str, int, float]],
+        end_time: Optional[Union[datetime, str, int, float]],
         start_step: Optional[int] = None,
         end_step: Optional[int] = None,
     ) -> Dict[str, Any]:
@@ -174,17 +174,33 @@ class TemporalSearchStrategy(SearchStrategy):
             "query_keys": [],  # Track keys in the query dict to identify query type
         }
         
+        # Handle integer/float timestamp queries directly
+        if isinstance(query, (int, float)):
+            # Use the timestamp as reference_time
+            try:
+                params["reference_time"] = datetime.fromtimestamp(query)
+                logger.debug(f"Using integer timestamp as reference_time: {query}")
+            except (ValueError, OverflowError):
+                logger.warning(f"Invalid timestamp value in query: {query}")
+                
         # Handle string queries
-        if isinstance(query, str):
+        elif isinstance(query, str):
             # Try to parse as a date/time string
             try:
-                # Check for common date formats
-                for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d-%m-%Y"]:
-                    try:
-                        params["reference_time"] = datetime.strptime(query, fmt)
-                        break
-                    except ValueError:
-                        continue
+                # Try to parse string as integer timestamp first
+                try:
+                    timestamp = float(query)
+                    params["reference_time"] = datetime.fromtimestamp(timestamp)
+                    logger.debug(f"Parsed string timestamp '{query}' to {params['reference_time']}")
+                    
+                except ValueError:
+                    # Check for common date formats
+                    for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d-%m-%Y"]:
+                        try:
+                            params["reference_time"] = datetime.strptime(query, fmt)
+                            break
+                        except ValueError:
+                            continue
                         
                 # Check if the query is a simulation step
                 try:
@@ -192,8 +208,9 @@ class TemporalSearchStrategy(SearchStrategy):
                     params["reference_step"] = step
                 except ValueError:
                     pass
-            except Exception:
+            except Exception as e:
                 # Use current time if parsing fails
+                logger.warning(f"Failed to parse query as time: {e}")
                 pass
         
         # Handle dictionary queries
@@ -203,21 +220,44 @@ class TemporalSearchStrategy(SearchStrategy):
             
             # Process start_time and end_time from the query (prioritize query parameters)
             if "start_time" in query:
-                parsed_start = self._parse_datetime(query["start_time"])
-                if parsed_start:
-                    params["start_time"] = parsed_start
-                    logger.debug(f"Using start_time from query: {parsed_start}")
+                # Handle integer timestamp
+                if isinstance(query["start_time"], (int, float)):
+                    try:
+                        params["start_time"] = datetime.fromtimestamp(query["start_time"])
+                        logger.debug(f"Using start_time from query as timestamp: {query['start_time']}")
+                    except (ValueError, OverflowError) as e:
+                        logger.warning(f"Invalid start_time timestamp: {e}")
+                else:
+                    parsed_start = self._parse_datetime(query["start_time"])
+                    if parsed_start:
+                        params["start_time"] = parsed_start
+                        logger.debug(f"Using start_time from query as parsed datetime: {parsed_start}")
                 
             if "end_time" in query:
-                parsed_end = self._parse_datetime(query["end_time"])
-                if parsed_end:
-                    params["end_time"] = parsed_end
-                    logger.debug(f"Using end_time from query: {parsed_end}")
+                # Handle integer timestamp
+                if isinstance(query["end_time"], (int, float)):
+                    try:
+                        params["end_time"] = datetime.fromtimestamp(query["end_time"])
+                        logger.debug(f"Using end_time from query as timestamp: {query['end_time']}")
+                    except (ValueError, OverflowError) as e:
+                        logger.warning(f"Invalid end_time timestamp: {e}")
+                else:
+                    parsed_end = self._parse_datetime(query["end_time"])
+                    if parsed_end:
+                        params["end_time"] = parsed_end
+                        logger.debug(f"Using end_time from query as parsed datetime: {parsed_end}")
                 
             if "reference_time" in query:
-                parsed_ref = self._parse_datetime(query["reference_time"])
-                if parsed_ref:
-                    params["reference_time"] = parsed_ref
+                # Handle integer timestamp
+                if isinstance(query["reference_time"], (int, float)):
+                    try:
+                        params["reference_time"] = datetime.fromtimestamp(query["reference_time"])
+                    except (ValueError, OverflowError) as e:
+                        logger.warning(f"Invalid reference_time timestamp: {e}")
+                else:
+                    parsed_ref = self._parse_datetime(query["reference_time"])
+                    if parsed_ref:
+                        params["reference_time"] = parsed_ref
                 
             # Process step parameters
             if "start_step" in query:
@@ -228,17 +268,33 @@ class TemporalSearchStrategy(SearchStrategy):
                 params["reference_step"] = self._parse_int(query["reference_step"])
         
         # Override with explicitly provided parameters (these take precedence over query dict)
-        if start_time:
-            parsed_start = self._parse_datetime(start_time)
-            if parsed_start:
-                params["start_time"] = parsed_start
-                logger.debug(f"Overriding start_time with explicit parameter: {parsed_start}")
+        if start_time is not None:
+            # Handle integer timestamp
+            if isinstance(start_time, (int, float)):
+                try:
+                    params["start_time"] = datetime.fromtimestamp(start_time)
+                    logger.debug(f"Overriding start_time with explicit timestamp parameter: {start_time}")
+                except (ValueError, OverflowError) as e:
+                    logger.warning(f"Invalid explicit start_time timestamp: {e}")
+            else:
+                parsed_start = self._parse_datetime(start_time)
+                if parsed_start:
+                    params["start_time"] = parsed_start
+                    logger.debug(f"Overriding start_time with explicit datetime parameter: {parsed_start}")
         
-        if end_time:
-            parsed_end = self._parse_datetime(end_time)
-            if parsed_end:
-                params["end_time"] = parsed_end
-                logger.debug(f"Overriding end_time with explicit parameter: {parsed_end}")
+        if end_time is not None:
+            # Handle integer timestamp
+            if isinstance(end_time, (int, float)):
+                try:
+                    params["end_time"] = datetime.fromtimestamp(end_time)
+                    logger.debug(f"Overriding end_time with explicit timestamp parameter: {end_time}")
+                except (ValueError, OverflowError) as e:
+                    logger.warning(f"Invalid explicit end_time timestamp: {e}")
+            else:
+                parsed_end = self._parse_datetime(end_time)
+                if parsed_end:
+                    params["end_time"] = parsed_end
+                    logger.debug(f"Overriding end_time with explicit datetime parameter: {parsed_end}")
         
         if start_step is not None:
             params["start_step"] = start_step
@@ -249,7 +305,7 @@ class TemporalSearchStrategy(SearchStrategy):
         logger.debug(f"Processed temporal parameters: {params}")
         return params
     
-    def _parse_datetime(self, dt_value: Union[datetime, str]) -> Optional[datetime]:
+    def _parse_datetime(self, dt_value: Union[datetime, str, int, float]) -> Optional[datetime]:
         """Parse a datetime value from various formats.
         
         Args:
@@ -260,10 +316,25 @@ class TemporalSearchStrategy(SearchStrategy):
         """
         if isinstance(dt_value, datetime):
             return dt_value
+            
+        # Handle integer or float timestamp
+        if isinstance(dt_value, (int, float)):
+            try:
+                return datetime.fromtimestamp(dt_value)
+            except (ValueError, OverflowError) as e:
+                logger.warning(f"Failed to parse timestamp {dt_value}: {e}")
+                return None
         
         if isinstance(dt_value, str):
             try:
-                # Try ISO format first with full timestamp
+                # Try to parse string as integer timestamp first
+                try:
+                    timestamp = int(dt_value)
+                    return datetime.fromtimestamp(timestamp)
+                except ValueError:
+                    pass
+                    
+                # Try ISO format next with full timestamp
                 try:
                     return datetime.fromisoformat(dt_value)
                 except (ValueError, AttributeError):

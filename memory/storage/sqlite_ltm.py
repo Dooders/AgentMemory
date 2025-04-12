@@ -663,7 +663,7 @@ class SQLiteLTMStore:
             )
 
     def get_by_timerange(
-        self, start_time: float, end_time: float, limit: int = 100
+        self, start_time: Union[float, int, str], end_time: Union[float, int, str], limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Retrieve memories within a time range.
 
@@ -676,6 +676,29 @@ class SQLiteLTMStore:
             List of memory entries
         """
         try:
+            # Ensure timestamps are integers
+            start_timestamp = start_time
+            if isinstance(start_time, str):
+                try:
+                    start_timestamp = int(float(start_time))
+                except ValueError:
+                    logger.warning(f"Could not convert start_time string to int: {start_time}")
+                    return []
+
+            end_timestamp = end_time
+            if isinstance(end_time, str):
+                try:
+                    end_timestamp = int(float(end_time))
+                except ValueError:
+                    logger.warning(f"Could not convert end_time string to int: {end_time}")
+                    return []
+                    
+            # Cast to int to ensure type compatibility with SQLite
+            start_timestamp = int(start_timestamp)
+            end_timestamp = int(end_timestamp)
+                
+            logger.debug(f"Using timerange: {start_timestamp} to {end_timestamp}")
+
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
@@ -687,7 +710,7 @@ class SQLiteLTMStore:
                 ORDER BY timestamp DESC
                 LIMIT ?
                 """,
-                    (self.agent_id, int(start_time), int(end_time), limit),
+                    (self.agent_id, start_timestamp, end_timestamp, limit),
                 )
 
                 rows = cursor.fetchall()

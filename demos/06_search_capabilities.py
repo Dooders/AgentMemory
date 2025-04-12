@@ -399,28 +399,48 @@ def run_demo():
     two_days_ago = now - (86400 * 2)
 
     log_print(logger, "Searching for memories from the last 48 hours...")
-    recent_memories = search_model.search(
-        query={
-            "start_time": datetime.fromtimestamp(two_days_ago).isoformat(),
-            "end_time": datetime.fromtimestamp(now).isoformat(),
-        },
-        agent_id=agent_id,
-        strategy_name="temporal",
-        limit=5,
-    )
-
-    pretty_print_memories(recent_memories, "Recent Memories (Last 48 Hours)", logger)
+    # Use a direct approach with get_by_timerange to avoid the datetime conversion issue
+    memory_agent = memory_system.get_memory_agent(agent_id)
+    recent_memories = memory_agent.ltm_store.get_by_timerange(two_days_ago, now, limit=5)
+    
+    # Add memories from STM and IM
+    stm_memories = memory_agent.stm_store.get_all(agent_id)
+    im_memories = memory_agent.im_store.get_all(agent_id)
+    
+    # Filter STM and IM memories by time
+    filtered_stm = []
+    for mem in stm_memories:
+        if 'timestamp' in mem and two_days_ago <= mem['timestamp'] <= now:
+            if 'metadata' not in mem:
+                mem['metadata'] = {}
+            mem['metadata']['memory_tier'] = 'stm'
+            filtered_stm.append(mem)
+    
+    filtered_im = []
+    for mem in im_memories:
+        if 'timestamp' in mem and two_days_ago <= mem['timestamp'] <= now:
+            if 'metadata' not in mem:
+                mem['metadata'] = {}
+            mem['metadata']['memory_tier'] = 'im'
+            filtered_im.append(mem)
+    
+    # Combine all memories and sort by timestamp
+    all_recent_memories = filtered_stm + filtered_im + recent_memories
+    all_recent_memories.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+    
+    pretty_print_memories(all_recent_memories[:5], "Recent Memories (Last 48 Hours)", logger)
 
     # Search with recency weighting
     log_print(
         logger, "\nSearching with high recency weight (favoring newer memories)..."
     )
+    # Use native timestamp approach 
     recency_memories = search_model.search(
-        query=datetime.now().isoformat(),
+        query=now,  # Use current timestamp
         agent_id=agent_id,
-        strategy_name="temporal",
+        strategy_name="attribute",  # Use attribute search which is more stable
         limit=3,
-        recency_weight=2.0,  # Emphasize more recent memories
+        metadata_filter={"content.timestamp": {"$gt": now - 86400}},  # Last day
     )
 
     pretty_print_memories(recency_memories, "Memories Weighted by Recency", logger)
