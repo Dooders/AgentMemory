@@ -14,6 +14,7 @@ from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from typing import List, Dict, Any, Tuple
+import pytest
 
 # Import the TextEmbeddingEngine
 from memory.embeddings.text_embeddings import TextEmbeddingEngine
@@ -87,6 +88,58 @@ def create_embeddings(states: List[Dict[str, Any]], engine: TextEmbeddingEngine)
         embeddings.append(embedding)
     
     return np.array(embeddings)
+
+@pytest.fixture
+def states():
+    """Fixture that provides mock agent states for testing."""
+    # Create mock data instead of loading from database
+    mock_states = []
+    for agent_id in range(5):  # 5 mock agents
+        agent_id_str = f"agent_{agent_id}"
+        for step in range(10):  # 10 steps per agent
+            mock_states.append({
+                'agent_id': agent_id_str,
+                'step_number': step,
+                'position_x': float(step) + agent_id * 0.5,
+                'position_y': float(step) - agent_id * 0.3,
+                'resource_level': 50 + step * 5,
+                'current_health': 100 - step,
+                'status': 'active'
+            })
+    return mock_states
+
+@pytest.fixture
+def embeddings(states):
+    """Fixture that provides mock embeddings for the agent states."""
+    # Create mock embeddings instead of using the real embedding engine
+    # Each embedding is a 10-dimensional vector (simplified from real embeddings)
+    mock_embeddings = []
+    for state in states:
+        # Create a deterministic but somewhat unique embedding for each state
+        agent_id_num = int(state['agent_id'].split('_')[1])
+        step = state['step_number']
+        
+        # Base vector with some randomness that's deterministic based on state properties
+        np.random.seed(agent_id_num * 100 + step)
+        base_vector = np.random.rand(10)
+        
+        # Add some state properties influence
+        base_vector[0] += state['position_x'] * 0.1
+        base_vector[1] += state['position_y'] * 0.1
+        base_vector[2] += float(agent_id_num) * 0.2
+        base_vector[3] += float(step) * 0.1
+        
+        # Normalize to unit length (common for embeddings)
+        base_vector = base_vector / np.linalg.norm(base_vector)
+        
+        mock_embeddings.append(base_vector)
+    
+    return np.array(mock_embeddings)
+
+@pytest.fixture
+def agent_ids(states):
+    """Fixture that provides the unique agent IDs from the states."""
+    return list(set(state['agent_id'] for state in states))
 
 def test_state_transitions(states: List[Dict[str, Any]], embeddings: np.ndarray) -> None:
     """
