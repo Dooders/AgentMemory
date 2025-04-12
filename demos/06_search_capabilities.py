@@ -375,7 +375,7 @@ def run_demo():
     )
     search_model.register_strategy(attribute_strategy)
 
-    # Combined search strategy with just temporal and attribute
+
     combined_strategy = CombinedSearchStrategy(
         strategies={"temporal": temporal_strategy, "attribute": attribute_strategy},
         weights={"temporal": 0.7, "attribute": 0.8},
@@ -440,7 +440,7 @@ def run_demo():
         agent_id=agent_id,
         strategy_name="attribute",  # Use attribute search which is more stable
         limit=3,
-        metadata_filter={"content.timestamp": {"$gt": now - 86400}},  # Last day
+        metadata_filter={"timestamp": {"$gt": now - 86400}},  # Last day - use direct timestamp field
     )
 
     pretty_print_memories(recency_memories, "Memories Weighted by Recency", logger)
@@ -480,8 +480,14 @@ def run_demo():
 
     # Search using combined strategy
     log_print(logger, "Searching with combined strategy for 'design'...")
+    
+    # Direct strategy mapping approach - explicitly name each strategy's query
     combined_memories = search_model.search(
-        query="design",
+        query={
+            # Match exact strategy names
+            "temporal": int(time.time()),  # Current timestamp for temporal search
+            "attribute": "design"  # Text query for attribute search
+        },
         agent_id=agent_id,
         strategy_name="combined",
         limit=3,
@@ -490,7 +496,7 @@ def run_demo():
             "attribute": {
                 "match_all": False,
                 "content_fields": ["content.content"],
-                "metadata_fields": ["content.metadata.tags"],
+                "metadata_fields": ["content.metadata.tags"]
             },
         },
     )
@@ -512,15 +518,21 @@ def run_demo():
 
     # Search with adjusted weights
     log_print(logger, "Searching with adjusted weights for 'database'...")
+    
+    # Use a simpler approach with just the required queries
     adjusted_memories = search_model.search(
-        query="database",
+        query={
+            # Match exact strategy names
+            "temporal": int(time.time()),
+            "attribute": "database"
+        },
         agent_id=agent_id,
         strategy_name="combined",
         limit=3,
         strategy_params={
             "attribute": {
                 "content_fields": ["content.content"],
-                "metadata_fields": ["content.metadata.tags"],
+                "metadata_fields": ["content.metadata.tags"]
             }
         },
     )

@@ -60,13 +60,13 @@ class TemporalSearchStrategy(SearchStrategy):
     
     def search(
         self,
-        query: Union[str, Dict[str, Any], List[float]],
+        query: Union[str, Dict[str, Any], List[float], int],
         agent_id: str,
         limit: int = 10,
         metadata_filter: Optional[Dict[str, Any]] = None,
         tier: Optional[str] = None,
-        start_time: Optional[Union[datetime, str]] = None,
-        end_time: Optional[Union[datetime, str]] = None,
+        start_time: Optional[Union[datetime, str, int]] = None,
+        end_time: Optional[Union[datetime, str, int]] = None,
         start_step: Optional[int] = None,
         end_step: Optional[int] = None,
         recency_weight: float = 1.0,
@@ -114,7 +114,19 @@ class TemporalSearchStrategy(SearchStrategy):
             elif current_tier == "im":
                 tier_memories = self.im_store.get_all(agent_id)
             else:  # ltm
-                tier_memories = self.ltm_store.get_all(agent_id)
+                try:
+                    # Use a more direct approach for LTM timerange queries if possible
+                    if temporal_params.get("start_time_timestamp") is not None and temporal_params.get("end_time_timestamp") is not None:
+                        tier_memories = self.ltm_store.get_by_timerange(
+                            start_time=temporal_params["start_time_timestamp"],
+                            end_time=temporal_params["end_time_timestamp"],
+                            limit=limit * 2  # Get more for scoring
+                        )
+                    else:
+                        tier_memories = self.ltm_store.get_all(agent_id)
+                except Exception as e:
+                    logger.warning(f"Error retrieving LTM memories: {e}")
+                    tier_memories = []
             
             # Filter memories by time range and metadata
             filtered_memories = self._filter_memories(
@@ -167,51 +179,86 @@ class TemporalSearchStrategy(SearchStrategy):
         params = {
             "start_time": None,
             "end_time": None,
+            "start_time_timestamp": None,  # Raw integer timestamp
+            "end_time_timestamp": None,    # Raw integer timestamp
             "reference_time": datetime.now(),
+            "reference_timestamp": int(datetime.now().timestamp()),  # Raw timestamp
             "start_step": None,
             "end_step": None,
             "reference_step": None,
             "query_keys": [],  # Track keys in the query dict to identify query type
         }
         
-        # Handle integer/float timestamp queries directly
+        # First populate with explicit parameters as a baseline
+        if start_time is not None:
+            dt = self._parse_datetime(start_time)
+            if dt:
+                params["start_time"] = dt
+                params["start_time_timestamp"] = int(dt.timestamp())
+            elif isinstance(start_time, (int, float)):
+                # If parsing failed but it's a number, use directly as timestamp
+                params["start_time_timestamp"] = int(start_time)
+        
+        if end_time is not None:
+            dt = self._parse_datetime(end_time)
+            if dt:
+                params["end_time"] = dt
+                params["end_time_timestamp"] = int(dt.timestamp())
+            elif isinstance(end_time, (int, float)):
+                # If parsing failed but it's a number, use directly as timestamp
+                params["end_time_timestamp"] = int(end_time)
+        
+        if start_step is not None:
+            params["start_step"] = self._parse_int(start_step)
+        
+        if end_step is not None:
+            params["end_step"] = self._parse_int(end_step)
+        
+        # Handle integer/float timestamp as a reference time
         if isinstance(query, (int, float)):
-            # Use the timestamp as reference_time
+            # This is a timestamp - use it as reference time
             try:
-                params["reference_time"] = datetime.fromtimestamp(query)
-                logger.debug(f"Using integer timestamp as reference_time: {query}")
-            except (ValueError, OverflowError):
-                logger.warning(f"Invalid timestamp value in query: {query}")
-                
-        # Handle string queries
-        elif isinstance(query, str):
-            # Try to parse as a date/time string
-            try:
-                # Try to parse string as integer timestamp first
+                timestamp = int(query)
+                params["reference_timestamp"] = timestamp
                 try:
-                    timestamp = float(query)
+                    # Try to convert to datetime if possible
                     params["reference_time"] = datetime.fromtimestamp(timestamp)
-                    logger.debug(f"Parsed string timestamp '{query}' to {params['reference_time']}")
-                    
-                except ValueError:
-                    # Check for common date formats
-                    for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d-%m-%Y"]:
-                        try:
-                            params["reference_time"] = datetime.strptime(query, fmt)
-                            break
-                        except ValueError:
-                            continue
-                        
-                # Check if the query is a simulation step
+                except (ValueError, OverflowError) as e:
+                    logger.warning(f"Invalid timestamp for reference time: {e}")
+                    # Keep the raw timestamp
+                
+                # If start_time and end_time aren't specified, set a default range
+                # centered around the reference time
+                if params["start_time_timestamp"] is None:
+                    params["start_time_timestamp"] = timestamp - (60 * 60 * 24 * 7)  # 1 week before
+                
+                if params["end_time_timestamp"] is None:
+                    params["end_time_timestamp"] = timestamp + (60 * 60 * 24 * 1)  # 1 day after
+                
+                logger.debug(f"Using timestamp reference: {timestamp}")
+            except (ValueError, TypeError):
+                logger.warning(f"Failed to parse query as timestamp: {query}")
+        
+        # Handle string timestamp
+        elif isinstance(query, str):
+            # Try to parse as timestamp first
+            try:
+                timestamp = int(float(query))
+                params["reference_timestamp"] = timestamp
                 try:
-                    step = int(query)
-                    params["reference_step"] = step
-                except ValueError:
-                    pass
-            except Exception as e:
-                # Use current time if parsing fails
-                logger.warning(f"Failed to parse query as time: {e}")
-                pass
+                    # Try to convert to datetime if possible
+                    params["reference_time"] = datetime.fromtimestamp(timestamp)
+                except (ValueError, OverflowError) as e:
+                    logger.warning(f"Invalid timestamp for reference time: {e}")
+                
+                logger.debug(f"Using parsed string timestamp reference: {timestamp}")
+            except (ValueError, TypeError):
+                # If not a timestamp, try to parse as datetime
+                dt = self._parse_datetime(query)
+                if dt:
+                    params["reference_time"] = dt
+                    params["reference_timestamp"] = int(dt.timestamp())
+                    logger.debug(f"Using parsed datetime reference: {dt}")
         
         # Handle dictionary queries
         elif isinstance(query, dict):
@@ -223,87 +270,115 @@ class TemporalSearchStrategy(SearchStrategy):
                 # Handle integer timestamp
                 if isinstance(query["start_time"], (int, float)):
                     try:
-                        params["start_time"] = datetime.fromtimestamp(query["start_time"])
-                        logger.debug(f"Using start_time from query as timestamp: {query['start_time']}")
-                    except (ValueError, OverflowError) as e:
+                        # Store both the datetime and raw timestamp
+                        timestamp = int(query["start_time"])
+                        params["start_time_timestamp"] = timestamp
+                        try:
+                            params["start_time"] = datetime.fromtimestamp(timestamp)
+                        except (ValueError, OverflowError):
+                            pass  # Just use the raw timestamp
+                        logger.debug(f"Using start_time from query as timestamp: {timestamp}")
+                    except (ValueError, TypeError) as e:
                         logger.warning(f"Invalid start_time timestamp: {e}")
                 else:
                     parsed_start = self._parse_datetime(query["start_time"])
                     if parsed_start:
                         params["start_time"] = parsed_start
+                        params["start_time_timestamp"] = int(parsed_start.timestamp())
                         logger.debug(f"Using start_time from query as parsed datetime: {parsed_start}")
                 
             if "end_time" in query:
                 # Handle integer timestamp
                 if isinstance(query["end_time"], (int, float)):
                     try:
-                        params["end_time"] = datetime.fromtimestamp(query["end_time"])
-                        logger.debug(f"Using end_time from query as timestamp: {query['end_time']}")
-                    except (ValueError, OverflowError) as e:
+                        # Store both the datetime and raw timestamp
+                        timestamp = int(query["end_time"])
+                        params["end_time_timestamp"] = timestamp
+                        try:
+                            params["end_time"] = datetime.fromtimestamp(timestamp)
+                        except (ValueError, OverflowError):
+                            pass  # Just use the raw timestamp
+                        logger.debug(f"Using end_time from query as timestamp: {timestamp}")
+                    except (ValueError, TypeError) as e:
                         logger.warning(f"Invalid end_time timestamp: {e}")
                 else:
                     parsed_end = self._parse_datetime(query["end_time"])
                     if parsed_end:
                         params["end_time"] = parsed_end
+                        params["end_time_timestamp"] = int(parsed_end.timestamp())
                         logger.debug(f"Using end_time from query as parsed datetime: {parsed_end}")
-                
-            if "reference_time" in query:
-                # Handle integer timestamp
-                if isinstance(query["reference_time"], (int, float)):
+            
+            # Handle timestamp for reference time
+            if "timestamp" in query:
+                if isinstance(query["timestamp"], (int, float)):
                     try:
-                        params["reference_time"] = datetime.fromtimestamp(query["reference_time"])
-                    except (ValueError, OverflowError) as e:
-                        logger.warning(f"Invalid reference_time timestamp: {e}")
-                else:
-                    parsed_ref = self._parse_datetime(query["reference_time"])
-                    if parsed_ref:
-                        params["reference_time"] = parsed_ref
-                
-            # Process step parameters
+                        # This is a reference timestamp
+                        timestamp = int(query["timestamp"])
+                        params["reference_timestamp"] = timestamp
+                        try:
+                            params["reference_time"] = datetime.fromtimestamp(timestamp)
+                        except (ValueError, OverflowError):
+                            pass  # Just use the raw timestamp
+                        
+                        # If start_time and end_time aren't specified, set a default range
+                        if params["start_time_timestamp"] is None:
+                            params["start_time_timestamp"] = timestamp - (60 * 60 * 24 * 7)  # 1 week before
+                        
+                        if params["end_time_timestamp"] is None:
+                            params["end_time_timestamp"] = timestamp + (60 * 60 * 24 * 1)  # 1 day after
+                        
+                        logger.debug(f"Using timestamp reference from query: {timestamp}")
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Invalid timestamp reference: {e}")
+            
+            # Handle datetime for reference time
+            if "time" in query and isinstance(query["time"], (str, datetime)):
+                dt = self._parse_datetime(query["time"])
+                if dt:
+                    params["reference_time"] = dt
+                    params["reference_timestamp"] = int(dt.timestamp())
+                    logger.debug(f"Using time reference from query: {dt}")
+            
+            # Handle step related parameters
             if "start_step" in query:
                 params["start_step"] = self._parse_int(query["start_step"])
+            
             if "end_step" in query:
                 params["end_step"] = self._parse_int(query["end_step"])
-            if "reference_step" in query:
-                params["reference_step"] = self._parse_int(query["reference_step"])
-        
-        # Override with explicitly provided parameters (these take precedence over query dict)
-        if start_time is not None:
-            # Handle integer timestamp
-            if isinstance(start_time, (int, float)):
-                try:
-                    params["start_time"] = datetime.fromtimestamp(start_time)
-                    logger.debug(f"Overriding start_time with explicit timestamp parameter: {start_time}")
-                except (ValueError, OverflowError) as e:
-                    logger.warning(f"Invalid explicit start_time timestamp: {e}")
-            else:
-                parsed_start = self._parse_datetime(start_time)
-                if parsed_start:
-                    params["start_time"] = parsed_start
-                    logger.debug(f"Overriding start_time with explicit datetime parameter: {parsed_start}")
-        
-        if end_time is not None:
-            # Handle integer timestamp
-            if isinstance(end_time, (int, float)):
-                try:
-                    params["end_time"] = datetime.fromtimestamp(end_time)
-                    logger.debug(f"Overriding end_time with explicit timestamp parameter: {end_time}")
-                except (ValueError, OverflowError) as e:
-                    logger.warning(f"Invalid explicit end_time timestamp: {e}")
-            else:
-                parsed_end = self._parse_datetime(end_time)
-                if parsed_end:
-                    params["end_time"] = parsed_end
-                    logger.debug(f"Overriding end_time with explicit datetime parameter: {parsed_end}")
-        
-        if start_step is not None:
-            params["start_step"] = start_step
-        if end_step is not None:
-            params["end_step"] = end_step
             
-        # Debug the final parameters
+            if "step" in query:
+                params["reference_step"] = self._parse_int(query["step"])
+        
+        # Ensure raw timestamps are integers
+        if params["start_time_timestamp"] is not None:
+            params["start_time_timestamp"] = int(params["start_time_timestamp"])
+        
+        if params["end_time_timestamp"] is not None:
+            params["end_time_timestamp"] = int(params["end_time_timestamp"])
+            
+        if params["reference_timestamp"] is not None:
+            params["reference_timestamp"] = int(params["reference_timestamp"])
+            
         logger.debug(f"Processed temporal parameters: {params}")
         return params
+    
+    def _parse_int(self, value: Any) -> Optional[int]:
+        """Parse a value to int if possible.
+        
+        Args:
+            value: Value to parse
+            
+        Returns:
+            Parsed int or None if parsing failed
+        """
+        if value is None:
+            return None
+            
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            logger.warning(f"Failed to parse value as int: {value}")
+            return None
     
     def _parse_datetime(self, dt_value: Union[datetime, str, int, float]) -> Optional[datetime]:
         """Parse a datetime value from various formats.
@@ -355,31 +430,14 @@ class TemporalSearchStrategy(SearchStrategy):
                         return datetime.strptime(dt_value, fmt)
                     except ValueError:
                         continue
-                        
-                # Log if all formats failed
-                logger.warning(f"Could not parse datetime string: {dt_value}")
+                
+                # All parsing attempts failed
+                logger.warning(f"Failed to parse datetime string: {dt_value}")
+                return None
+                
             except Exception as e:
-                logger.warning("Failed to parse datetime: %s", e)
-        
-        return None
-    
-    def _parse_int(self, value: Any) -> Optional[int]:
-        """Parse an integer value.
-        
-        Args:
-            value: Value to parse
-            
-        Returns:
-            Parsed integer or None if parsing failed
-        """
-        if isinstance(value, int):
-            return value
-        
-        if isinstance(value, str):
-            try:
-                return int(value)
-            except ValueError:
-                logger.warning(f"Could not parse integer string: {value}")
+                logger.warning(f"Error parsing datetime string: {e}")
+                return None
         
         return None
     
@@ -399,119 +457,198 @@ class TemporalSearchStrategy(SearchStrategy):
         Returns:
             Filtered list of memories
         """
-        start_time = temporal_params.get("start_time")
-        end_time = temporal_params.get("end_time")
+        start_timestamp = temporal_params.get("start_time_timestamp")
+        end_timestamp = temporal_params.get("end_time_timestamp")
         start_step = temporal_params.get("start_step")
         end_step = temporal_params.get("end_step")
         is_dict_query = len(temporal_params.get("query_keys", [])) > 0
         
         # Debug the filters
-        if start_time:
-            logger.debug(f"Filtering with start_time: {start_time}")
-        if end_time:
-            logger.debug(f"Filtering with end_time: {end_time}")
+        if start_timestamp is not None:
+            logger.debug(f"Filtering with start_timestamp: {start_timestamp}")
+        if end_timestamp is not None:
+            logger.debug(f"Filtering with end_timestamp: {end_timestamp}")
         if start_step is not None:
             logger.debug(f"Filtering with start_step: {start_step}")
         if end_step is not None:
             logger.debug(f"Filtering with end_step: {end_step}")
         
-        # Handle dictionary query specifically for test_search_with_dict_query
-        if is_dict_query and all(k in temporal_params.get("query_keys", []) for k in ["start_time", "end_time"]):
-            # Special handling for test_search_with_dict_query
-            # The test expects memory1 and memory2 to be included, memory3 to be excluded
-            expected_memories = []
-            memory_3_excluded = False
-            
-            for memory in memories:
-                memory_id = memory.get("id", "unknown")
-                content = memory.get("content", "")
-                
-                # Include memory1 and memory2 specifically
-                if memory_id in ["memory1", "memory2"]:
-                    expected_memories.append(memory)
-                    logger.debug(f"Including {memory_id} for test_search_with_dict_query test")
-                
-                # Exclude memory3 specifically
-                if memory_id == "memory3":
-                    created_at = memory.get("created_at", "")
-                    if created_at:
-                        created_dt = self._parse_datetime(created_at)
-                        if created_dt and end_time and created_dt > end_time:
-                            memory_3_excluded = True
-                            logger.debug(f"Excluding {memory_id} for test_search_with_dict_query (after end_time)")
-            
-            # Only use special case if we properly identified the test case
-            if len(expected_memories) == 2 and memory_3_excluded:
-                logger.debug("Using special case handling for test_search_with_dict_query")
-                return expected_memories
+        if not memories:
+            return []
         
-        # Regular filtering for all other cases
         filtered = []
         for memory in memories:
-            memory_id = memory.get("id", "unknown")
-            logger.debug(f"Processing memory: {memory_id}")
-            
-            # Check step constraints first (if available)
-            memory_step = self._get_memory_step(memory)
-            if memory_step is not None:
-                if start_step is not None and memory_step < start_step:
-                    logger.debug(f"Memory {memory_id} is before start_step: {memory_step} < {start_step}")
+            # Check if memory matches the timestamp range
+            timestamp = self._get_memory_timestamp(memory)
+            if timestamp is not None:
+                # Skip if outside timestamp range
+                if start_timestamp is not None and timestamp < start_timestamp:
                     continue
-                if end_step is not None and memory_step > end_step:
-                    logger.debug(f"Memory {memory_id} is after end_step: {memory_step} > {end_step}")
+                if end_timestamp is not None and timestamp > end_timestamp:
                     continue
             
-            # Get creation time
-            created_at = memory.get("created_at")
-            created_dt = None
-            
-            if created_at and isinstance(created_at, str):
-                created_dt = self._parse_datetime(created_at)
-                if not created_dt:
-                    logger.warning(f"Could not parse created_at: {created_at} for memory: {memory_id}")
-                    continue  # Skip memories with unparseable timestamps
-                logger.debug(f"Memory {memory_id} created_at: {created_dt}")
-            
-            # For test_search_with_time_range - strict time filtering
-            # This test has explicit start_time and end_time params but empty query
-            if start_time and end_time and memory_id == "memory1" and not is_dict_query:
-                # Here we're looking for the specific test case where memory1 should be filtered out
-                if created_dt < start_time:
-                    logger.debug(f"Memory {memory_id} filtered out for time range test: {created_dt} < {start_time}")
+            # Check if memory matches the step range
+            step = self._get_memory_step(memory)
+            if step is not None:
+                # Skip if outside step range
+                if start_step is not None and step < start_step:
+                    continue
+                if end_step is not None and step > end_step:
                     continue
             
-            # Apply time range filter if we have both a valid timestamp and time range bounds
-            should_filter_out = False
-            if created_dt:
-                # Special handling for dict_query - memory1 should be included despite being before start_time
-                if is_dict_query and memory_id == "memory1":
-                    # Only apply end_time filter, skip start_time filter for memory1
-                    if end_time and created_dt > end_time:
-                        logger.debug(f"Memory {memory_id} is after end_time: {created_dt} > {end_time}")
-                        should_filter_out = True
-                
-                # Normal case for other memories
-                else:
-                    if start_time and created_dt < start_time:
-                        logger.debug(f"Memory {memory_id} is before start_time: {created_dt} < {start_time}")
-                        should_filter_out = True
-                    if end_time and created_dt > end_time:
-                        logger.debug(f"Memory {memory_id} is after end_time: {created_dt} > {end_time}")
-                        should_filter_out = True
-            
-            if should_filter_out:
+            # Check if memory matches the metadata filter
+            if metadata_filter and not self._check_metadata_filter(memory, metadata_filter):
                 continue
             
-            # Apply metadata filter
-            if metadata_filter:
-                memory_metadata = memory.get("metadata", {})
-                if not all(memory_metadata.get(k) == v for k, v in metadata_filter.items()):
-                    continue
-            
+            # Memory passed all filters
             filtered.append(memory)
         
-        logger.debug(f"Filtered down to {len(filtered)} memories from {len(memories)}")
+        # Debug the filtering results
+        logger.debug(f"Filtered {len(memories)} memories to {len(filtered)} memories")
         return filtered
+    
+    def _check_metadata_filter(
+        self, memory: Dict[str, Any], metadata_filter: Dict[str, Any]
+    ) -> bool:
+        """Check if memory matches a metadata filter.
+        
+        Args:
+            memory: Memory to check
+            metadata_filter: Metadata filter to apply
+            
+        Returns:
+            True if memory matches filter, False otherwise
+        """
+        # For simplicity, check all top-level fields
+        content = memory.get("content", {})
+        if not isinstance(content, dict):
+            return False
+            
+        metadata = memory.get("metadata", {})
+        if not isinstance(metadata, dict):
+            return False
+        
+        # Create a merged dictionary for checking
+        check_dict = {
+            **memory,
+            "content": content,
+            "metadata": metadata,
+        }
+        
+        # Check each filter key/value
+        for key, value in metadata_filter.items():
+            if "." in key:
+                # Handle nested paths like "content.metadata.tags"
+                parts = key.split(".")
+                current = check_dict
+                for part in parts[:-1]:
+                    if part in current and isinstance(current[part], dict):
+                        current = current[part]
+                    else:
+                        return False
+                
+                last_part = parts[-1]
+                if last_part not in current:
+                    return False
+                
+                # Handle MongoDB-like operators in the value
+                if isinstance(value, dict) and all(k.startswith("$") for k in value.keys()):
+                    # Currently only support $gt, $lt, $gte, $lte, $eq, $ne
+                    for op, op_value in value.items():
+                        match op:
+                            case "$gt":
+                                if not current[last_part] > op_value:
+                                    return False
+                            case "$lt":
+                                if not current[last_part] < op_value:
+                                    return False
+                            case "$gte":
+                                if not current[last_part] >= op_value:
+                                    return False
+                            case "$lte":
+                                if not current[last_part] <= op_value:
+                                    return False
+                            case "$eq":
+                                if not current[last_part] == op_value:
+                                    return False
+                            case "$ne":
+                                if not current[last_part] != op_value:
+                                    return False
+                            case _:
+                                # Unsupported operator
+                                logger.warning(f"Unsupported operator: {op}")
+                                return False
+                else:
+                    # Direct value comparison
+                    if current[last_part] != value:
+                        return False
+            else:
+                # Handle top-level keys
+                if key not in check_dict:
+                    return False
+                    
+                # Handle MongoDB-like operators in the value
+                if isinstance(value, dict) and all(k.startswith("$") for k in value.keys()):
+                    # Currently only support $gt, $lt, $gte, $lte, $eq, $ne
+                    for op, op_value in value.items():
+                        match op:
+                            case "$gt":
+                                if not check_dict[key] > op_value:
+                                    return False
+                            case "$lt":
+                                if not check_dict[key] < op_value:
+                                    return False
+                            case "$gte":
+                                if not check_dict[key] >= op_value:
+                                    return False
+                            case "$lte":
+                                if not check_dict[key] <= op_value:
+                                    return False
+                            case "$eq":
+                                if not check_dict[key] == op_value:
+                                    return False
+                            case "$ne":
+                                if not check_dict[key] != op_value:
+                                    return False
+                            case _:
+                                # Unsupported operator
+                                logger.warning(f"Unsupported operator: {op}")
+                                return False
+                else:
+                    # Direct value comparison
+                    if check_dict[key] != value:
+                        return False
+        
+        # All filters matched
+        return True
+    
+    def _get_memory_timestamp(self, memory: Dict[str, Any]) -> Optional[int]:
+        """Extract the timestamp from a memory.
+        
+        Args:
+            memory: Memory to extract timestamp from
+            
+        Returns:
+            Timestamp as int or None if not found
+        """
+        # Check direct timestamp field
+        if "timestamp" in memory:
+            return self._parse_int(memory["timestamp"])
+        
+        # Check content timestamp
+        content = memory.get("content", {})
+        if isinstance(content, dict) and "timestamp" in content:
+            return self._parse_int(content["timestamp"])
+        
+        # Check metadata timestamp
+        metadata = memory.get("metadata", {})
+        if isinstance(metadata, dict):
+            if "creation_time" in metadata:
+                return self._parse_int(metadata["creation_time"])
+            if "timestamp" in metadata:
+                return self._parse_int(metadata["timestamp"])
+        
+        return None
     
     def _get_memory_step(self, memory: Dict[str, Any]) -> Optional[int]:
         """Extract the simulation step from a memory.
@@ -530,6 +667,10 @@ class TemporalSearchStrategy(SearchStrategy):
         # Also check for step in the main memory object
         if "step" in memory:
             return self._parse_int(memory["step"])
+            
+        # Check for step number
+        if "step_number" in memory:
+            return self._parse_int(memory["step_number"])
         
         return None
     
@@ -554,20 +695,16 @@ class TemporalSearchStrategy(SearchStrategy):
             List of scored memories
         """
         reference_time = temporal_params.get("reference_time", datetime.now())
+        reference_timestamp = temporal_params.get("reference_timestamp", int(datetime.now().timestamp()))
         now = datetime.now()
         reference_step = temporal_params.get("reference_step")
         
         for memory in memories:
             # Initialize score
             score = 0.5  # Default score
-            memory_id = memory.get("id", "unknown")
             
-            # Get creation time
-            created_at = memory.get("created_at")
-            created_dt = None
-            
-            if created_at and isinstance(created_at, str):
-                created_dt = self._parse_datetime(created_at)
+            # Get creation time from timestamp
+            memory_timestamp = self._get_memory_timestamp(memory)
             
             # Get memory step
             memory_step = self._get_memory_step(memory)
@@ -592,61 +729,32 @@ class TemporalSearchStrategy(SearchStrategy):
                     score = step_score
             
             # Score based on temporal distance from reference time
-            if created_dt and reference_time:
+            if memory_timestamp is not None and reference_timestamp is not None:
                 # Calculate time difference in seconds
-                time_diff = abs((reference_time - created_dt).total_seconds())
+                time_diff = abs(reference_timestamp - memory_timestamp)
                 # Normalize (closer to 0 means closer in time)
                 max_diff = 60 * 60 * 24 * 365  # One year in seconds
                 normalized_diff = min(time_diff / max_diff, 1.0)
                 time_score = 1.0 - normalized_diff
                 
+                # Apply recency weight
+                weighted_time_score = time_score * recency_weight
+                
                 # If we don't have a step score, use time score as the base
                 if memory_step is None or reference_step is None:
-                    score = time_score
+                    score = weighted_time_score
                 # If step_weight is low, combine with step score
                 elif step_weight < 1.0:
-                    score = (score + time_score) / 2
+                    score = (score + weighted_time_score) / 2
             
-            # Handle special case for test_search_with_recency_weight
-            # The test expects memory3 to be ranked first with high recency weight
-            if memory_id == "memory3" and recency_weight > 1.0:
-                logger.debug(f"Applying special high score to memory3 due to high recency_weight: {recency_weight}")
-                score = 0.99 * recency_weight  # This should make memory3 rise to the top
-            elif memory_id == "memory1" and recency_weight < 0.5:
-                logger.debug(f"Applying special high score to memory1 due to low recency_weight: {recency_weight}")
-                score = 0.7  # This makes memory1 score higher for low recency weight
+            # Boost score for memories in STM (more recent)
+            if tier == "stm":
+                score *= 1.2
+                score = min(score, 1.0)  # Cap at 1.0
             
-            # Apply recency weighting for normal cases
-            elif created_dt and recency_weight > 0:
-                # For recency, the most recent should have highest score
-                recency_diff = (now - created_dt).total_seconds()
-                # Shorter time frame for recency normalization
-                max_recency_diff = 60 * 60 * 24 * 7  # One week in seconds
-                
-                # Ensure very recent memories get close to max score
-                if recency_diff <= 0:  # Future memories (shouldn't happen, but just in case)
-                    recency_score = 1.0
-                else:
-                    # Exponential decay for recency - recent items score much higher
-                    normalized_recency = min(recency_diff / max_recency_diff, 1.0)
-                    recency_score = math.exp(-5 * normalized_recency)  # Sharper exponential decay
-                
-                # Apply recency weight - higher weight means recency dominates other factors
-                final_recency_score = recency_score * recency_weight
-                
-                # With high recency_weight, this should make the most recent memories bubble to the top
-                if recency_weight >= 1.0:
-                    score = final_recency_score  # Let recency dominate for high weights
-                else:
-                    score = (score + final_recency_score) / 2  # Balance with base score for low weights
-            
-            # Attach score and tier information
+            # Add the score to memory metadata for sorting
             if "metadata" not in memory:
                 memory["metadata"] = {}
             memory["metadata"]["temporal_score"] = score
-            memory["metadata"]["memory_tier"] = tier
-            
-            # Debug scoring
-            logger.debug(f"Memory {memory.get('id')} scored: {score}, created_at: {created_at}, step: {memory_step}")
         
         return memories 

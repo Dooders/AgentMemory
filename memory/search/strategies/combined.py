@@ -72,6 +72,26 @@ class CombinedSearchStrategy(SearchStrategy):
         logger.debug("Updated strategy weights: %s", self.weights)
         return True
     
+    def _get_individual_results(self, strategy_name, strategy, strategy_query, agent_id, limit, 
+                               metadata_filter, tier, strategy_kwargs):
+        """Get results from an individual strategy with error handling."""
+        try:
+            # Log what query is being sent to which strategy
+            logger.debug(f"Sending query of type {type(strategy_query)} to strategy {strategy_name}: {strategy_query}")
+            
+            results = strategy.search(
+                query=strategy_query,
+                agent_id=agent_id,
+                limit=limit * 2,  # Get more results for better combination
+                metadata_filter=metadata_filter,
+                tier=tier,
+                **strategy_kwargs
+            )
+            return results
+        except Exception as e:
+            logger.warning(f"Error in strategy {strategy_name}: {str(e)}")
+            return []
+    
     def search(
         self,
         query: Union[str, Dict[str, Any], List[float]],
@@ -85,7 +105,7 @@ class CombinedSearchStrategy(SearchStrategy):
         """Search for memories using multiple strategies.
         
         Args:
-            query: Search query
+            query: Search query - can be string, dict with query types for each strategy, or vector
             agent_id: ID of the agent whose memories to search
             limit: Maximum number of results to return
             metadata_filter: Optional filters to apply to memory metadata
@@ -103,20 +123,51 @@ class CombinedSearchStrategy(SearchStrategy):
         # Initialize combined results
         all_results: Dict[str, Dict[str, Any]] = {}
         
+        # Handle direct strategy routing if query is a dict
+        if isinstance(query, dict):
+            logger.debug(f"Combined search with dictionary query: {query}")
+        
         # Get results from each strategy
         for strategy_name, strategy in self.strategies.items():
             # Get strategy-specific parameters
             strategy_kwargs = strategy_params.get(strategy_name, {})
             strategy_kwargs.update(kwargs)
             
-            # Get results from this strategy
-            results = strategy.search(
-                query=query,
-                agent_id=agent_id,
-                limit=limit * 2,  # Get more results for better combination
-                metadata_filter=metadata_filter,
-                tier=tier,
-                **strategy_kwargs
+            # Extract appropriate query based on strategy type
+            strategy_query = None
+            
+            # First priority: direct strategy mappings in query dict
+            if isinstance(query, dict) and strategy_name in query:
+                strategy_query = query[strategy_name]
+                logger.debug(f"Using direct strategy mapping for {strategy_name}: {strategy_query}")
+            
+            # Second priority: infer from known field names
+            elif isinstance(query, dict):
+                if strategy_name == "temporal" and "timestamp" in query:
+                    strategy_query = query["timestamp"]
+                    logger.debug(f"Using timestamp for temporal strategy: {strategy_query}")
+                elif strategy_name == "attribute" and "text" in query:
+                    strategy_query = query["text"]
+                    logger.debug(f"Using text for attribute strategy: {strategy_query}")
+                elif strategy_name == "similarity" and "vector" in query:
+                    strategy_query = query["vector"]
+                    logger.debug(f"Using vector for similarity strategy: {strategy_query}")
+            
+            # Default: use original query if no matching pattern was found
+            if strategy_query is None:
+                strategy_query = query
+                logger.debug(f"Using original query for {strategy_name}: {strategy_query}")
+            
+            # Execute the search with the appropriate query
+            results = self._get_individual_results(
+                strategy_name, 
+                strategy,
+                strategy_query,
+                agent_id,
+                limit,
+                metadata_filter,
+                tier,
+                strategy_kwargs
             )
             
             # Extract strategy weight
@@ -127,7 +178,10 @@ class CombinedSearchStrategy(SearchStrategy):
                 memory_id = memory.get("id", "")
                 
                 if not memory_id:
-                    continue
+                    # Try alternative keys if "id" isn't present
+                    memory_id = memory.get("memory_id", "")
+                    if not memory_id:
+                        continue
                 
                 # Calculate score based on strategy weight and position in results
                 base_score = memory.get("metadata", {}).get("similarity_score", 0.0)
