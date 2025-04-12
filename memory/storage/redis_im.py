@@ -1,7 +1,17 @@
-"""Redis-based Intermediate Memory (IM) storage for agent memory system.
+"""Redis-based Immediate Memory (IM) storage for agent memory system.
 
-This module provides a Redis-based implementation of the Intermediate Memory
+This module provides a Redis-based implementation of the Immediate Memory
 storage tier with TTL-based expiration and level 1 compression.
+
+Key features:
+- Ultra-fast access for frequently accessed memories
+- Automatic TTL-based memory expiration
+- Optimized for high-throughput and low-latency
+- Vector similarity search with Redis Stack extensions
+- Memory filtering by time, importance, and attributes
+
+This component serves as the fastest-access storage layer in the memory hierarchy,
+providing rapid recall of recent and important information.
 """
 
 import json

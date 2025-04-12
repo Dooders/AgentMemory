@@ -3,6 +3,16 @@
 This module provides a SQLite-based implementation of the Long-Term Memory
 storage tier, designed for persistent, highly-compressed storage of agent memories
 with comprehensive error handling and resilient operations.
+
+Key features:
+- Vector embedding storage and similarity search
+- Memory filtering by type, importance, and time range
+- Batch operations for efficient memory management
+- Configurable compression and whitelisting
+- Robust error handling with automatic recovery
+
+This component serves as the persistent storage layer in the memory hierarchy,
+complementing working memory for long-term knowledge retention.
 """
 
 import json

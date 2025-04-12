@@ -2,6 +2,16 @@
 
 This module provides a Redis client wrapper with circuit breaker and
 retry functionality for resilient Redis operations.
+
+Key features:
+- Circuit breaker pattern to prevent cascading failures
+- Automatic retries with exponential backoff
+- Operation prioritization for critical vs. non-critical operations
+- Comprehensive error handling and recovery
+- Monitoring and health check capabilities
+
+This resilient client forms the foundation for reliable memory operations
+across the memory system's various Redis-based storage components.
 """
 
 import logging
