@@ -18,6 +18,9 @@ Key components:
      supporting exact matches, substring searches, and regex pattern matching.
    - CombinedSearchStrategy: Integrates results from multiple strategies for more sophisticated
      memory retrieval, with configurable weights for different strategies.
+   - StepBasedSearchStrategy: Retrieves memories based on simulation step numbers rather than
+     actual timestamps, optimized for simulation-based environments where step progression
+     is more meaningful than wall-clock time.
 
 The search model works with memory storage tiers (STM, IM, LTM) to provide efficient
 and targeted access to agent memories across different contexts.
@@ -53,6 +56,14 @@ recent_memories = search_model.search(
     strategy_name="temporal",
     limit=10
 )
+
+# Search using step numbers
+step_based_memories = search_model.search(
+    query={"start_step": 1000, "end_step": 2000},
+    agent_id="agent-1",
+    strategy_name="step_based",
+    limit=10
+)
 ```
 """
 
@@ -62,6 +73,7 @@ from memory.search.strategies.similarity import SimilaritySearchStrategy
 from memory.search.strategies.temporal import TemporalSearchStrategy
 from memory.search.strategies.attribute import AttributeSearchStrategy
 from memory.search.strategies.combined import CombinedSearchStrategy
+from memory.search.strategies.step_based import StepBasedSearchStrategy
 
 __all__ = [
     "SearchModel",
@@ -70,4 +82,5 @@ __all__ = [
     "TemporalSearchStrategy",
     "AttributeSearchStrategy",
     "CombinedSearchStrategy",
+    "StepBasedSearchStrategy",
 ] 

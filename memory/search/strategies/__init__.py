@@ -24,6 +24,11 @@ Available strategies:
    configurable weights. This meta-strategy enables more sophisticated searches that
    blend semantic similarity, temporal relevance, and attribute matching.
 
+5. StepBasedSearchStrategy: Retrieves memories based on simulation step numbers rather
+   than actual timestamps. This strategy is optimized for scenarios where the progression
+   of an agent through simulation steps is more meaningful than real-world time. It
+   enables step-range queries, proximity-based retrieval, and precise step matching.
+
 All strategies implement the common SearchStrategy interface, making them interchangeable
 within the SearchModel. This modular architecture allows for easy extension with new
 search approaches while maintaining a consistent API.
@@ -36,6 +41,7 @@ from memory.search.strategies.similarity import SimilaritySearchStrategy
 from memory.search.strategies.temporal import TemporalSearchStrategy
 from memory.search.strategies.attribute import AttributeSearchStrategy
 from memory.search.strategies.combined import CombinedSearchStrategy
+from memory.search.strategies.step_based import StepBasedSearchStrategy
 
 __all__ = [
     "SearchStrategy",
@@ -43,4 +49,5 @@ __all__ = [
     "TemporalSearchStrategy",
     "AttributeSearchStrategy",
     "CombinedSearchStrategy",
+    "StepBasedSearchStrategy",
 ] 
