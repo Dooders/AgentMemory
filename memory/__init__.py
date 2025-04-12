@@ -1,7 +1,7 @@
-"""Memory module for agent memory systems.
+"""TASM (Tiered Adaptive Semantic Memory) module.
 
-This package provides memory systems for agents to store and retrieve
-their experiences, enabling learning and adaptation.
+This package provides a sophisticated memory system for intelligent agents to store and retrieve
+their experiences with adaptive tiering, enabling learning and adaptation.
 """
 
 # Core components
@@ -56,4 +56,4 @@ __all__ = [
     "TemporalRetrieval",
 ]
 
-"""Agent memory system package."""
+"""TASM (Tiered Adaptive Semantic Memory) package."""

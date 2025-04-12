@@ -2,7 +2,7 @@
 
 ## Overview
 
-AgentMemory is a semantic memory management system designed for intelligent agents. It provides a sophisticated way to store, retrieve, and manage agent experiences and states across different memory tiers with varying levels of detail and persistence.
+[Tiered Adaptive Semantic Memory (TASM)](#overview) is a memory system designed for intelligent agents. It provides a sophisticated way to store, retrieve, and manage agent experiences and states across different memory tiers with varying levels of detail and persistence.
 
 ## System Architecture
 
@@ -52,7 +52,7 @@ Each tier has distinct compression levels and persistence characteristics.
 ## Core Components
 
 ### 1. Agent Memory System ([`AgentMemorySystem`](../memory/core.py) class)
-The central manager and entry point for the memory system, providing agent-specific memory access.
+The central manager and entry point for the TASM system, providing agent-specific memory access.
 
 ```python
 from memory.core import AgentMemorySystem
@@ -431,7 +431,7 @@ config = MemoryConfig(
 )
 ```
 
-## Using the Agent Memory System
+## Using the Tiered Adaptive Semantic Memory System
 
 ```python
 from memory.core import AgentMemorySystem
@@ -466,12 +466,12 @@ stats = memory_system.get_memory_statistics(agent_id="agent_001")
 
 ## Conclusion
 
-The Agent Memory System provides a comprehensive framework for managing agent memories across multiple tiers with sophisticated storage, retrieval, and search capabilities. Key benefits include:
+The TASM (Tiered Adaptive Semantic Memory) system provides a comprehensive framework for managing agent memories across multiple tiers with sophisticated storage, retrieval, and search capabilities. Key benefits include:
 
-- **Hierarchical memory management** with short, intermediate, and long-term storage
+- **Tiered memory management** with short, intermediate, and long-term storage
 - **Powerful search capabilities** with multiple strategies for different retrieval needs
 - **Semantic and attribute-based** memory access for contextual understanding
-- **Automatic memory maintenance** with configurable policies for memory transfer and decay
+- **Adaptive memory maintenance** with configurable policies for memory transfer and decay
 - **Flexible configuration** to adapt to different agent requirements and computational resources
 
 By leveraging this system, agents can maintain a rich history of their experiences, efficiently retrieve relevant information, and build a foundation for more sophisticated decision-making processes.
