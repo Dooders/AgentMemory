@@ -137,6 +137,42 @@ recent_memories = search_model.search(
 )
 ```
 
+#### Step-Based Search
+
+```python
+# Find memories within a specific step range
+step_range_memories = search_model.search(
+    query={
+        "start_step": 1000,
+        "end_step": 2000
+    },
+    agent_id="agent-1",
+    strategy_name="step_based",
+    limit=20
+)
+
+# Find memories near a specific step number
+nearby_step_memories = search_model.search(
+    query="1500",  # Reference step number
+    agent_id="agent-1",
+    strategy_name="step_based",
+    step_range=200,  # Search within 200 steps in each direction
+    limit=10
+)
+
+# Find memories with custom step range and weighting
+custom_step_memories = search_model.search(
+    query={
+        "reference_step": 1500,
+        "step_range": 500
+    },
+    agent_id="agent-1",
+    strategy_name="step_based", 
+    step_weight=2.0,  # Emphasize closer step matches
+    limit=15
+)
+```
+
 #### Attribute Search
 
 ```python

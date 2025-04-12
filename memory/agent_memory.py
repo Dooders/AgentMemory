@@ -8,8 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 from memory.config import MemoryConfig
 from memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
 from memory.embeddings.compression import CompressionEngine
-
-# from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.text_embeddings import TextEmbeddingEngine
 from memory.storage.redis_im import RedisIMStore
 from memory.storage.redis_stm import RedisSTMStore
 from memory.storage.sqlite_ltm import SQLiteLTMStore
@@ -56,9 +55,9 @@ class MemoryAgent:
         if config.autoencoder_config.use_neural_embeddings:
             if config.autoencoder_config.embedding_type == "text":
                 # Use text embedding model
-                # self.embedding_engine = TextEmbeddingEngine(
-                #     model_name=config.autoencoder_config.text_model_name
-                # )
+                self.embedding_engine = TextEmbeddingEngine(
+                    model_name=config.autoencoder_config.text_model_name
+                )
                 logger.info(
                     f"Using text embeddings with model {config.autoencoder_config.text_model_name}"
                 )
@@ -431,7 +430,9 @@ class MemoryAgent:
         """
         # If no embedding engine is available, return an empty list or fall back to attribute-based search
         if not self.embedding_engine:
-            logger.warning("Neural embeddings disabled - similarity search unavailable. Falling back to attribute-based search.")
+            logger.warning(
+                "Neural embeddings disabled - similarity search unavailable. Falling back to attribute-based search."
+            )
             # Fallback: Use attribute search for the memory type if specified
             if memory_type:
                 return self.retrieve_by_attributes({"memory_type": memory_type})[:k]
@@ -439,9 +440,7 @@ class MemoryAgent:
             return []
 
         # Generate query embedding
-        query_embedding = self.embedding_engine.encode_stm(
-            query_state, context_weights
-        )
+        query_embedding = self.embedding_engine.encode_stm(query_state, context_weights)
 
         # Search in each tier with appropriate embedding level
         results = []
@@ -935,7 +934,9 @@ class MemoryAgent:
                 query_state, k=k * 2, memory_type=memory_type, threshold=0.2
             )
         else:
-            logger.warning("Neural embeddings disabled - using only attribute-based search for hybrid retrieval")
+            logger.warning(
+                "Neural embeddings disabled - using only attribute-based search for hybrid retrieval"
+            )
             # When no embedding engine is available, use only attribute-based search with higher weight
             attribute_weight = 1.0
             vector_weight = 0.0
@@ -992,7 +993,9 @@ class MemoryAgent:
         scored_results.sort(key=lambda x: x.get("hybrid_score", 0), reverse=True)
         return scored_results[:k]
 
-    def flush_to_ltm(self, include_stm: bool = True, include_im: bool = True, force: bool = False) -> Dict[str, int]:
+    def flush_to_ltm(
+        self, include_stm: bool = True, include_im: bool = True, force: bool = False
+    ) -> Dict[str, int]:
         """Flush memories from STM and/or IM to LTM storage.
 
         Args:
@@ -1012,12 +1015,7 @@ class MemoryAgent:
         Raises:
             Exception: If the memory flush fails after maximum retry attempts
         """
-        results = {
-            'stm_stored': 0,
-            'stm_filtered': 0,
-            'im_stored': 0,
-            'im_filtered': 0
-        }
+        results = {"stm_stored": 0, "stm_filtered": 0, "im_stored": 0, "im_filtered": 0}
 
         max_retries = 3
         retry_count = 0
@@ -1029,9 +1027,11 @@ class MemoryAgent:
                 if include_stm:
                     stm_memories = self.stm_store.get_all()
                     if stm_memories:
-                        stored, filtered = self.ltm_store.flush_memories(stm_memories, force=force)
-                        results['stm_stored'] = stored
-                        results['stm_filtered'] = filtered
+                        stored, filtered = self.ltm_store.flush_memories(
+                            stm_memories, force=force
+                        )
+                        results["stm_stored"] = stored
+                        results["stm_filtered"] = filtered
                         # Clear STM after successful flush
                         if stored > 0:
                             self.stm_store.clear()
@@ -1040,9 +1040,11 @@ class MemoryAgent:
                 if include_im:
                     im_memories = self.im_store.get_all()
                     if im_memories:
-                        stored, filtered = self.ltm_store.flush_memories(im_memories, force=force)
-                        results['im_stored'] = stored
-                        results['im_filtered'] = filtered
+                        stored, filtered = self.ltm_store.flush_memories(
+                            im_memories, force=force
+                        )
+                        results["im_stored"] = stored
+                        results["im_filtered"] = filtered
                         # Clear IM after successful flush
                         if stored > 0:
                             self.im_store.clear()
@@ -1057,14 +1059,20 @@ class MemoryAgent:
             except Exception as e:
                 retry_count += 1
                 if retry_count <= max_retries:
-                    wait_time = backoff_factor ** retry_count
-                    logger.warning(f"Error during memory flush (attempt {retry_count}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                    wait_time = backoff_factor**retry_count
+                    logger.warning(
+                        f"Error during memory flush (attempt {retry_count}/{max_retries}): {e}. Retrying in {wait_time}s..."
+                    )
                     time.sleep(wait_time)
                 else:
-                    logger.error(f"Failed to flush memory after {max_retries} attempts: {e}")
+                    logger.error(
+                        f"Failed to flush memory after {max_retries} attempts: {e}"
+                    )
                     # Either propagate the error or return partial results
-                    if results['stm_stored'] > 0 or results['im_stored'] > 0:
-                        logger.info("Returning partial results from successful operations")
+                    if results["stm_stored"] > 0 or results["im_stored"] > 0:
+                        logger.info(
+                            "Returning partial results from successful operations"
+                        )
                         return results
                     else:
                         raise Exception(f"Memory flush failed completely: {e}")
