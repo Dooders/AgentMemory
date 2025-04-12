@@ -5,6 +5,9 @@ This test suite covers the vector compression functionality for memory embedding
 
 import numpy as np
 import pytest
+import json
+import base64
+import zlib
 
 from memory.embeddings.vector_compression import (
     CompressionConfig,
@@ -13,6 +16,8 @@ from memory.embeddings.vector_compression import (
     dequantize_vector,
     quantize_vector,
 )
+from memory.embeddings.compression import CompressionEngine, AbstractionEngine
+from memory.config import AutoencoderConfig
 
 #################################
 # Quantization Tests
@@ -205,6 +210,358 @@ def test_compression_config_validate():
     # Should raise ValueError for invalid dimension
     with pytest.raises(ValueError):
         invalid_dim_config.validate()
+
+
+#################################
+# CompressionEngine Tests
+#################################
+
+@pytest.fixture
+def mock_autoencoder_config():
+    """Create a mock AutoencoderConfig for testing."""
+    return AutoencoderConfig(
+        enabled=True, 
+        embedding_dim=512, 
+        compression_dim=64
+    )
+
+
+@pytest.fixture
+def sample_memory_entry():
+    """Create a sample memory entry for testing."""
+    return {
+        "id": "mem123",
+        "embedding": [0.1, 0.2, 0.3, 0.4, 0.5],
+        "metadata": {
+            "timestamp": 1234567890,
+            "source": "user_interaction",
+        },
+        "content": {
+            "memory_type": "interaction",
+            "interaction_type": "conversation",
+            "entities": ["user", "agent"],
+            "dialog": "Hello, how can I help you today?",
+            "outcome": "user_satisfied",
+            "raw_observation": "User entered text via keyboard",
+            "full_observation": "Detailed capture of user's typing behavior",
+            "detailed_state": "Complex state representation",
+            "importance": 0.75321,
+            "timestamp": 1234567890,
+            "step_number": 42
+        }
+    }
+
+
+def test_compression_engine_init(mock_autoencoder_config):
+    """Test initialization of CompressionEngine."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    assert engine.config == mock_autoencoder_config
+    assert len(engine.level_configs) == 3
+    assert 0 in engine.level_configs
+    assert 1 in engine.level_configs
+    assert 2 in engine.level_configs
+
+
+def test_compress_level0(mock_autoencoder_config, sample_memory_entry):
+    """Test compression level 0 (no compression)."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    compressed = engine.compress(sample_memory_entry, 0)
+    
+    # Should be a copy but not the same object
+    assert compressed is not sample_memory_entry
+    assert compressed == sample_memory_entry
+
+
+def test_compress_level1(mock_autoencoder_config, sample_memory_entry):
+    """Test compression level 1 (moderate compression)."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    compressed = engine.compress(sample_memory_entry, 1)
+    
+    # Check metadata is updated
+    assert compressed["metadata"]["compression_level"] == 1
+    
+    # Check numeric precision is reduced
+    assert compressed["content"]["importance"] == round(sample_memory_entry["content"]["importance"], 3)
+    
+    # Check filtered keys
+    filter_keys = engine.level_configs[1]["content_filter_keys"]
+    for key in filter_keys:
+        assert key not in compressed["content"]
+
+
+def test_compress_level2(mock_autoencoder_config, sample_memory_entry):
+    """Test compression level 2 (high compression)."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    compressed = engine.compress(sample_memory_entry, 2)
+    
+    # Check metadata is updated
+    assert compressed["metadata"]["compression_level"] == 2
+    
+    # Check binary compression
+    assert "_compressed" in compressed["content"]
+    assert "_compression_info" in compressed["content"]
+    assert compressed["content"]["_compression_info"]["algorithm"] == "zlib"
+
+
+def test_decompress(mock_autoencoder_config, sample_memory_entry):
+    """Test decompression of compressed memory entries."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    # Compress to level 2
+    compressed = engine.compress(sample_memory_entry, 2)
+    
+    # Now decompress
+    decompressed = engine.decompress(compressed)
+    
+    # Check key fields are restored
+    assert "memory_type" in decompressed["content"]
+    assert decompressed["content"]["memory_type"] == "interaction"
+    assert decompressed["content"]["interaction_type"] == "conversation"
+    
+    # Note: Some information loss is expected due to compression
+
+
+def test_reduce_numeric_precision(mock_autoencoder_config):
+    """Test numeric precision reduction."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    # Test with dict
+    test_dict = {"a": 1.23456, "b": {"c": 7.89012}, "d": [3.14159, {"e": 2.71828}]}
+    engine._reduce_numeric_precision(test_dict, 2)
+    
+    assert test_dict["a"] == 1.23
+    assert test_dict["b"]["c"] == 7.89
+    assert test_dict["d"][0] == 3.14
+    assert test_dict["d"][1]["e"] == 2.72
+
+
+def test_binary_compression_roundtrip(mock_autoencoder_config):
+    """Test binary compression and decompression."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    test_data = {"key1": "value1", "key2": 123.456, "key3": [1, 2, 3]}
+    
+    # Compress
+    compressed = engine._binary_compress(test_data)
+    assert isinstance(compressed, str)
+    
+    # Decompress
+    decompressed = engine._binary_decompress(compressed)
+    assert decompressed == test_data
+
+
+#################################
+# AbstractionEngine Tests
+#################################
+
+@pytest.fixture
+def sample_state_memory():
+    """Create a sample state memory entry for testing."""
+    return {
+        "content": {
+            "memory_type": "state",
+            "location": "office",
+            "status": "active",
+            "goals": ["complete_task", "respond_to_user"],
+            "resources": {"cpu": 0.5, "memory": 0.3},
+            "relationships": {"user123": "positive"},
+            "timestamp": 1234567890,
+            "step_number": 42,
+            "detailed_info": "lots of details that should be abstracted away"
+        }
+    }
+
+
+@pytest.fixture
+def sample_action_memory():
+    """Create a sample action memory entry for testing."""
+    return {
+        "content": {
+            "memory_type": "action",
+            "action_type": "response",
+            "target": "user_query",
+            "outcome": "success",
+            "success": True,
+            "timestamp": 1234567890,
+            "step_number": 42,
+            "detailed_steps": "step1, step2, step3",
+            "raw_data": "lots of raw data"
+        }
+    }
+
+
+@pytest.fixture
+def sample_interaction_memory():
+    """Create a sample interaction memory entry for testing."""
+    return {
+        "content": {
+            "memory_type": "interaction",
+            "interaction_type": "conversation",
+            "entities": ["user", "agent"],
+            "dialog": "Hello, how can I help you today?",
+            "outcome": "user_satisfied",
+            "timestamp": 1234567890,
+            "step_number": 42,
+            "detailed_context": "complex contextual information"
+        }
+    }
+
+
+def test_abstraction_engine_init():
+    """Test initialization of AbstractionEngine."""
+    engine = AbstractionEngine()
+    # Currently, initialization doesn't do much, but test it anyway
+    assert isinstance(engine, AbstractionEngine)
+
+
+def test_light_abstraction_state(sample_state_memory):
+    """Test light abstraction of state memory."""
+    engine = AbstractionEngine()
+    
+    result = engine._light_abstraction(sample_state_memory["content"])
+    
+    # Check that key fields are preserved
+    assert result["memory_type"] == "state"
+    assert result["location"] == "office"
+    assert result["status"] == "active"
+    assert "goals" in result
+    assert "resources" in result
+    assert "relationships" in result
+    
+    # Check that non-essential fields are removed
+    assert "detailed_info" not in result
+
+
+def test_light_abstraction_action(sample_action_memory):
+    """Test light abstraction of action memory."""
+    engine = AbstractionEngine()
+    
+    result = engine._light_abstraction(sample_action_memory["content"])
+    
+    # Check that key fields are preserved
+    assert result["memory_type"] == "action"
+    assert result["action_type"] == "response"
+    assert result["target"] == "user_query"
+    assert result["outcome"] == "success"
+    assert result["success"] is True
+    
+    # Check that non-essential fields are removed
+    assert "detailed_steps" not in result
+    assert "raw_data" not in result
+
+
+def test_light_abstraction_interaction(sample_interaction_memory):
+    """Test light abstraction of interaction memory."""
+    engine = AbstractionEngine()
+    
+    result = engine._light_abstraction(sample_interaction_memory["content"])
+    
+    # Check that key fields are preserved
+    assert result["memory_type"] == "interaction"
+    assert result["interaction_type"] == "conversation"
+    assert result["entities"] == ["user", "agent"]
+    assert result["dialog"] == "Hello, how can I help you today?"
+    assert result["outcome"] == "user_satisfied"
+    
+    # Check that non-essential fields are removed
+    assert "detailed_context" not in result
+
+
+def test_heavy_abstraction_state(sample_state_memory):
+    """Test heavy abstraction of state memory."""
+    engine = AbstractionEngine()
+    
+    result = engine._heavy_abstraction(sample_state_memory["content"])
+    
+    # Check that only essential fields are preserved
+    assert result["memory_type"] == "state"
+    assert result["location"] == "office"
+    assert result["status"] == "active"
+    assert "timestamp" in result
+    assert "step_number" in result
+    
+    # Check that other fields are removed
+    assert "goals" not in result
+    assert "resources" not in result
+    assert "relationships" not in result
+    assert "detailed_info" not in result
+
+
+def test_heavy_abstraction_action(sample_action_memory):
+    """Test heavy abstraction of action memory."""
+    engine = AbstractionEngine()
+    
+    result = engine._heavy_abstraction(sample_action_memory["content"])
+    
+    # Check that only essential fields are preserved
+    assert result["memory_type"] == "action"
+    assert result["action_type"] == "response"
+    assert result["outcome"] == "success"
+    assert "timestamp" in result
+    assert "step_number" in result
+    
+    # Check that other fields are removed
+    assert "target" not in result
+    assert "success" not in result
+    assert "detailed_steps" not in result
+    assert "raw_data" not in result
+
+
+def test_heavy_abstraction_interaction(sample_interaction_memory):
+    """Test heavy abstraction of interaction memory."""
+    engine = AbstractionEngine()
+    
+    result = engine._heavy_abstraction(sample_interaction_memory["content"])
+    
+    # Check that only essential fields are preserved
+    assert result["memory_type"] == "interaction"
+    assert result["interaction_type"] == "conversation"
+    assert result["outcome"] == "user_satisfied"
+    assert "timestamp" in result
+    assert "step_number" in result
+    
+    # Check that other fields are removed
+    assert "entities" not in result
+    assert "dialog" not in result
+    assert "detailed_context" not in result
+
+
+def test_abstract_memory_level1(sample_state_memory):
+    """Test abstract_memory with level 1."""
+    engine = AbstractionEngine()
+    
+    result = engine.abstract_memory(sample_state_memory, level=1)
+    
+    # Check that metadata is updated
+    assert "metadata" in result
+    assert result["metadata"]["abstraction_level"] == 1
+    
+    # Content should be lightly abstracted
+    assert result["content"]["memory_type"] == "state"
+    assert "location" in result["content"]
+    assert "detailed_info" not in result["content"]
+
+
+def test_abstract_memory_level2(sample_interaction_memory):
+    """Test abstract_memory with level 2."""
+    engine = AbstractionEngine()
+    
+    result = engine.abstract_memory(sample_interaction_memory, level=2)
+    
+    # Check that metadata is updated
+    assert "metadata" in result
+    assert result["metadata"]["abstraction_level"] == 2
+    
+    # Content should be heavily abstracted
+    assert result["content"]["memory_type"] == "interaction"
+    assert "interaction_type" in result["content"]
+    assert "outcome" in result["content"]
+    assert "entities" not in result["content"]
+    assert "dialog" not in result["content"]
 
 
 if __name__ == "__main__":
