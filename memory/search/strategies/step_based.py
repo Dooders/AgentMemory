@@ -38,9 +38,9 @@ nearby_memories = search_model.search(
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
 import math
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 from memory.search.strategies.base import SearchStrategy
 from memory.storage.redis_im import RedisIMStore
@@ -52,17 +52,17 @@ logger = logging.getLogger(__name__)
 
 class StepBasedSearchStrategy(SearchStrategy):
     """Search strategy that finds memories based on simulation step numbers.
-    
+
     This strategy is optimized for retrieving memories based on their simulation step
     numbers rather than actual timestamps. It's ideal for scenarios where the progression
     of an agent through simulation steps is more meaningful than real-world time.
-    
+
     Attributes:
         stm_store: Short-Term Memory store
         im_store: Intermediate Memory store
         ltm_store: Long-Term Memory store
     """
-    
+
     def __init__(
         self,
         stm_store: RedisSTMStore,
@@ -70,7 +70,7 @@ class StepBasedSearchStrategy(SearchStrategy):
         ltm_store: SQLiteLTMStore,
     ):
         """Initialize the step-based search strategy.
-        
+
         Args:
             stm_store: Short-Term Memory store
             im_store: Intermediate Memory store
@@ -79,23 +79,23 @@ class StepBasedSearchStrategy(SearchStrategy):
         self.stm_store = stm_store
         self.im_store = im_store
         self.ltm_store = ltm_store
-    
+
     def name(self) -> str:
         """Return the name of the search strategy.
-        
+
         Returns:
             String name of the strategy
         """
         return "step_based"
-    
+
     def description(self) -> str:
         """Return a description of the search strategy.
-        
+
         Returns:
             String description of the strategy
         """
         return "Searches for memories based on simulation step numbers"
-    
+
     def search(
         self,
         query: Union[str, Dict[str, Any], List[float]],
@@ -108,10 +108,10 @@ class StepBasedSearchStrategy(SearchStrategy):
         reference_step: Optional[int] = None,
         step_range: int = 100,
         step_weight: float = 1.0,
-        **kwargs
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """Search for memories based on step numbers.
-        
+
         Args:
             query: Search query (can be a step number, step range dict, or step-related data)
             agent_id: ID of the agent whose memories to search
@@ -124,25 +124,27 @@ class StepBasedSearchStrategy(SearchStrategy):
             step_range: Range around the reference step to search (if using reference_step)
             step_weight: Weight to apply for step-based scoring (higher values prioritize exact matches)
             **kwargs: Additional parameters (ignored)
-            
+
         Returns:
             List of memory entries matching the search criteria
         """
         # Initialize results
         results = []
-        
+
         # Process query to extract step parameters
-        step_params = self._process_query(query, start_step, end_step, reference_step, step_range)
-        
+        step_params = self._process_query(
+            query, start_step, end_step, reference_step, step_range
+        )
+
         # Process all tiers or only the specified one
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
-        
+
         for current_tier in tiers_to_search:
             # Skip if tier is not supported
             if current_tier not in ["stm", "im", "ltm"]:
                 logger.warning("Unsupported memory tier: %s", current_tier)
                 continue
-            
+
             # Get all memories for the agent in this tier
             tier_memories = []
             if current_tier == "stm":
@@ -151,14 +153,14 @@ class StepBasedSearchStrategy(SearchStrategy):
                 tier_memories = self.im_store.get_all(agent_id)
             else:  # ltm
                 tier_memories = self.ltm_store.get_all()
-            
+
             # Filter memories by step range and metadata
             filtered_memories = self._filter_memories(
                 tier_memories,
                 step_params,
                 metadata_filter,
             )
-            
+
             # Score memories based on step proximity
             scored_memories = self._score_memories(
                 filtered_memories,
@@ -166,19 +168,18 @@ class StepBasedSearchStrategy(SearchStrategy):
                 step_weight,
                 current_tier,
             )
-            
+
             # Add to results
             results.extend(scored_memories)
-        
+
         # Sort by step score (descending)
         results.sort(
-            key=lambda x: x.get("metadata", {}).get("step_score", 0.0),
-            reverse=True
+            key=lambda x: x.get("metadata", {}).get("step_score", 0.0), reverse=True
         )
-        
+
         # Limit final results
         return results[:limit]
-    
+
     def _process_query(
         self,
         query: Union[str, Dict[str, Any], List[float]],
@@ -188,14 +189,14 @@ class StepBasedSearchStrategy(SearchStrategy):
         step_range: int = 100,
     ) -> Dict[str, Any]:
         """Process the search query to extract step parameters.
-        
+
         Args:
             query: Search query
             start_step: Optional start step
             end_step: Optional end step
             reference_step: Optional reference step
             step_range: Range around reference step to search
-            
+
         Returns:
             Dictionary of step parameters
         """
@@ -206,7 +207,7 @@ class StepBasedSearchStrategy(SearchStrategy):
             "step_range": step_range,
             "query_keys": [],  # Track keys in the query dict to identify query type
         }
-        
+
         # Handle string queries
         if isinstance(query, str):
             # Try to parse as a step number
@@ -216,16 +217,18 @@ class StepBasedSearchStrategy(SearchStrategy):
                 # If we have a reference step, calculate default start and end steps
                 params["start_step"] = max(0, step - step_range)
                 params["end_step"] = step + step_range
-                logger.debug(f"Parsed query as step number: {step} with range: {params['start_step']} to {params['end_step']}")
+                logger.debug(
+                    f"Parsed query as step number: {step} with range: {params['start_step']} to {params['end_step']}"
+                )
             except ValueError:
                 # Not a valid step number, ignore
                 pass
-        
+
         # Handle dictionary queries
         elif isinstance(query, dict):
             # Track the keys in the query dictionary
             params["query_keys"] = list(query.keys())
-            
+
             # Process step parameters
             if "start_step" in query:
                 params["start_step"] = self._parse_int(query["start_step"])
@@ -243,7 +246,7 @@ class StepBasedSearchStrategy(SearchStrategy):
                 range_value = self._parse_int(query["step_range"])
                 if range_value is not None:
                     params["step_range"] = range_value
-        
+
         # Override with explicitly provided parameters (these take precedence over query dict)
         if start_step is not None:
             params["start_step"] = start_step
@@ -255,62 +258,62 @@ class StepBasedSearchStrategy(SearchStrategy):
             if start_step is None and end_step is None:
                 params["start_step"] = max(0, reference_step - step_range)
                 params["end_step"] = reference_step + step_range
-            
+
         # Debug the final parameters
         logger.debug(f"Processed step parameters: {params}")
         return params
-    
+
     def _parse_int(self, value: Any) -> Optional[int]:
         """Parse an integer value.
-        
+
         Args:
             value: Value to parse
-            
+
         Returns:
             Parsed integer or None if parsing failed
         """
         if isinstance(value, int):
             return value
-        
+
         if isinstance(value, str):
             try:
                 return int(value)
             except ValueError:
                 logger.warning(f"Could not parse integer string: {value}")
-        
+
         return None
-    
+
     def _get_memory_step(self, memory: Dict[str, Any]) -> Optional[int]:
         """Extract step number from a memory entry.
-        
+
         Args:
             memory: Memory entry
-            
+
         Returns:
             Step number or None if not found
         """
         # Try to get step directly
         if "step_number" in memory:
             return memory["step_number"]
-            
+
         # Try to get from contents
         if "contents" in memory and isinstance(memory["contents"], dict):
             if "step_number" in memory["contents"]:
                 return memory["contents"]["step_number"]
-                
+
         # Try to get from metadata
         if "metadata" in memory and isinstance(memory["metadata"], dict):
             if "step_number" in memory["metadata"]:
                 return memory["metadata"]["step_number"]
             if "step" in memory["metadata"]:
                 return self._parse_int(memory["metadata"]["step"])
-                
+
         # Try to get from the main memory object's step field
         if "step" in memory:
             return self._parse_int(memory["step"])
-                
+
         return None
-    
+
     def _filter_memories(
         self,
         memories: List[Dict[str, Any]],
@@ -318,55 +321,61 @@ class StepBasedSearchStrategy(SearchStrategy):
         metadata_filter: Optional[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Filter memories based on step parameters and metadata.
-        
+
         Args:
             memories: List of memories to filter
             step_params: Step parameters to filter by
             metadata_filter: Additional metadata filters
-            
+
         Returns:
             Filtered list of memories
         """
         start_step = step_params.get("start_step")
         end_step = step_params.get("end_step")
-        
+
         # Debug the filters
         if start_step is not None:
             logger.debug(f"Filtering with start_step: {start_step}")
         if end_step is not None:
             logger.debug(f"Filtering with end_step: {end_step}")
-        
+
         filtered = []
         for memory in memories:
             memory_id = memory.get("id", "unknown")
-            
+
             # Get memory step
             memory_step = self._get_memory_step(memory)
-            
+
             # Skip memories without a step number
             if memory_step is None:
                 logger.debug(f"Memory {memory_id} has no step number, skipping")
                 continue
-                
+
             # Check step constraints
             if start_step is not None and memory_step < start_step:
-                logger.debug(f"Memory {memory_id} is before start_step: {memory_step} < {start_step}")
+                logger.debug(
+                    f"Memory {memory_id} is before start_step: {memory_step} < {start_step}"
+                )
                 continue
             if end_step is not None and memory_step > end_step:
-                logger.debug(f"Memory {memory_id} is after end_step: {memory_step} > {end_step}")
+                logger.debug(
+                    f"Memory {memory_id} is after end_step: {memory_step} > {end_step}"
+                )
                 continue
-            
+
             # Apply metadata filter
             if metadata_filter:
                 memory_metadata = memory.get("metadata", {})
-                if not all(memory_metadata.get(k) == v for k, v in metadata_filter.items()):
+                if not all(
+                    memory_metadata.get(k) == v for k, v in metadata_filter.items()
+                ):
                     continue
-            
+
             filtered.append(memory)
-        
+
         logger.debug(f"Filtered down to {len(filtered)} memories from {len(memories)}")
         return filtered
-    
+
     def _score_memories(
         self,
         memories: List[Dict[str, Any]],
@@ -375,56 +384,58 @@ class StepBasedSearchStrategy(SearchStrategy):
         tier: str,
     ) -> List[Dict[str, Any]]:
         """Score memories based on step proximity.
-        
+
         Args:
             memories: List of memory entries to score
             step_params: Step parameters from query processing
             step_weight: Weight for step-based scoring
             tier: Memory tier ("stm", "im", "ltm")
-            
+
         Returns:
             List of scored memory entries
         """
         reference_step = step_params.get("reference_step")
         scored_memories = []
-        
+
         for memory in memories:
             # Start with base score
             step_score = 0.5
-            
+
             # Get memory step
             memory_step = self._get_memory_step(memory)
-            
+
             # Score based on step proximity if reference step is provided
             if memory_step is not None and reference_step is not None:
                 # Calculate how close this memory is to the reference step
                 step_distance = abs(memory_step - reference_step)
-                
+
                 # Normalize step distance (closer = higher score)
                 # Adjust max_distance based on your simulation scale
                 max_distance = step_params.get("step_range", 100) * 2
                 normalized_distance = min(step_distance / max_distance, 1.0)
-                
+
                 # Higher score for closer steps
                 step_score = 1.0 - normalized_distance
-                
+
                 # Apply step weight
                 step_score = step_score * step_weight
-            
+
             # Create a copy of the memory to avoid modifying the original
             memory_copy = memory.copy()
-            
+
             # Add score to memory metadata
             if "metadata" not in memory_copy:
                 memory_copy["metadata"] = {}
-            
+
             memory_copy["metadata"]["step_score"] = step_score
             memory_copy["metadata"]["tier"] = tier
             memory_copy["metadata"]["step_number"] = memory_step
-            
+
             # Debug scoring
-            logger.debug(f"Memory {memory_copy.get('id', 'unknown')} with step {memory_step} scored: {step_score}")
-            
+            logger.debug(
+                f"Memory {memory_copy.get('id', 'unknown')} with step {memory_step} scored: {step_score}"
+            )
+
             scored_memories.append(memory_copy)
-        
-        return scored_memories 
+
+        return scored_memories
