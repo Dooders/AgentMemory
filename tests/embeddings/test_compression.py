@@ -8,6 +8,7 @@ import pytest
 import json
 import base64
 import zlib
+import copy
 
 from memory.embeddings.vector_compression import (
     CompressionConfig,
@@ -354,6 +355,123 @@ def test_binary_compression_roundtrip(mock_autoencoder_config):
     assert decompressed == test_data
 
 
+def test_filter_content_keys(mock_autoencoder_config):
+    """Test filtering content keys from dictionaries."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    # Test with a nested dictionary
+    test_dict = {
+        "keep_this": "value1",
+        "remove_this": "value2",
+        "nested": {
+            "keep_this": "value3",
+            "remove_this": "value4"
+        },
+        "list_with_dicts": [
+            {"keep_this": "value5", "remove_this": "value6"},
+            "string_item",
+            42
+        ]
+    }
+    
+    filter_keys = {"remove_this"}
+    result = engine._filter_content_keys(test_dict, filter_keys)
+    
+    # Check that keys were properly filtered at all levels
+    assert "keep_this" in result
+    assert "remove_this" not in result
+    assert "nested" in result
+    assert "keep_this" in result["nested"]
+    assert "remove_this" not in result["nested"]
+    assert "list_with_dicts" in result
+    assert "keep_this" in result["list_with_dicts"][0]
+    assert "remove_this" not in result["list_with_dicts"][0]
+    assert result["list_with_dicts"][1] == "string_item"
+    assert result["list_with_dicts"][2] == 42
+    
+    # Test with non-dictionary input
+    assert engine._filter_content_keys("string", filter_keys) == "string"
+    assert engine._filter_content_keys(42, filter_keys) == 42
+    assert engine._filter_content_keys(None, filter_keys) is None
+
+
+def test_compress_with_non_dict_metadata(mock_autoencoder_config, sample_memory_entry):
+    """Test compression with non-dictionary metadata."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    # Modify the sample entry to have non-dictionary metadata
+    modified_entry = copy.deepcopy(sample_memory_entry)
+    modified_entry["metadata"] = "string metadata"
+    
+    # Compress to level 1
+    compressed = engine.compress(modified_entry, 1)
+    
+    # Metadata should be converted to a dictionary
+    assert isinstance(compressed["metadata"], dict)
+    assert compressed["metadata"]["compression_level"] == 1
+
+
+def test_decompress_edge_cases(mock_autoencoder_config):
+    """Test edge cases for decompress method."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    # Test with empty input
+    assert engine.decompress({}) == {}
+    assert engine.decompress(None) == {}
+    
+    # Test with memory that has no metadata
+    memory_no_metadata = {"content": {"key": "value"}}
+    result = engine.decompress(memory_no_metadata)
+    assert result == memory_no_metadata
+    assert result is not memory_no_metadata  # Should be a copy
+    
+    # Test with memory that has metadata but no compression_level
+    memory_no_level = {"content": {"key": "value"}, "metadata": {"other": "data"}}
+    result = engine.decompress(memory_no_level)
+    assert result == memory_no_level
+    assert result is not memory_no_level  # Should be a copy
+    
+    # Test with non-binary compressed content
+    memory_level_set = {
+        "content": {"key": "value"}, 
+        "metadata": {"compression_level": 1}
+    }
+    result = engine.decompress(memory_level_set)
+    assert result == memory_level_set
+    assert result is not memory_level_set  # Should be a copy
+
+
+def test_decompress_error_handling(mock_autoencoder_config):
+    """Test error handling during decompression."""
+    engine = CompressionEngine(mock_autoencoder_config)
+    
+    # Create an entry with invalid compressed data
+    invalid_compressed = {
+        "content": {
+            "_compressed": "invalid_base64!@#",
+            "_compression_info": {"algorithm": "zlib"}
+        },
+        "metadata": {"compression_level": 2}
+    }
+    
+    # Should not raise an exception, but log a warning
+    result = engine.decompress(invalid_compressed)
+    assert result == invalid_compressed
+    
+    # Create an entry with valid base64 but invalid compressed data
+    valid_base64_invalid_data = {
+        "content": {
+            "_compressed": base64.b64encode(b"not_compressed_data").decode("ascii"),
+            "_compression_info": {"algorithm": "zlib"}
+        },
+        "metadata": {"compression_level": 2}
+    }
+    
+    # Should not raise an exception, but log a warning
+    result = engine.decompress(valid_base64_invalid_data)
+    assert result == valid_base64_invalid_data
+
+
 #################################
 # AbstractionEngine Tests
 #################################
@@ -562,6 +680,41 @@ def test_abstract_memory_level2(sample_interaction_memory):
     assert "outcome" in result["content"]
     assert "entities" not in result["content"]
     assert "dialog" not in result["content"]
+
+
+def test_abstract_memory_edge_cases():
+    """Test edge cases for abstract_memory."""
+    engine = AbstractionEngine()
+    
+    # Test with empty input
+    assert engine.abstract_memory({}) == {"metadata": {"abstraction_level": 1}}
+    
+    # Test with non-dictionary content
+    memory_non_dict_content = {"content": "string content"}
+    result = engine.abstract_memory(memory_non_dict_content)
+    assert result["content"] == "string content"
+    assert result["metadata"]["abstraction_level"] == 1
+    
+    # Test with None content
+    memory_none_content = {"content": None}
+    result = engine.abstract_memory(memory_none_content)
+    assert result["content"] is None
+    assert result["metadata"]["abstraction_level"] == 1
+    
+    # Test with unknown memory type
+    memory_unknown_type = {
+        "content": {
+            "memory_type": "unknown_type",
+            "field1": "value1",
+            "field2": "value2"
+        }
+    }
+    result = engine.abstract_memory(memory_unknown_type, level=1)
+    assert result["content"]["memory_type"] == "unknown_type"
+    # Only common fields and memory_type should be preserved
+    for key in ["timestamp", "step_number", "agent_id", "importance"]:
+        if key in memory_unknown_type["content"]:
+            assert key in result["content"]
 
 
 if __name__ == "__main__":
