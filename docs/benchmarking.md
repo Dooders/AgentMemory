@@ -305,21 +305,6 @@ fig = results.plot_comparison(
 results.save_plot(fig, "storage_throughput.png")
 ```
 
-## Working with Results in Windows PowerShell
-
-In Windows PowerShell, you can use the following commands to work with benchmark results:
-
-```powershell
-# List available results
-python -m memory.benchmarking.cli results list --results-dir .\benchmark_results
-
-# Generate a report
-python -m memory.benchmarking.cli results report --category storage --results-dir .\benchmark_results --output-dir .\reports
-
-# Compare two result sets
-python -m memory.benchmarking.cli compare --current-dir .\results\current --baseline-dir .\results\baseline
-```
-
 ## Integration with CI/CD
 
 The benchmarking system can be integrated with CI/CD pipelines to automatically detect performance regressions:
