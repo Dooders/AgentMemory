@@ -123,6 +123,10 @@ LOG_CTX_MEMORY_ID = "memory_id"
 LOG_CTX_OPERATION = "operation"
 LOG_CTX_TIER = "tier"
 
+# Module-level cache storage
+_function_caches = {}
+_function_cache_ttls = {}
+
 
 def log_with_context(level, msg, **context):
     """Log with standardized context format.
@@ -144,6 +148,17 @@ def log_with_context(level, msg, **context):
 T = TypeVar("T")
 
 
+def make_hashable(obj):
+    """Convert unhashable types to hashable for cache keys."""
+    if isinstance(obj, dict):
+        return frozenset((k, make_hashable(v)) for k, v in sorted(obj.items()))
+    elif isinstance(obj, (list, tuple)):
+        return tuple(make_hashable(x) for x in obj)
+    elif isinstance(obj, set):
+        return frozenset(make_hashable(x) for x in obj)
+    return obj
+
+
 # Module-level caching decorator that doesn't rely on instance state
 def cacheable(ttl=60):
     """Decorator to cache function results with TTL.
@@ -154,22 +169,20 @@ def cacheable(ttl=60):
     Returns:
         Decorated function with caching
     """
-    cache = {}
-    cache_ttl = {}
-
-    def make_hashable(obj):
-        """Convert unhashable types to hashable for cache keys."""
-        if isinstance(obj, dict):
-            return frozenset((k, make_hashable(v)) for k, v in sorted(obj.items()))
-        elif isinstance(obj, (list, tuple)):
-            return tuple(make_hashable(x) for x in obj)
-        elif isinstance(obj, set):
-            return frozenset(make_hashable(x) for x in obj)
-        return obj
 
     def decorator(func):
+        # Create function-specific cache storage
+        cache_name = f"cache_{func.__name__}"
+        if cache_name not in _function_caches:
+            _function_caches[cache_name] = {}
+            _function_cache_ttls[cache_name] = {}
+
         @wraps(func)
         def wrapper(*args, **kwargs):
+            # Get the cache for this function
+            cache = _function_caches[cache_name]
+            cache_ttl = _function_cache_ttls[cache_name]
+
             # Create hashable versions of arguments
             hashable_args = tuple(make_hashable(arg) for arg in args)
             hashable_kwargs = {k: make_hashable(v) for k, v in kwargs.items()}
@@ -198,20 +211,34 @@ def cacheable(ttl=60):
             return result
 
         # Attach cache management methods to the function
-        wrapper.cache = cache
-        wrapper.cache_ttl = cache_ttl
-
         def clear_cache():
             """Clear the cache for this function."""
-            cache.clear()
-            cache_ttl.clear()
-            log_with_context(
-                logger.debug,
-                f"Cache cleared for {func.__name__}",
-                operation=func.__name__,
-            )
+            if cache_name in _function_caches:
+                _function_caches[cache_name].clear()
+                _function_cache_ttls[cache_name].clear()
+                log_with_context(
+                    logger.debug,
+                    f"Cache cleared for {func.__name__}",
+                    operation=func.__name__,
+                )
 
         wrapper.clear_cache = clear_cache
+        
+        # Make the clear_cache method available on the method instance
+        # This is needed for bound methods to properly support clear_cache
+        setattr(wrapper, "__clear_cache", clear_cache)
+        
+        # Define a descriptor to make clear_cache available on bound methods
+        class MethodDescriptor:
+            def __get__(self, obj, objtype=None):
+                if obj is None:
+                    return clear_cache
+                return lambda: clear_cache()
+                
+        setattr(wrapper, "clear_cache", MethodDescriptor())
+
+        # Make make_hashable accessible for testing
+        wrapper.make_hashable = make_hashable
 
         return wrapper
 
@@ -270,12 +297,20 @@ class AgentMemoryAPI:
     def clear_all_caches(self):
         """Clear all caches for all methods in this API."""
         logger.info("Clearing all API method caches")
-        # Clear caches for decorated methods
-        if hasattr(self.retrieve_similar_states, "clear_cache"):
-            self.retrieve_similar_states.clear_cache()
-
-        if hasattr(self.search_by_content, "clear_cache"):
-            self.search_by_content.clear_cache()
+        
+        # Clear the module-level caches directly
+        for cache_name in list(_function_caches.keys()):
+            if cache_name.startswith("cache_"):
+                _function_caches[cache_name].clear()
+                if cache_name in _function_cache_ttls:
+                    _function_cache_ttls[cache_name].clear()
+                
+                log_with_context(
+                    logger.debug,
+                    f"Cache cleared for {cache_name[6:]}",  # Remove "cache_" prefix
+                    operation="clear_all_caches",
+                )
+        
         logger.debug("All caches cleared")
 
     def clear_cache(self):
@@ -910,20 +945,55 @@ class AgentMemoryAPI:
 
         Returns:
             List of memory entries within the specified time range
+
+        Raises:
+            MemoryRetrievalException: If there is an error during retrieval
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        # Validate agent_id
+        if not agent_id:
+            logger.error("Empty agent_id provided in retrieve_by_time_range")
+            raise MemoryRetrievalException("Agent ID cannot be empty")
 
-        def query_function(store, _, mem_type):
-            return store.get_by_step_range(start_step, end_step, mem_type)
+        # Validate step range
+        if not isinstance(start_step, int):
+            logger.error(f"Invalid start_step type: {type(start_step)}")
+            raise MemoryRetrievalException("Start step must be an integer")
 
-        # Use merge sort since results from each store are already sorted by step number
-        return self._aggregate_results(
-            memory_agent,
-            query_function,
-            memory_type=memory_type,
-            sort_key=lambda x: x.get("step_number", 0),
-            merge_sorted=True,
-        )
+        if not isinstance(end_step, int):
+            logger.error(f"Invalid end_step type: {type(end_step)}")
+            raise MemoryRetrievalException("End step must be an integer")
+            
+        if start_step < 0:
+            logger.error(f"Negative start_step: {start_step}")
+            raise MemoryRetrievalException("Step numbers must be non-negative")
+
+        if start_step > end_step:
+            logger.error(
+                f"Invalid step range: start_step {start_step} > end_step {end_step}"
+            )
+            raise MemoryRetrievalException(
+                "End step must be greater than or equal to start step"
+            )
+
+        try:
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+
+            def query_function(store, _, mem_type):
+                return store.get_by_step_range(start_step, end_step, mem_type)
+
+            # Use merge sort since results from each store are already sorted by step number
+            return self._aggregate_results(
+                memory_agent,
+                query_function,
+                memory_type=memory_type,
+                sort_key=lambda x: x.get("step_number", 0),
+                merge_sorted=True,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to retrieve memories by time range for agent {agent_id}: {e}"
+            )
+            raise MemoryRetrievalException(f"Error retrieving memories: {str(e)}")
 
     def retrieve_by_attributes(
         self,
@@ -940,19 +1010,42 @@ class AgentMemoryAPI:
 
         Returns:
             List of memory entries matching the specified attributes
+
+        Raises:
+            MemoryRetrievalException: If there is an error during retrieval
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        # Validate agent_id
+        if not agent_id:
+            logger.error("Empty agent_id provided in retrieve_by_attributes")
+            raise MemoryRetrievalException("Agent ID cannot be empty")
 
-        def query_function(store, _, mem_type):
-            return store.get_by_attributes(attributes, mem_type)
+        # Validate attributes
+        if not isinstance(attributes, dict):
+            logger.error(f"Invalid attributes type: {type(attributes)}")
+            raise MemoryRetrievalException("Attributes must be a dictionary")
 
-        return self._aggregate_results(
-            memory_agent,
-            query_function,
-            memory_type=memory_type,
-            sort_key=lambda x: x.get("step_number", 0),
-            reverse=True,
-        )
+        if not attributes:
+            logger.error("Empty attributes dictionary provided")
+            raise MemoryRetrievalException("At least one attribute must be specified")
+
+        try:
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+
+            def query_function(store, _, mem_type):
+                return store.get_by_attributes(attributes, mem_type)
+
+            return self._aggregate_results(
+                memory_agent,
+                query_function,
+                memory_type=memory_type,
+                sort_key=lambda x: x.get("step_number", 0),
+                reverse=True,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to retrieve memories by attributes for agent {agent_id}: {e}"
+            )
+            raise MemoryRetrievalException(f"Error retrieving memories: {str(e)}")
 
     def search_by_embedding(
         self,
@@ -971,55 +1064,103 @@ class AgentMemoryAPI:
 
         Returns:
             List of memory entries sorted by similarity
+
+        Raises:
+            MemoryRetrievalException: If there is an error during retrieval
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        # Validate agent_id
+        if not agent_id:
+            logger.error("Empty agent_id provided in search_by_embedding")
+            raise MemoryRetrievalException("Agent ID cannot be empty")
 
-        # Determine which tiers to search
-        tiers = memory_tiers or ["stm", "im", "ltm"]
-        results = []
+        # Validate query_embedding
+        if not isinstance(query_embedding, list):
+            logger.error(f"Invalid query_embedding type: {type(query_embedding)}")
+            raise MemoryRetrievalException("Query embedding must be a list of floats")
 
-        tier_stores = {
-            "stm": memory_agent.stm_store,
-            "im": memory_agent.im_store,
-            "ltm": memory_agent.ltm_store,
-        }
+        # Check for empty embedding
+        if len(query_embedding) == 0:
+            logger.error("Empty query embedding provided")
+            raise MemoryRetrievalException("Query embedding cannot be empty")
 
-        # Check if embedding engine is available for conversion
-        has_embedding_engine = memory_agent.embedding_engine is not None
+        # Check embedding values
+        if not all(isinstance(x, (int, float)) for x in query_embedding):
+            logger.error("Non-numeric values in query embedding")
+            raise MemoryRetrievalException("Query embedding must be a list of floats")
 
-        for tier in tiers:
-            if len(results) >= k:
-                break
+        # Validate k
+        if not isinstance(k, int) or k <= 0:
+            logger.error(f"Invalid k value: {k}")
+            raise MemoryRetrievalException("k must be a positive integer")
 
-            store = tier_stores.get(tier)
-            if not store:
-                continue
+        # Validate memory_tiers if provided
+        if memory_tiers is not None:
+            if not isinstance(memory_tiers, list):
+                logger.error(f"Invalid memory_tiers type: {type(memory_tiers)}")
+                raise MemoryRetrievalException("Memory tiers must be a list or None")
 
-            # Ensure embedding has the right dimensions for this tier
-            tier_embedding = query_embedding
+            valid_tiers = ["stm", "im", "ltm"]
+            invalid_tiers = [t for t in memory_tiers if t not in valid_tiers]
+            if invalid_tiers:
+                logger.error(f"Invalid memory tiers: {invalid_tiers}")
+                raise MemoryRetrievalException(
+                    f"Invalid memory tier: {invalid_tiers[0]}"
+                )
 
-            if has_embedding_engine:
-                try:
-                    # Automatically convert the embedding to the target tier format
-                    tier_embedding = (
-                        memory_agent.embedding_engine.ensure_embedding_dimensions(
-                            query_embedding, tier
+        try:
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+
+            # Determine which tiers to search
+            tiers = memory_tiers or ["stm", "im", "ltm"]
+            results = []
+
+            tier_stores = {
+                "stm": memory_agent.stm_store,
+                "im": memory_agent.im_store,
+                "ltm": memory_agent.ltm_store,
+            }
+
+            # Check if embedding engine is available for conversion
+            has_embedding_engine = memory_agent.embedding_engine is not None
+
+            for tier in tiers:
+                if len(results) >= k:
+                    break
+
+                store = tier_stores.get(tier)
+                if not store:
+                    continue
+
+                # Ensure embedding has the right dimensions for this tier
+                tier_embedding = query_embedding
+
+                if has_embedding_engine:
+                    try:
+                        # Automatically convert the embedding to the target tier format
+                        tier_embedding = (
+                            memory_agent.embedding_engine.ensure_embedding_dimensions(
+                                query_embedding, tier
+                            )
                         )
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Error converting embedding for {tier.upper()} tier: {str(e)}. "
-                        f"Using original embedding with potential dimension mismatch."
-                    )
+                    except Exception as e:
+                        logger.warning(
+                            f"Error converting embedding for {tier.upper()} tier: {str(e)}. "
+                            f"Using original embedding with potential dimension mismatch."
+                        )
 
-            # Search with the properly dimensioned embedding
-            tier_results = store.search_by_vector(tier_embedding, k=k - len(results))
-            results.extend(tier_results)
+                # Search with the properly dimensioned embedding
+                tier_results = store.search_by_vector(
+                    tier_embedding, k=k - len(results)
+                )
+                results.extend(tier_results)
 
-        # Sort by similarity score
-        return sorted(
-            results, key=lambda x: x.get("_similarity_score", 0), reverse=True
-        )
+            # Sort by similarity score
+            return sorted(
+                results, key=lambda x: x.get("_similarity_score", 0), reverse=True
+            )
+        except Exception as e:
+            logger.error(f"Failed to search by embedding for agent {agent_id}: {e}")
+            raise MemoryRetrievalException(f"Error during embedding search: {str(e)}")
 
     @cacheable(ttl=60)
     def search_by_content(
@@ -1034,21 +1175,51 @@ class AgentMemoryAPI:
 
         Returns:
             List of memory entries matching the content query
+
+        Raises:
+            MemoryRetrievalException: If there is an error during retrieval
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        # Validate agent_id
+        if not agent_id:
+            logger.error("Empty agent_id provided in search_by_content")
+            raise MemoryRetrievalException("Agent ID cannot be empty")
 
-        # Convert string query to dict if needed
-        if isinstance(content_query, str):
-            query_dict = {"text": content_query}
-        else:
-            query_dict = content_query
+        # Validate content_query
+        if isinstance(content_query, str) and not content_query:
+            logger.error("Empty content query string provided")
+            raise MemoryRetrievalException("Content query cannot be empty")
+        elif isinstance(content_query, dict) and not content_query:
+            logger.error("Empty content query dict provided")
+            raise MemoryRetrievalException("Content query cannot be empty")
+        elif not isinstance(content_query, (str, dict)):
+            logger.error(f"Invalid content_query type: {type(content_query)}")
+            raise MemoryRetrievalException(
+                "Content query must be a string or dictionary"
+            )
 
-        def query_function(store, limit, _):
-            return store.search_by_content(query_dict, k=limit)
+        # Validate k
+        if not isinstance(k, int) or k <= 0:
+            logger.error(f"Invalid k value: {k}")
+            raise MemoryRetrievalException("k must be a positive integer")
 
-        return self._aggregate_results(
-            memory_agent, query_function, k=k, merge_sorted=True
-        )
+        try:
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+
+            # Convert string query to dict if needed
+            if isinstance(content_query, str):
+                query_dict = {"text": content_query}
+            else:
+                query_dict = content_query
+
+            def query_function(store, limit, _):
+                return store.search_by_content(query_dict, k=limit)
+
+            return self._aggregate_results(
+                memory_agent, query_function, k=k, merge_sorted=True
+            )
+        except Exception as e:
+            logger.error(f"Failed to search by content for agent {agent_id}: {e}")
+            raise MemoryRetrievalException(f"Error during content search: {str(e)}")
 
     def get_memory_statistics(self, agent_id: str) -> MemoryStatistics:
         """Get statistics about an agent's memory usage.
@@ -1058,26 +1229,39 @@ class AgentMemoryAPI:
 
         Returns:
             Dictionary containing memory statistics
+
+        Raises:
+            MemoryRetrievalException: If there is an error retrieving statistics
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        if not agent_id:
+            logger.error("Empty agent_id provided in get_memory_statistics")
+            raise MemoryRetrievalException("Agent ID cannot be empty")
 
-        # Gather statistics from each memory tier
-        stm_count = memory_agent.stm_store.count()
-        im_count = memory_agent.im_store.count()
-        ltm_count = memory_agent.ltm_store.count()
+        try:
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
 
-        # Get memory type counts in STM
-        memory_type_counts = memory_agent.stm_store.count_by_type()
+            # Gather statistics from each memory tier
+            stm_count = memory_agent.stm_store.count()
+            im_count = memory_agent.im_store.count()
+            ltm_count = memory_agent.ltm_store.count()
 
-        return {
-            "total_memories": stm_count + im_count + ltm_count,
-            "stm_count": stm_count,
-            "im_count": im_count,
-            "ltm_count": ltm_count,
-            "memory_type_distribution": memory_type_counts,
-            "last_maintenance_time": memory_agent.last_maintenance_time,
-            "insert_count_since_maintenance": memory_agent._insert_count,
-        }
+            # Get memory type counts in STM
+            memory_type_counts = memory_agent.stm_store.count_by_type()
+
+            return {
+                "total_memories": stm_count + im_count + ltm_count,
+                "stm_count": stm_count,
+                "im_count": im_count,
+                "ltm_count": ltm_count,
+                "memory_type_distribution": memory_type_counts,
+                "last_maintenance_time": memory_agent.last_maintenance_time,
+                "insert_count_since_maintenance": memory_agent._insert_count,
+            }
+        except Exception as e:
+            logger.error(f"Failed to get memory statistics for agent {agent_id}: {e}")
+            raise MemoryRetrievalException(
+                f"Agent {agent_id} not found or error retrieving statistics: {str(e)}"
+            )
 
     def force_memory_maintenance(self, agent_id: Optional[str] = None) -> bool:
         """Force memory tier transitions and cleanup operations.
@@ -1359,27 +1543,57 @@ class AgentMemoryAPI:
 
         Returns:
             True if update was successful
+
+        Raises:
+            MemoryMaintenanceException: If there is an error during the operation
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        # Validate input parameters
+        if not agent_id:
+            logger.error("Empty agent_id provided in set_importance_score")
+            raise MemoryMaintenanceException("Agent ID cannot be empty")
 
-        # Find memory and update importance score
-        memory = self.retrieve_state_by_id(agent_id, memory_id)
-        if not memory:
-            logger.error(f"Memory {memory_id} not found for agent {agent_id}")
+        if not memory_id:
+            logger.error("Empty memory_id provided in set_importance_score")
+            raise MemoryMaintenanceException("Memory ID cannot be empty")
+
+        if (
+            not isinstance(importance_score, (int, float))
+            or importance_score < 0.0
+            or importance_score > 1.0
+        ):
+            logger.error(f"Invalid importance score: {importance_score}")
+            raise MemoryMaintenanceException(
+                "Importance score must be between 0.0 and 1.0"
+            )
+
+        try:
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+
+            # Find memory and update importance score
+            memory = self.retrieve_state_by_id(agent_id, memory_id)
+            if not memory:
+                logger.error(f"Memory {memory_id} not found for agent {agent_id}")
+                return False
+
+            # Update importance score
+            memory["metadata"]["importance_score"] = max(
+                0.0, min(1.0, importance_score)
+            )
+
+            # Determine which store contains the memory and update
+            if memory_agent.stm_store.contains(memory_id):
+                return memory_agent.stm_store.update(memory)
+            elif memory_agent.im_store.contains(memory_id):
+                return memory_agent.im_store.update(memory)
+            elif memory_agent.ltm_store.contains(memory_id):
+                return memory_agent.ltm_store.update(memory)
+
             return False
-
-        # Update importance score
-        memory["metadata"]["importance_score"] = max(0.0, min(1.0, importance_score))
-
-        # Determine which store contains the memory and update
-        if memory_agent.stm_store.contains(memory_id):
-            return memory_agent.stm_store.update(memory)
-        elif memory_agent.im_store.contains(memory_id):
-            return memory_agent.im_store.update(memory)
-        elif memory_agent.ltm_store.contains(memory_id):
-            return memory_agent.ltm_store.update(memory)
-
-        return False
+        except Exception as e:
+            logger.error(f"Failed to set importance score for agent {agent_id}: {e}")
+            raise MemoryMaintenanceException(
+                f"Error setting importance score: {str(e)}"
+            )
 
     def get_memory_snapshots(
         self, agent_id: str, steps: List[int]
@@ -1392,23 +1606,58 @@ class AgentMemoryAPI:
 
         Returns:
             Dictionary mapping step numbers to state snapshots
+
+        Raises:
+            MemoryRetrievalException: If there is an error during retrieval
         """
-        result = {}
+        # Validate agent_id
+        if not agent_id:
+            logger.error("Empty agent_id provided in get_memory_snapshots")
+            raise MemoryRetrievalException("Agent ID cannot be empty")
 
-        for step in steps:
-            # Retrieve state for this step
-            memories = self.retrieve_by_time_range(
-                agent_id, start_step=step, end_step=step, memory_type="state"
+        # Validate steps
+        if not isinstance(steps, list):
+            logger.error(f"Invalid steps type: {type(steps)}")
+            raise MemoryRetrievalException("Steps must be a list of integers")
+
+        # Check for empty steps list
+        if len(steps) == 0:
+            logger.error("Empty steps list provided")
+            raise MemoryRetrievalException("At least one step must be specified")
+
+        # Check step values
+        if not all(isinstance(step, int) for step in steps):
+            logger.error("Non-integer values in steps list")
+            raise MemoryRetrievalException("Steps must be a list of integers")
+
+        try:
+            result = {}
+
+            # Deduplicate steps to avoid redundant queries
+            unique_steps = set(steps)
+
+            for step in unique_steps:
+                # Retrieve state for this step
+                memories = self.retrieve_by_time_range(
+                    agent_id, start_step=step, end_step=step, memory_type="state"
+                )
+
+                if memories:
+                    # Use the first state memory for this step
+                    result[step] = memories[0]
+                else:
+                    # No state memory found for this step
+                    result[step] = None
+
+            return result
+        except MemoryRetrievalException:
+            # Re-raise custom exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get memory snapshots for agent {agent_id}: {e}")
+            raise MemoryRetrievalException(
+                f"Error retrieving memory snapshots: {str(e)}"
             )
-
-            if memories:
-                # Use the first state memory for this step
-                result[step] = memories[0]
-            else:
-                # No state memory found for this step
-                result[step] = None
-
-        return result
 
     def configure_memory_system(self, config: ConfigUpdate) -> bool:
         """Update configuration parameters for the memory system.
@@ -1613,31 +1862,94 @@ class AgentMemoryAPI:
 
         Returns:
             List of change records for the specified attribute
+
+        Raises:
+            MemoryRetrievalException: If there is an error during retrieval
         """
-        # Get state memories for the specified range
-        memories = self.retrieve_by_time_range(
-            agent_id, start_step or 0, end_step or float("inf"), memory_type="state"
-        )
+        # Validate agent_id
+        if not agent_id:
+            logger.error("Empty agent_id provided in get_attribute_change_history")
+            raise MemoryRetrievalException("Agent ID cannot be empty")
 
-        # Track changes to the attribute
-        changes = []
-        previous_value = None
+        # Validate attribute_name
+        if not attribute_name:
+            logger.error(
+                "Empty attribute_name provided in get_attribute_change_history"
+            )
+            raise MemoryRetrievalException("Attribute name cannot be empty")
 
-        for memory in memories:
-            if attribute_name in memory["contents"]:
-                current_value = memory["contents"][attribute_name]
+        # Validate start_step if provided
+        if start_step is not None and (
+            not isinstance(start_step, int) or start_step < 0
+        ):
+            logger.error(f"Invalid start_step: {start_step}")
+            raise MemoryRetrievalException("Start step must be non-negative")
 
-                # Check if value changed
-                if previous_value is None or previous_value != current_value:
-                    changes.append(
-                        {
-                            "memory_id": memory["memory_id"],
-                            "step_number": memory["step_number"],
-                            "timestamp": memory["timestamp"],
-                            "previous_value": previous_value,
-                            "new_value": current_value,
-                        }
-                    )
-                    previous_value = current_value
+        # Validate end_step if provided
+        if end_step is not None and not isinstance(end_step, int):
+            logger.error(f"Invalid end_step: {end_step}")
+            raise MemoryRetrievalException("End step must be an integer")
 
-        return changes
+        # Validate start_step <= end_step if both are provided
+        if start_step is not None and end_step is not None and start_step > end_step:
+            logger.error(f"start_step {start_step} > end_step {end_step}")
+            raise MemoryRetrievalException(
+                "End step must be greater than or equal to start step"
+            )
+
+        try:
+            # Get state memories for the specified range
+            memories = self.retrieve_by_time_range(
+                agent_id, start_step or 0, end_step or float("inf"), memory_type="state"
+            )
+
+            # Track changes to the attribute
+            changes = []
+            previous_value = None
+
+            for memory in memories:
+                if attribute_name in memory["contents"]:
+                    current_value = memory["contents"][attribute_name]
+
+                    # Check if value changed
+                    if previous_value is None or previous_value != current_value:
+                        changes.append(
+                            {
+                                "memory_id": memory["memory_id"],
+                                "step_number": memory["step_number"],
+                                "timestamp": memory["timestamp"],
+                                "previous_value": previous_value,
+                                "new_value": current_value,
+                            }
+                        )
+                        previous_value = current_value
+
+            return changes
+        except MemoryRetrievalException:
+            # Re-raise custom exceptions
+            raise
+        except Exception as e:
+            logger.error(
+                f"Failed to get attribute change history for agent {agent_id}: {e}"
+            )
+            raise MemoryRetrievalException(
+                f"Error retrieving attribute change history: {str(e)}"
+            )
+
+    def clear_memory(
+        self, agent_id: str, memory_tiers: Optional[List[MemoryTier]] = None
+    ) -> bool:
+        """Clear an agent's memory in specified tiers (alias for clear_agent_memory).
+
+        Args:
+            agent_id: Unique identifier for the agent
+            memory_tiers: Optional list of tiers to clear (e.g., ["stm", "im"])
+                          If None, clears all tiers
+
+        Returns:
+            True if clearing was successful
+
+        Raises:
+            MemoryMaintenanceException: If there is an error during memory clearing
+        """
+        return self.clear_agent_memory(agent_id, memory_tiers)
