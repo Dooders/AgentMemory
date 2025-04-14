@@ -1,2 +1,0 @@
-INFO     agent_memory.storage.redis_client:redis_client.py:168 Initialized Redis client integration-test (host=localhost, port=6379, db=15, pool_size=10)
-INFO     agent_memory.storage.redis_client:redis_client.py:198 Closed Redis client integration-test connections
