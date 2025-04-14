@@ -1,0 +1,61 @@
+{
+  "name": "tasm-visualizer",
+  "version": "1.0.0",
+  "description": "TASM Memory System Visualizer with VS Code-like UI",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "tsc && electron .",
+    "build": "tsc && electron-builder",
+    "watch": "tsc -w",
+    "postinstall": "tsc"
+  },
+  "build": {
+    "appId": "com.dooders.tasmvisualizer",
+    "productName": "TASM Visualizer",
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    }
+  },
+  "keywords": [
+    "TASM",
+    "Visualizer",
+    "Memory",
+    "Electron",
+    "React"
+  ],
+  "author": "Dooders",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "electron": "^28.2.1",
+    "electron-builder": "^24.9.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "electron-is-dev": "^2.0.0",
+    "electron-store": "^8.1.0",
+    "monaco-editor": "^0.45.0",
+    "styled-components": "^6.1.8"
+  }
+}
