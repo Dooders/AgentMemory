@@ -1,12 +1,10 @@
 import json
 import os
-import threading
 import time
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from main_demo import MazeEnvironment, MemoryEnhancedAgent, convert_numpy_to_python
@@ -254,7 +252,7 @@ class TASMVisualizer:
         self.maze_frame = ttk.LabelFrame(left_frame, text="Maze Environment")
         self.maze_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.cell_size = 160  # Much larger cell size for 4K
+        self.cell_size = 100  # Reduced from 160 to make the maze smaller
         canvas_width = self.maze_size * self.cell_size
         canvas_height = self.maze_size * self.cell_size
         self.canvas = tk.Canvas(
@@ -532,7 +530,8 @@ class TASMVisualizer:
 
         # Get STM memories
         try:
-            stm_memories = self.memory_system.get_stm_memories(agent_id)
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            stm_memories = memory_agent.stm_store.get_all(agent_id)
             self.memory_contents["STM"] = stm_memories
             self.stm_text.delete(1.0, tk.END)
             self.stm_text.insert(tk.END, f"STM Memories: {len(stm_memories)}\n\n")
@@ -545,7 +544,7 @@ class TASMVisualizer:
 
         # Get IM memories
         try:
-            im_memories = self.memory_system.get_im_memories(agent_id)
+            im_memories = memory_agent.im_store.get_all(agent_id)
             self.memory_contents["IM"] = im_memories
             self.im_text.delete(1.0, tk.END)
             self.im_text.insert(tk.END, f"IM Memories: {len(im_memories)}\n\n")
@@ -558,7 +557,7 @@ class TASMVisualizer:
 
         # Get LTM memories
         try:
-            ltm_memories = self.memory_system.get_ltm_memories(agent_id)
+            ltm_memories = memory_agent.ltm_store.get_all(limit=1000)
             self.memory_contents["LTM"] = ltm_memories
             self.ltm_text.delete(1.0, tk.END)
             self.ltm_text.insert(tk.END, f"LTM Memories: {len(ltm_memories)}\n\n")
