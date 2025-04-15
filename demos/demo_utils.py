@@ -91,8 +91,9 @@ def setup_logging(demo_name: str) -> logging.Logger:
 
 
 def log_print(logger: logging.Logger, message: str) -> None:
-    """Log a message and print it to console."""
+    """Log a message to the logger (which will output to console via handler)."""
     logger.info(message)
+    # Removed the additional print statement to avoid double logging
 
 
 def clear_screen() -> None:
