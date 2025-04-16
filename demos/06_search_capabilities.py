@@ -61,6 +61,11 @@ def run_demo():
     # Create a test agent
     agent_id = "search_agent"
     
+    # Clear existing LTM store to prevent duplicate memories
+    log_print(logger, "Clearing existing memories to avoid duplicates...")
+    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_agent.ltm_store.clear()
+    
     # Initialize validation tracking
     validation_results = {
         "total": 0,
