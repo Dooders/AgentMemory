@@ -99,6 +99,7 @@ class MemoryMetadata(TypedDict, total=False):
         importance_score: Subjective importance of this memory (0.0-1.0)
         retrieval_count: Number of times this memory has been retrieved
         memory_type: Classification of the memory content (state/action/interaction)
+        current_tier: Current memory tier where this entry is stored (stm/im/ltm)
     """
 
     creation_time: float
@@ -107,6 +108,7 @@ class MemoryMetadata(TypedDict, total=False):
     importance_score: MemoryImportanceScore
     retrieval_count: int
     memory_type: Literal["state", "action", "interaction"]
+    current_tier: MemoryTier
 
 
 class MemoryEmbeddings(TypedDict, total=False):
