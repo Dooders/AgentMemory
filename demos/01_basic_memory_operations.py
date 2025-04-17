@@ -95,27 +95,6 @@ def simulate_time_passing(memory_system, agent_id, steps):
             log_print(logger, f"Step {step}: Stored interaction, success: {success}")
 
 
-def determine_memory_tier(memory_agent, memory_id):
-    """Reliably determine which tier a memory is in."""
-    # Try retrieval-based checks
-    try:
-        # Check if retrievable from STM
-        if memory_agent.stm_store.get(memory_agent.agent_id, memory_id):
-            return "STM"
-        # Check if retrievable from IM
-        elif memory_agent.im_store.get(memory_agent.agent_id, memory_id):
-            return "IM"
-        # Check if retrievable from LTM
-        elif memory_agent.ltm_store.get(memory_id):
-            return "LTM"
-    except Exception as e:
-        log_print(logger, f"Exception in determine_memory_tier: {e}", level="error")
-        import traceback
-
-        log_print(logger, traceback.format_exc(), level="error")
-    return "Unknown"
-
-
 def validate_memory_statistics(logger, stats, agent_id, memory_system):
     """Validate memory statistics against expected values based on the simulation.
 
@@ -535,11 +514,7 @@ def run_demo():
                             memory_id = memory.get(
                                 "id", memory.get("memory_id", "unknown")
                             )
-                            tier = (
-                                determine_memory_tier(memory_agent, memory_id)
-                                if memory_id
-                                else "Unknown"
-                            )
+                            tier = memory.get("metadata", {}).get("memory_tier", "Unknown")
                             log_print(
                                 logger,
                                 f"Found milestone memory for step {step} in tier: {tier}",
@@ -561,12 +536,8 @@ def run_demo():
                 # Get memory ID - handle both 'id' and 'memory_id' fields
                 memory_id = memory.get("id", memory.get("memory_id", ""))
 
-                # Try to determine which tier the memory is in
-                tier = (
-                    determine_memory_tier(memory_agent, memory_id)
-                    if memory_id
-                    else "Unknown"
-                )
+                # Get tier from metadata
+                tier = memory.get("metadata", {}).get("memory_tier", "Unknown")
 
                 log_print(
                     logger, f"Found milestone memory for step {step} in tier: {tier}"
