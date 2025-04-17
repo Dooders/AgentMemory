@@ -4,9 +4,12 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 import time
 import uuid
+import json
+import os
 
 from memory.config import MemoryConfig
 from memory.agent_memory import MemoryAgent
+from memory.schema import validate_memory_system_json, MEMORY_SYSTEM_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -418,6 +421,154 @@ class AgentMemorySystem:
         return memory_agent.hybrid_retrieve(
             query_state, k, memory_type, vector_weight, attribute_weight
         )
+
+    def save_to_json(self, filepath: str) -> bool:
+        """Save the memory system to a JSON file.
+        
+        Args:
+            filepath: Path to save the JSON file
+            
+        Returns:
+            True if saving was successful
+        """
+        try:
+            # Create the data structure to save with proper config serialization
+            config_dict = {}
+            for key, value in self.config.__dict__.items():
+                # Skip complex objects that aren't JSON serializable
+                if isinstance(value, (str, int, float, bool, list, dict)) or value is None:
+                    config_dict[key] = value
+            
+            # Create the data structure to save
+            data = {
+                "config": config_dict,
+                "agents": {}
+            }
+            
+            # Save agent data
+            for agent_id, agent in self.agents.items():
+                # Get all memories from different tiers
+                stm_memories = []
+                im_memories = []
+                ltm_memories = []
+                
+                try:
+                    stm_memories = agent.stm_store.get_all(agent_id)
+                except Exception as e:
+                    logger.warning(f"Could not get STM memories for agent {agent_id}: {e}")
+                
+                try:
+                    im_memories = agent.im_store.get_all(agent_id)
+                except Exception as e:
+                    logger.warning(f"Could not get IM memories for agent {agent_id}: {e}")
+                
+                try:
+                    ltm_memories = agent.ltm_store.get_all(agent_id)
+                except Exception as e:
+                    logger.warning(f"Could not get LTM memories for agent {agent_id}: {e}")
+                
+                # Combine all memories
+                all_memories = stm_memories + im_memories + ltm_memories
+                
+                # Clean up non-serializable objects in memories
+                clean_memories = []
+                for memory in all_memories:
+                    # Make a copy of the memory to avoid modifying the original
+                    clean_memory = {}
+                    for k, v in memory.items():
+                        # Skip non-serializable embeddings
+                        if k == "embeddings":
+                            clean_memory[k] = {}
+                            for embed_key, embed_val in v.items():
+                                # Convert numpy arrays to lists if needed
+                                if hasattr(embed_val, "tolist"):
+                                    clean_memory[k][embed_key] = embed_val.tolist()
+                                elif isinstance(embed_val, (list, dict, str, int, float, bool)) or embed_val is None:
+                                    clean_memory[k][embed_key] = embed_val
+                        else:
+                            clean_memory[k] = v
+                    
+                    clean_memories.append(clean_memory)
+                
+                data["agents"][agent_id] = {
+                    "agent_id": agent_id,
+                    "memories": clean_memories
+                }
+            
+            # Validate against schema
+            if not validate_memory_system_json(data):
+                logger.error("Generated JSON does not conform to schema")
+                return False
+            
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
+            
+            # Write to file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+                
+            logger.info(f"Memory system saved to {filepath}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to save memory system to {filepath}: {e}")
+            return False
+    
+    @classmethod
+    def load_from_json(cls, filepath: str) -> Optional["AgentMemorySystem"]:
+        """Load a memory system from a JSON file.
+        
+        Args:
+            filepath: Path to the JSON file
+            
+        Returns:
+            AgentMemorySystem instance or None if loading failed
+        """
+        try:
+            # Read from file
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Validate against schema
+            if not validate_memory_system_json(data):
+                logger.error(f"JSON file {filepath} does not conform to schema")
+                return None
+            
+            # Create config
+            config = MemoryConfig(**data.get("config", {}))
+            
+            # Create memory system
+            memory_system = cls(config)
+            
+            # Load agents and their memories
+            for agent_id, agent_data in data.get("agents", {}).items():
+                # Get or create agent
+                memory_agent = memory_system.get_memory_agent(agent_id)
+                
+                # Add memories
+                for memory in agent_data.get("memories", []):
+                    memory_type = memory.get("type", "generic")
+                    content = memory.get("content", {})
+                    step_number = memory.get("step_number", 0)
+                    priority = memory.get("metadata", {}).get("importance_score", 1.0)
+                    
+                    # Store according to memory type
+                    if memory_type == "state":
+                        memory_agent.store_state(content, step_number, priority)
+                    elif memory_type == "interaction":
+                        memory_agent.store_interaction(content, step_number, priority)
+                    elif memory_type == "action":
+                        memory_agent.store_action(content, step_number, priority)
+                    else:
+                        # For generic types, use store_state as fallback
+                        memory_agent.store_state(content, step_number, priority)
+            
+            logger.info(f"Memory system loaded from {filepath}")
+            return memory_system
+            
+        except Exception as e:
+            logger.error(f"Failed to load memory system from {filepath}: {e}")
+            return None
 
     def _check_agent_exists(self, agent_id: str) -> None:
         """Check if an agent exists and raise an error if not.

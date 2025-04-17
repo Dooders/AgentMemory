@@ -11,6 +11,7 @@ import os
 import sys
 import time
 from datetime import datetime
+from os import PathLike
 from pprint import pprint
 from typing import Any, Dict, List, Optional, Union
 
@@ -29,6 +30,9 @@ from memory.core import AgentMemorySystem
 # Path constants
 LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../memory.db")
+MEMORY_SAMPLES_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "memory_samples"
+)
 
 
 def setup_logging(demo_name: str) -> logging.Logger:
@@ -211,6 +215,7 @@ def create_memory_system(
     use_embeddings: bool = False,  # Set to False by default
     embedding_type: str = "text",  # "text" or "autoencoder"
     use_mock_redis: bool = True,  # Default to using mockredis
+    memory_file: Optional[Union[str, PathLike]] = None,  # Path to a memory file to load
 ) -> AgentMemorySystem:
     """Create and configure a memory system with customizable parameters.
 
@@ -228,12 +233,45 @@ def create_memory_system(
         use_embeddings: Whether to enable neural embeddings
         embedding_type: Type of embeddings to use ("text" or "autoencoder")
         use_mock_redis: Whether to use MockRedis instead of real Redis
+        memory_file: Optional path to a memory JSON file to load instead of creating new.
+                     Can be a full path, a filename in the memory_samples directory,
+                     or one of the preset sample types: "simple", "multi_agent", or "tiered"
 
     Returns:
         Configured AgentMemorySystem instance
     """
-    print(f"Creating memory system with embeddings={use_embeddings}, type={embedding_type}")
-    
+    # If a memory file is provided, try to load from it
+    if memory_file:
+        # Handle preset sample types
+        if memory_file in ["simple", "simple_agent"]:
+            memory_file = os.path.join(MEMORY_SAMPLES_DIR, "simple_agent_memory.json")
+        elif memory_file in ["multi_agent", "multi"]:
+            memory_file = os.path.join(MEMORY_SAMPLES_DIR, "multi_agent_memory.json")
+        elif memory_file in ["tiered"]:
+            memory_file = os.path.join(MEMORY_SAMPLES_DIR, "tiered_memory.json")
+        # If it's just a filename without path and doesn't exist, check in samples dir
+        elif not os.path.isabs(memory_file) and not os.path.exists(memory_file):
+            sample_path = os.path.join(MEMORY_SAMPLES_DIR, memory_file)
+            if os.path.exists(sample_path):
+                memory_file = sample_path
+
+        print(f"Loading memory system from file: {memory_file}")
+        if os.path.exists(memory_file):
+            memory_system = AgentMemorySystem.load_from_json(memory_file)
+            if memory_system:
+                print(f"Successfully loaded memory system from {memory_file}")
+                return memory_system
+            else:
+                print(
+                    f"Failed to load memory system from {memory_file}, creating new system"
+                )
+        else:
+            print(f"Memory file not found: {memory_file}, creating new system")
+
+    print(
+        f"Creating memory system with embeddings={use_embeddings}, type={embedding_type}"
+    )
+
     stm_config = RedisSTMConfig(
         host="127.0.0.1",
         port=6379,

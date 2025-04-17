@@ -1,0 +1,81 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false
+  },
+  "agents": {
+    "demo_agent": {
+      "agent_id": "demo_agent",
+      "memories": [
+        {
+          "memory_id": "mem_1001",
+          "agent_id": "demo_agent",
+          "step_number": 1,
+          "timestamp": 1744852255,
+          "content": {
+            "location": "home_office",
+            "task": "writing_code",
+            "tools": ["laptop", "coffee"]
+          },
+          "metadata": {
+            "creation_time": 1744852255,
+            "last_access_time": 1744852255,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "state",
+            "current_tier": "stm"
+          },
+          "type": "state",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "mem_1002",
+          "agent_id": "demo_agent",
+          "step_number": 2,
+          "timestamp": 1744852265,
+          "content": {
+            "type": "conversation",
+            "with": "user",
+            "content": "Please help me debug this function",
+            "sentiment": "neutral"
+          },
+          "metadata": {
+            "creation_time": 1744852265,
+            "last_access_time": 1744852265,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "mem_1003",
+          "agent_id": "demo_agent",
+          "step_number": 3,
+          "timestamp": 1744852275,
+          "content": {
+            "action_type": "code_analysis",
+            "target": "debug_function",
+            "result": "found_bug_in_line_42"
+          },
+          "metadata": {
+            "creation_time": 1744852275,
+            "last_access_time": 1744852275,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm"
+          },
+          "type": "action",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 
