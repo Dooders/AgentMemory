@@ -51,7 +51,7 @@ class DemoConfig:
 def simulate_time_passing(memory_system, agent_id, steps):
     """Simulate time passing for a given number of steps."""
     # Store a series of state memories over simulated time steps
-    for step in range(1, steps):
+    for step in range(1, steps + 1):  # Changed from range(1, steps) to include the last step
         # Create a sample state
         state = {
             "position": {"x": step, "y": step * 0.5},
@@ -453,36 +453,64 @@ def run_demo():
     # Try using retrieval from the memory system API instead of direct store access
     log_print(logger, "Checking for milestone memories:")
     for step in high_priority_steps:
-        # Use the higher-level API method that knows how to search across all tiers
-        memories = memory_system.retrieve_by_time_range(agent_id, step, step)
-        for memory in memories:
-            # Get memory ID - handle both 'id' and 'memory_id' fields
-            memory_id = memory.get("id", memory.get("memory_id", ""))
+        # First try to find directly by step_number across all tiers
+        found_by_step = False
+        for store_memories in [
+            memory_agent.stm_store.get_all(agent_id),
+            memory_agent.im_store.get_all(agent_id),
+            memory_agent.ltm_store.get_all(),
+        ]:
+            for memory in store_memories:
+                mem_step = memory.get("step_number")
+                if mem_step is not None:
+                    try:
+                        if isinstance(mem_step, (str, float)):
+                            mem_step = int(float(mem_step))
+                        if mem_step == step:
+                            memory_id = memory.get("id", memory.get("memory_id", "unknown"))
+                            tier = determine_memory_tier(memory_agent, memory_id) if memory_id else "Unknown"
+                            log_print(logger, f"Found milestone memory for step {step} in tier: {tier}")
+                            milestone_memories.append(memory)
+                            missing_steps.discard(step)
+                            found_by_step = True
+                            break
+                    except (ValueError, TypeError):
+                        continue
+            if found_by_step:
+                break
 
-            # Try to determine which tier the memory is in
-            tier = (
-                determine_memory_tier(memory_agent, memory_id)
-                if memory_id
-                else "Unknown"
-            )
+        # If not found by step_number, also try the API method as a fallback
+        if not found_by_step:
+            # Use the higher-level API method that knows how to search across all tiers
+            memories = memory_system.retrieve_by_time_range(agent_id, step, step)
+            for memory in memories:
+                # Get memory ID - handle both 'id' and 'memory_id' fields
+                memory_id = memory.get("id", memory.get("memory_id", ""))
 
-            log_print(logger, f"Found milestone memory for step {step} in tier: {tier}")
-            milestone_memories.append(memory)
+                # Try to determine which tier the memory is in
+                tier = (
+                    determine_memory_tier(memory_agent, memory_id)
+                    if memory_id
+                    else "Unknown"
+                )
 
-            # Track which steps we found memories for
-            timestamp = memory.get("timestamp")
-            # Convert timestamp to int for comparison if it's a string or float
-            if timestamp is not None:
-                try:
-                    if isinstance(timestamp, (str, float)):
-                        timestamp = int(float(timestamp))
-                    if timestamp == step:
-                        missing_steps.discard(step)
-                except (ValueError, TypeError):
-                    log_print(
-                        logger,
-                        f"Warning: Couldn't convert timestamp {timestamp} to integer",
-                    )
+                log_print(logger, f"Found milestone memory for step {step} in tier: {tier}")
+                milestone_memories.append(memory)
+
+                # Track which steps we found memories for
+                timestamp = memory.get("timestamp")
+                # Convert timestamp to int for comparison if it's a string or float
+                if timestamp is not None:
+                    try:
+                        if isinstance(timestamp, (str, float)):
+                            timestamp = int(float(timestamp))
+                        if timestamp == step:
+                            missing_steps.discard(step)
+                    except (ValueError, TypeError):
+                        log_print(
+                            logger,
+                            f"Warning: Couldn't convert timestamp {timestamp} to integer",
+                        )
 
     # Log any milestone memory failures immediately for debugging
     if missing_steps:
