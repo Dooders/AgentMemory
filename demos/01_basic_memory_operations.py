@@ -536,7 +536,7 @@ def run_demo():
                 memory_id = memory.get("id", memory.get("memory_id", ""))
 
                 # Get tier from metadata
-                tier = memory.get("metadata", {}).get("memory_tier", "Unknown")
+                tier = memory.get("metadata", {}).get("current_tier", "Unknown")
 
                 log_print(
                     logger, f"Found milestone memory for step {step} in tier: {tier}"
