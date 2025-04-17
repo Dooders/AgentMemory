@@ -313,12 +313,9 @@ def run_demo():
 
     with open("expected.json", "w") as f:
         json.dump(updated_stats, f)
-    print(f"!!!!!!!!!!!!!!!!!!!!!!!Updated stats: {updated_stats}")
     validation_passed = validate_memory_statistics(
         logger, updated_stats, agent_id, memory_system
     )
-
-    print(f"!!!!!!!!!!!!!!!!!!!!!!!Validation passed: {validation_passed}")
 
     # Get memory statistics before adding fresh memories to validate post-maintenance state
     pre_demo_stats = memory_system.get_memory_statistics(agent_id)
@@ -514,7 +511,9 @@ def run_demo():
                             memory_id = memory.get(
                                 "id", memory.get("memory_id", "unknown")
                             )
-                            tier = memory.get("metadata", {}).get("memory_tier", "Unknown")
+                            tier = memory.get("metadata", {}).get(
+                                "memory_tier", "Unknown"
+                            )
                             log_print(
                                 logger,
                                 f"Found milestone memory for step {step} in tier: {tier}",
