@@ -51,7 +51,9 @@ class DemoConfig:
 def simulate_time_passing(memory_system, agent_id, steps):
     """Simulate time passing for a given number of steps."""
     # Store a series of state memories over simulated time steps
-    for step in range(1, steps + 1):  # Changed from range(1, steps) to include the last step
+    for step in range(
+        1, steps + 1
+    ):  # Changed from range(1, steps) to include the last step
         # Create a sample state
         state = {
             "position": {"x": step, "y": step * 0.5},
@@ -116,89 +118,114 @@ def determine_memory_tier(memory_agent, memory_id):
 
 def validate_memory_statistics(logger, stats, agent_id, memory_system):
     """Validate memory statistics against expected values based on the simulation.
-    
+
     Args:
         logger: Logger instance for reporting
         stats: Memory statistics dictionary from get_memory_statistics
         agent_id: ID of the agent whose memory is being validated
         memory_system: Memory system instance
-        
+
     Returns:
         bool: True if all validations pass, False otherwise
     """
     log_print(logger, "\nValidating Memory Statistics...")
     all_validations_passed = True
-    
+
     # Extract key stats
     stm_count = stats["tiers"]["stm"]["count"]
     im_count = stats["tiers"]["im"]["count"]
     ltm_count = stats["tiers"]["ltm"]["count"]
     total_memories = stm_count + im_count + ltm_count
-    
+
     # 1. Validate total memory count (should be at least 35)
     expected_min_total = 29  # Changed from 35 to match actual simulation results
     if total_memories >= expected_min_total:
-        log_print(logger, f"[PASS] Total memory count ({total_memories}) meets minimum expectation ({expected_min_total})")
+        log_print(
+            logger,
+            f"[PASS] Total memory count ({total_memories}) meets minimum expectation ({expected_min_total})",
+        )
     else:
-        logger.error(f"[FAIL] Total memory count ({total_memories}) below minimum expectation ({expected_min_total})")
+        logger.error(
+            f"[FAIL] Total memory count ({total_memories}) below minimum expectation ({expected_min_total})"
+        )
         all_validations_passed = False
-    
+
     # 2. Validate STM count (should be ≤ 13 including fresh memories)
     expected_max_stm = 13
     if stm_count <= expected_max_stm:
-        log_print(logger, f"[PASS] STM count ({stm_count}) within expected limit ({expected_max_stm})")
+        log_print(
+            logger,
+            f"[PASS] STM count ({stm_count}) within expected limit ({expected_max_stm})",
+        )
     else:
-        logger.error(f"[FAIL] STM count ({stm_count}) exceeds expected limit ({expected_max_stm})")
+        logger.error(
+            f"[FAIL] STM count ({stm_count}) exceeds expected limit ({expected_max_stm})"
+        )
         all_validations_passed = False
-    
+
     # 3. Validate memory type distribution
     memory_agent = memory_system.get_memory_agent(agent_id)
-    
+
     # Collect all memories across tiers
     all_memories = []
     all_memories.extend(memory_agent.stm_store.get_all(agent_id))
     all_memories.extend(memory_agent.im_store.get_all(agent_id))
     all_memories.extend(memory_agent.ltm_store.get_all())
-    
+
     # Count by memory type
     memory_types = {"state": 0, "action": 0, "interaction": 0}
-    
+
     for memory in all_memories:
         memory_type = memory.get("type")
         # Handle different possible type field locations
         if memory_type is None and "metadata" in memory:
             memory_type = memory.get("metadata", {}).get("memory_type")
-        
+
         if memory_type in memory_types:
             memory_types[memory_type] += 1
-    
+
     # Expected minimums by type (accounting for some potential losses)
-    expected_min_state = 15  # Reduced from 20 to match current observations 
-    expected_min_action = 7   # At least 7 of 10 action memories
+    expected_min_state = 15  # Reduced from 20 to match current observations
+    expected_min_action = 7  # At least 7 of 10 action memories
     expected_min_interaction = 3  # At least 3 of 5 interaction memories
-    
+
     if memory_types["state"] >= expected_min_state:
-        log_print(logger, f"[PASS] State memory count ({memory_types['state']}) meets minimum expectation ({expected_min_state})")
+        log_print(
+            logger,
+            f"[PASS] State memory count ({memory_types['state']}) meets minimum expectation ({expected_min_state})",
+        )
     else:
-        logger.warning(f"[FAIL] State memory count ({memory_types['state']}) below minimum expectation ({expected_min_state})")
+        logger.warning(
+            f"[FAIL] State memory count ({memory_types['state']}) below minimum expectation ({expected_min_state})"
+        )
         all_validations_passed = False
-    
+
     if memory_types["action"] >= expected_min_action:
-        log_print(logger, f"[PASS] Action memory count ({memory_types['action']}) meets minimum expectation ({expected_min_action})")
+        log_print(
+            logger,
+            f"[PASS] Action memory count ({memory_types['action']}) meets minimum expectation ({expected_min_action})",
+        )
     else:
-        logger.warning(f"[FAIL] Action memory count ({memory_types['action']}) below minimum expectation ({expected_min_action})")
+        logger.warning(
+            f"[FAIL] Action memory count ({memory_types['action']}) below minimum expectation ({expected_min_action})"
+        )
         all_validations_passed = False
-    
+
     if memory_types["interaction"] >= expected_min_interaction:
-        log_print(logger, f"[PASS] Interaction memory count ({memory_types['interaction']}) meets minimum expectation ({expected_min_interaction})")
+        log_print(
+            logger,
+            f"[PASS] Interaction memory count ({memory_types['interaction']}) meets minimum expectation ({expected_min_interaction})",
+        )
     else:
-        logger.warning(f"[FAIL] Interaction memory count ({memory_types['interaction']}) below minimum expectation ({expected_min_interaction})")
+        logger.warning(
+            f"[FAIL] Interaction memory count ({memory_types['interaction']}) below minimum expectation ({expected_min_interaction})"
+        )
         all_validations_passed = False
-    
+
     # 4. Validate high-priority memories are preserved
-    high_priority_steps = [5, 10, 15, 20, 25]
+    high_priority_steps = [5, 10, 15, 20, 21, 25]
     missing_steps = set(high_priority_steps)
-    
+
     for step in high_priority_steps:
         # First try by time range
         memories = memory_system.retrieve_by_time_range(agent_id, step, step)
@@ -212,7 +239,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
                     break
             except (ValueError, TypeError):
                 continue
-        
+
         # If still missing, check by step_number
         if step in missing_steps:
             memory_agent = memory_system.get_memory_agent(agent_id)
@@ -225,7 +252,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
                         break
                 if step not in missing_steps:
                     break
-            
+
             # Also check LTM if still missing
             if step in missing_steps:
                 memories = memory_agent.ltm_store.get_all()
@@ -234,31 +261,46 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
                     if step_number == step:
                         missing_steps.discard(step)
                         break
-    
+
     # Allow for some missing milestone memories
-    if len(missing_steps) <= 1:  # Allow up to 1 missing step (likely step 30 which we don't generate)
+    if (
+        len(missing_steps) <= 1
+    ):  # Allow up to 1 missing step (likely step 30 which we don't generate)
         if missing_steps:
-            log_print(logger, f"[PASS] Found most high-priority memories (missing only: {missing_steps})")
+            log_print(
+                logger,
+                f"[PASS] Found most high-priority memories (missing only: {missing_steps})",
+            )
         else:
-            log_print(logger, f"[PASS] All high-priority memories from milestone steps are preserved")
+            log_print(
+                logger,
+                f"[PASS] All high-priority memories from milestone steps are preserved",
+            )
     else:
-        logger.warning(f"[FAIL] Missing too many high-priority memories: {missing_steps}")
+        logger.warning(
+            f"[FAIL] Missing too many high-priority memories: {missing_steps}"
+        )
         all_validations_passed = False
-    
+
     # 5. Validate tier distribution (after maintenance)
     # We expect memories to be distributed between tiers
     if im_count > 0:
-        log_print(logger, f"[PASS] Memories distributed across tiers (STM: {stm_count}, IM: {im_count}, LTM: {ltm_count})")
+        log_print(
+            logger,
+            f"[PASS] Memories distributed across tiers (STM: {stm_count}, IM: {im_count}, LTM: {ltm_count})",
+        )
     else:
-        logger.warning(f"[FAIL] Unexpected tier distribution (STM: {stm_count}, IM: {im_count}, LTM: {ltm_count})")
+        logger.warning(
+            f"[FAIL] Unexpected tier distribution (STM: {stm_count}, IM: {im_count}, LTM: {ltm_count})"
+        )
         all_validations_passed = False
-    
+
     # Summary
     if all_validations_passed:
         log_print(logger, "[PASS] All memory statistics validations passed!")
     else:
         logger.warning("[FAIL] Some memory statistics validations failed")
-    
+
     return all_validations_passed
 
 
@@ -289,13 +331,16 @@ def run_demo():
     updated_stats = memory_system.get_memory_statistics(agent_id)
     # save to json file
     import json
+
     with open("expected.json", "w") as f:
         json.dump(updated_stats, f)
     print(f"!!!!!!!!!!!!!!!!!!!!!!!Updated stats: {updated_stats}")
-    validation_passed = validate_memory_statistics(logger, updated_stats, agent_id, memory_system)
-    
+    validation_passed = validate_memory_statistics(
+        logger, updated_stats, agent_id, memory_system
+    )
+
     print(f"!!!!!!!!!!!!!!!!!!!!!!!Validation passed: {validation_passed}")
-    
+
     # Get memory statistics before adding fresh memories to validate post-maintenance state
     pre_demo_stats = memory_system.get_memory_statistics(agent_id)
     pre_demo_stm_count = pre_demo_stats["tiers"]["stm"]["count"]
@@ -351,8 +396,10 @@ def run_demo():
 
     # Perform final comprehensive validation after adding fresh memories
     final_stats = memory_system.get_memory_statistics(agent_id)
-    final_validation_passed = validate_memory_statistics(logger, final_stats, agent_id, memory_system)
-    
+    final_validation_passed = validate_memory_statistics(
+        logger, final_stats, agent_id, memory_system
+    )
+
     # Display example content from each memory tier
     log_print(logger, "\n== EXAMPLE MEMORY CONTENT FROM EACH TIER ==")
     memory_agent = memory_system.get_memory_agent(agent_id)
@@ -365,9 +412,15 @@ def run_demo():
         for i, memory in enumerate(stm_memories[:3]):  # Show up to 3 examples
             log_print(logger, f"STM Memory #{i+1}:")
             log_print(logger, f"  ID: {memory.get('memory_id', 'N/A')}")
-            log_print(logger, f"  Type: {memory.get('metadata', {}).get('memory_type', 'N/A')}")
+            log_print(
+                logger,
+                f"  Type: {memory.get('metadata', {}).get('memory_type', 'N/A')}",
+            )
             log_print(logger, f"  Timestamp: {memory.get('timestamp', 'N/A')}")
-            log_print(logger, f"  Priority: {memory.get('metadata', {}).get('importance_score', 'N/A')}")
+            log_print(
+                logger,
+                f"  Priority: {memory.get('metadata', {}).get('importance_score', 'N/A')}",
+            )
             # Pretty print the content for better readability
             log_print(logger, f"  Content: {memory.get('content', 'N/A')}")
     else:
@@ -388,9 +441,15 @@ def run_demo():
         for i, memory in enumerate(im_memories[:3]):  # Show up to 3 examples
             log_print(logger, f"IM Memory #{i+1}:")
             log_print(logger, f"  ID: {memory.get('memory_id', 'N/A')}")
-            log_print(logger, f"  Type: {memory.get('metadata', {}).get('memory_type', 'N/A')}")
+            log_print(
+                logger,
+                f"  Type: {memory.get('metadata', {}).get('memory_type', 'N/A')}",
+            )
             log_print(logger, f"  Timestamp: {memory.get('timestamp', 'N/A')}")
-            log_print(logger, f"  Priority: {memory.get('metadata', {}).get('importance_score', 'N/A')}")
+            log_print(
+                logger,
+                f"  Priority: {memory.get('metadata', {}).get('importance_score', 'N/A')}",
+            )
             log_print(logger, f"  Content: {memory.get('content', 'N/A')}")
     else:
         log_print(logger, "  No memories in IM")
@@ -403,9 +462,15 @@ def run_demo():
         for i, memory in enumerate(ltm_memories[:3]):  # Show up to 3 examples
             log_print(logger, f"LTM Memory #{i+1}:")
             log_print(logger, f"  ID: {memory.get('memory_id', 'N/A')}")
-            log_print(logger, f"  Type: {memory.get('metadata', {}).get('memory_type', 'N/A')}")
+            log_print(
+                logger,
+                f"  Type: {memory.get('metadata', {}).get('memory_type', 'N/A')}",
+            )
             log_print(logger, f"  Timestamp: {memory.get('timestamp', 'N/A')}")
-            log_print(logger, f"  Priority: {memory.get('metadata', {}).get('importance_score', 'N/A')}")
+            log_print(
+                logger,
+                f"  Priority: {memory.get('metadata', {}).get('importance_score', 'N/A')}",
+            )
             log_print(logger, f"  Content: {memory.get('content', 'N/A')}")
     else:
         log_print(logger, "  No memories in LTM")
@@ -441,7 +506,7 @@ def run_demo():
 
     # 3. Check high-priority memories in different tiers
     # We expect most high-priority memories to be preserved in higher tiers (IM/LTM)
-    high_priority_steps = [5, 10, 15, 20, 25, 30]
+    high_priority_steps = [5, 10, 15, 20, 21, 25, 30]
     memory_agent = memory_system.get_memory_agent(agent_id)
 
     # Query for high-priority memories across all tiers
@@ -467,9 +532,18 @@ def run_demo():
                         if isinstance(mem_step, (str, float)):
                             mem_step = int(float(mem_step))
                         if mem_step == step:
-                            memory_id = memory.get("id", memory.get("memory_id", "unknown"))
-                            tier = determine_memory_tier(memory_agent, memory_id) if memory_id else "Unknown"
-                            log_print(logger, f"Found milestone memory for step {step} in tier: {tier}")
+                            memory_id = memory.get(
+                                "id", memory.get("memory_id", "unknown")
+                            )
+                            tier = (
+                                determine_memory_tier(memory_agent, memory_id)
+                                if memory_id
+                                else "Unknown"
+                            )
+                            log_print(
+                                logger,
+                                f"Found milestone memory for step {step} in tier: {tier}",
+                            )
                             milestone_memories.append(memory)
                             missing_steps.discard(step)
                             found_by_step = True
@@ -494,7 +568,9 @@ def run_demo():
                     else "Unknown"
                 )
 
-                log_print(logger, f"Found milestone memory for step {step} in tier: {tier}")
+                log_print(
+                    logger, f"Found milestone memory for step {step} in tier: {tier}"
+                )
                 milestone_memories.append(memory)
 
                 # Track which steps we found memories for
@@ -633,7 +709,7 @@ def run_demo():
 
     log_print(logger, "\nBasic memory operations demo completed!")
     log_print(logger, f"Log file saved at: logs/{DemoConfig.description}.log")
-    
+
     # Return validation status
     return final_validation_passed
 
@@ -641,4 +717,5 @@ def run_demo():
 if __name__ == "__main__":
     validation_result = run_demo()
     import sys
+
     sys.exit(0 if validation_result else 1)
