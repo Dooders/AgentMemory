@@ -302,6 +302,9 @@ class TestMemoryStorage:
             assert metadata["importance_score"] == priority
             assert metadata["retrieval_count"] == 0
             assert metadata["memory_type"] == memory_type
+            assert (
+                metadata["current_tier"] == "stm"
+            )  # Verify current_tier is set to "stm"
 
             # Check embeddings
             assert "embeddings" in entry
@@ -334,11 +337,23 @@ class TestMemoryTransitions:
                         - (i * 1000),  # Older memories have higher i
                         "importance_score": 0.5,
                         "retrieval_count": i % 3,  # Some variation in retrieval count
+                        "current_tier": "stm",  # Current tier is STM
                     },
                 }
             )
 
         mock_stm_store.get_all.return_value = stm_memories
+
+        # Mock the compression engine to capture the metadata updates
+        def mock_compress_func(memory, level):
+            return {
+                "memory_id": memory["memory_id"],
+                "metadata": memory[
+                    "metadata"
+                ].copy(),  # Create a copy to detect changes
+            }
+
+        memory_agent.compression_engine.compress.side_effect = mock_compress_func
 
         # Call the transition method
         with mock.patch.object(
@@ -353,6 +368,12 @@ class TestMemoryTransitions:
 
             # Verify the compression engine was used
             assert memory_agent.compression_engine.compress.call_count == 5
+
+            # Verify current_tier was updated in the metadata
+            for call in mock_im_store.store.call_args_list:
+                args, _ = call
+                memory = args[1]
+                assert memory["metadata"]["current_tier"] == "im"
 
             # Verify memories were deleted from STM
             assert mock_stm_store.delete.call_count == 5
@@ -378,11 +399,23 @@ class TestMemoryTransitions:
                         - (i * 1000),  # Older memories have higher i
                         "importance_score": 0.5,
                         "retrieval_count": i % 3,  # Some variation in retrieval count
+                        "current_tier": "im",  # Current tier is IM
                     },
                 }
             )
 
         mock_im_store.get_all.return_value = im_memories
+
+        # Mock the compression engine to capture the metadata updates
+        def mock_compress_func(memory, level):
+            return {
+                "memory_id": memory["memory_id"],
+                "metadata": memory[
+                    "metadata"
+                ].copy(),  # Create a copy to detect changes
+            }
+
+        memory_agent.compression_engine.compress.side_effect = mock_compress_func
 
         # Call the transition method
         with mock.patch.object(
@@ -400,6 +433,11 @@ class TestMemoryTransitions:
 
             # Verify the compression engine was used
             assert memory_agent.compression_engine.compress.call_count == 3
+
+            # Verify current_tier was updated in the metadata
+            batch = calls[0][0][0]  # Get the batch of memories
+            for memory in batch:
+                assert memory["metadata"]["current_tier"] == "ltm"
 
             # Verify memories were deleted from IM
             assert mock_im_store.delete.call_count == 3
@@ -864,178 +902,208 @@ class TestUtilityFunctions:
     def test_calculate_reward_score(self, memory_agent):
         """Test calculating reward score from a memory."""
         # Memory with no reward
-        memory_no_reward = {
-            "content": {}
-        }
-        
+        memory_no_reward = {"content": {}}
+
         # Memory with reward
-        memory_with_reward = {
-            "content": {"reward": 5.0}
-        }
-        
+        memory_with_reward = {"content": {"reward": 5.0}}
+
         # Memory with negative reward
-        memory_negative_reward = {
-            "content": {"reward": -2.0}
-        }
-        
+        memory_negative_reward = {"content": {"reward": -2.0}}
+
         # Test with max_reward_score of 10 (the default)
         memory_agent.config.autoencoder_config.max_reward_score = 10.0
-        
+
         # Test cases
         no_reward_score = memory_agent.calculate_reward_score(memory_no_reward)
         assert no_reward_score == 0.0
-        
+
         reward_score = memory_agent.calculate_reward_score(memory_with_reward)
         assert reward_score == 0.5  # 5/10 = 0.5
-        
+
         # Negative rewards should be normalized to 0
         negative_score = memory_agent.calculate_reward_score(memory_negative_reward)
         assert negative_score == 0.0
-        
+
         # Test with higher reward than max (should cap at 1.0)
-        memory_high_reward = {
-            "content": {"reward": 15.0}
-        }
+        memory_high_reward = {"content": {"reward": 15.0}}
         high_score = memory_agent.calculate_reward_score(memory_high_reward)
         assert high_score == 1.0
 
-    def test_hybrid_retrieve(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
+    def test_hybrid_retrieve(
+        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+    ):
         """Test hybrid retrieval combining similarity and attribute matching."""
         # Setup query state
         query_state = {
             "position": {"location": "kitchen"},
             "health": 100,
-            "inventory": ["sword", "potion"]
+            "inventory": ["sword", "potion"],
         }
-        
+
         # Mock vector results
         vector_results = [
             {
                 "memory_id": "vector1",
                 "similarity_score": 0.9,
-                "content": {"position": {"location": "kitchen"}}
+                "content": {"position": {"location": "kitchen"}},
             },
             {
-                "memory_id": "vector2", 
+                "memory_id": "vector2",
                 "similarity_score": 0.7,
-                "content": {"position": {"location": "living_room"}}
-            }
+                "content": {"position": {"location": "living_room"}},
+            },
         ]
-        
+
         # Mock attribute results
         attr_results = [
-            {
-                "memory_id": "attr1",
-                "content": {"position": {"location": "kitchen"}}
-            },
+            {"memory_id": "attr1", "content": {"position": {"location": "kitchen"}}},
             {
                 "memory_id": "vector1",  # Overlapping with vector results
-                "content": {"position": {"location": "kitchen"}}
-            }
+                "content": {"position": {"location": "kitchen"}},
+            },
         ]
-        
+
         # Configure the mocks
-        with mock.patch.object(memory_agent, "retrieve_similar_states", return_value=vector_results), \
-             mock.patch.object(memory_agent, "retrieve_by_attributes", return_value=attr_results):
-            
+        with mock.patch.object(
+            memory_agent, "retrieve_similar_states", return_value=vector_results
+        ), mock.patch.object(
+            memory_agent, "retrieve_by_attributes", return_value=attr_results
+        ):
+
             # Test hybrid retrieval with default weights
             results = memory_agent.hybrid_retrieve(query_state, k=3)
-            
+
             # Verify the function calls
             memory_agent.retrieve_similar_states.assert_called_with(
                 query_state, k=6, memory_type=None, threshold=0.2
             )
-            
+
             memory_agent.retrieve_by_attributes.assert_called()
-            
+
             # Check results
             assert len(results) <= 3  # Should not exceed k
-            
+
             # First result should be vector1 which has both high similarity and attribute match
             if results:
                 assert results[0]["memory_id"] == "vector1"
                 assert "hybrid_score" in results[0]
-            
+
             # Test with custom weights
             results_custom = memory_agent.hybrid_retrieve(
                 query_state, k=2, vector_weight=0.8, attribute_weight=0.2
             )
-            
+
             # Results should be ordered by weighted scores
             assert len(results_custom) <= 2
 
     def test_hybrid_retrieve_no_embeddings(self, memory_agent, mock_stm_store):
         """Test hybrid retrieval when embeddings are not available."""
         # Query state with attributes
-        query_state = {
-            "position": {"location": "bedroom"},
-            "energy": 50
-        }
-        
+        query_state = {"position": {"location": "bedroom"}, "energy": 50}
+
         # Mock attribute results
         attr_results = [
             {"memory_id": "attr1", "content": {"position": {"location": "bedroom"}}}
         ]
-        
+
         # Temporarily set embedding_engine to None
         memory_agent.embedding_engine = None
-        
-        with mock.patch.object(memory_agent, "retrieve_by_attributes", return_value=attr_results):
+
+        with mock.patch.object(
+            memory_agent, "retrieve_by_attributes", return_value=attr_results
+        ):
             results = memory_agent.hybrid_retrieve(query_state, k=3)
-            
+
             # Should fall back to attribute-based search only
             memory_agent.retrieve_by_attributes.assert_called_once()
-            
+
             # Check results
             assert len(results) <= 3
             if results:
                 assert results[0]["memory_id"] == "attr1"
 
-    def test_flush_to_ltm(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
+    def test_flush_to_ltm(
+        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+    ):
         """Test flushing memories from STM and IM to LTM."""
         # Setup memory data
         stm_memories = [
-            {"memory_id": "stm1", "content": {"data": "stm_data1"}},
-            {"memory_id": "stm2", "content": {"data": "stm_data2"}}
+            {
+                "memory_id": "stm1",
+                "content": {"data": "stm_data1"},
+                "metadata": {"current_tier": "stm"},
+            },
+            {
+                "memory_id": "stm2",
+                "content": {"data": "stm_data2"},
+                "metadata": {"current_tier": "stm"},
+            },
         ]
-        
+
         im_memories = [
-            {"memory_id": "im1", "content": {"data": "im_data1"}},
-            {"memory_id": "im2", "content": {"data": "im_data2"}}
+            {
+                "memory_id": "im1",
+                "content": {"data": "im_data1"},
+                "metadata": {"current_tier": "im"},
+            },
+            {
+                "memory_id": "im2",
+                "content": {"data": "im_data2"},
+                "metadata": {"current_tier": "im"},
+            },
         ]
-        
+
         # Configure mocks
         mock_stm_store.get_all.return_value = stm_memories
         mock_im_store.get_all.return_value = im_memories
-        
+
         # LTM store flush_memories returns (stored_count, filtered_count)
         mock_ltm_store.flush_memories.return_value = (2, 0)
-        
+
         # Test flushing both STM and IM
         result = memory_agent.flush_to_ltm(include_stm=True, include_im=True)
-        
+
         # Verify the calls
         mock_stm_store.get_all.assert_called_once()
         mock_im_store.get_all.assert_called_once()
-        mock_ltm_store.flush_memories.assert_any_call(stm_memories, force=False)
-        mock_ltm_store.flush_memories.assert_any_call(im_memories, force=False)
-        
+
+        # Capture the actual arguments passed to flush_memories to verify tier updates
+        stm_call_args = mock_ltm_store.flush_memories.call_args_list[0][0][0]
+        im_call_args = mock_ltm_store.flush_memories.call_args_list[1][0][0]
+
+        # Verify tier was updated in all memories before being sent to LTM
+        for memory in stm_call_args:
+            assert memory["metadata"]["current_tier"] == "ltm"
+
+        for memory in im_call_args:
+            assert memory["metadata"]["current_tier"] == "ltm"
+
         # Verify the clear calls
         mock_stm_store.clear.assert_called_once()
         mock_im_store.clear.assert_called_once()
-        
+
         # Check result structure
         assert result["stm_stored"] == 2
         assert result["stm_filtered"] == 0
         assert result["im_stored"] == 2
         assert result["im_filtered"] == 0
 
-    def test_flush_to_ltm_with_filtering(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
+    def test_flush_to_ltm_with_filtering(
+        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+    ):
         """Test flushing memories with filtering applied."""
         # Setup memory data
         stm_memories = [
-            {"memory_id": "stm1", "content": {"data": "stm_data1"}},
-            {"memory_id": "stm2", "content": {"data": "stm_data2"}}
+            {
+                "memory_id": "stm1", 
+                "content": {"data": "stm_data1"},
+                "metadata": {"current_tier": "stm"}
+            },
+            {
+                "memory_id": "stm2", 
+                "content": {"data": "stm_data2"},
+                "metadata": {"current_tier": "stm"}
+            }
         ]
         
         # Configure mocks
@@ -1072,10 +1140,17 @@ class TestUtilityFunctions:
         assert result2["stm_stored"] == 2
         assert result2["stm_filtered"] == 0
 
-    def test_flush_to_ltm_error_handling(self, memory_agent, mock_stm_store, mock_ltm_store):
+    def test_flush_to_ltm_error_handling(
+        self, memory_agent, mock_stm_store, mock_ltm_store
+    ):
         """Test error handling during memory flush operations."""
         # Setup memory data
-        stm_memories = [{"memory_id": "stm1"}]
+        stm_memories = [
+            {
+                "memory_id": "stm1",
+                "metadata": {"current_tier": "stm"}
+            }
+        ]
         mock_stm_store.get_all.return_value = stm_memories
         
         # Configure LTM store to raise an exception on first call, then succeed
@@ -1102,18 +1177,18 @@ class TestUtilityFunctions:
         test_memories = [
             {"metadata": {"importance_score": 0.3}},
             {"metadata": {"importance_score": 0.7}},
-            {"metadata": {"importance_score": 0.5}}
+            {"metadata": {"importance_score": 0.5}},
         ]
-        
+
         # Configure the store to return our test memories
         mock_stm_store.get_all.return_value = test_memories
-        
+
         # Calculate tier importance for STM
         importance = memory_agent._calculate_tier_importance("stm")
-        
+
         # Average should be (0.3 + 0.7 + 0.5) / 3 = 0.5
         assert importance == 0.5
-        
+
         # Test with empty store
         mock_stm_store.get_all.return_value = []
         empty_importance = memory_agent._calculate_tier_importance("stm")
@@ -1124,72 +1199,76 @@ class TestUtilityFunctions:
         # Create test memories with original size metadata
         test_memories = [
             {"metadata": {"original_size": 1000}},
-            {"metadata": {"original_size": 2000}}
+            {"metadata": {"original_size": 2000}},
         ]
-        
+
         # Configure the store
         mock_im_store.get_all.return_value = test_memories
         mock_im_store.get_size.return_value = 1200  # Compressed size
-        
+
         # Calculate compression ratio for IM
         ratio = memory_agent._calculate_compression_ratio("im")
-        
+
         # Ratio should be (1000 + 2000) / 1200 = 2.5
         assert ratio == 2.5
-        
+
         # Test with zero compressed size (should avoid division by zero)
         mock_im_store.get_size.return_value = 0
         zero_ratio = memory_agent._calculate_compression_ratio("im")
         assert zero_ratio == 0.0
-        
+
         # Test with empty store
         mock_im_store.get_all.return_value = []
         empty_ratio = memory_agent._calculate_compression_ratio("im")
         assert empty_ratio == 0.0
 
-    def test_get_memory_type_distribution(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
+    def test_get_memory_type_distribution(
+        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+    ):
         """Test getting the distribution of memory types across all tiers."""
         # Create test memories for each store
         stm_memories = [
             {"metadata": {"memory_type": "state"}},
-            {"metadata": {"memory_type": "action"}}
+            {"metadata": {"memory_type": "action"}},
         ]
-        
+
         im_memories = [
             {"metadata": {"memory_type": "state"}},
             {"metadata": {"memory_type": "interaction"}},
-            {"metadata": {"memory_type": "interaction"}}
+            {"metadata": {"memory_type": "interaction"}},
         ]
-        
+
         ltm_memories = [
             {"metadata": {"memory_type": "state"}},
             {"metadata": {"memory_type": "action"}},
             {"metadata": {"memory_type": "action"}},
-            {"metadata": {"memory_type": "interaction"}}
+            {"metadata": {"memory_type": "interaction"}},
         ]
-        
+
         # Configure the stores
         mock_stm_store.get_all.return_value = stm_memories
         mock_im_store.get_all.return_value = im_memories
         mock_ltm_store.get_all.return_value = ltm_memories
-        
+
         # Get distribution
         distribution = memory_agent._get_memory_type_distribution()
-        
+
         # Check results
         assert distribution["state"] == 3  # 1 from STM, 1 from IM, 1 from LTM
         assert distribution["action"] == 3  # 1 from STM, 0 from IM, 2 from LTM
         assert distribution["interaction"] == 3  # 0 from STM, 2 from IM, 1 from LTM
-        
+
         # Test with empty stores
         mock_stm_store.get_all.return_value = []
         mock_im_store.get_all.return_value = []
         mock_ltm_store.get_all.return_value = []
-        
+
         empty_distribution = memory_agent._get_memory_type_distribution()
         assert len(empty_distribution) == 0
 
-    def test_get_access_patterns(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
+    def test_get_access_patterns(
+        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+    ):
         """Test getting statistics about memory access patterns."""
         # Create test memories with various access counts
         memories = [
@@ -1197,41 +1276,43 @@ class TestUtilityFunctions:
             {"metadata": {"retrieval_count": 5}},
             {"metadata": {"retrieval_count": 0}},
             {"metadata": {"retrieval_count": 3}},
-            {"metadata": {"retrieval_count": 8}}
+            {"metadata": {"retrieval_count": 8}},
         ]
-        
+
         # Configure stores to return subsets of the memories
         mock_stm_store.get_all.return_value = memories[0:2]  # 10, 5
-        mock_im_store.get_all.return_value = memories[2:3]   # 0
+        mock_im_store.get_all.return_value = memories[2:3]  # 0
         mock_ltm_store.get_all.return_value = memories[3:5]  # 3, 8
-        
+
         # Get access patterns
         patterns = memory_agent._get_access_patterns()
-        
+
         # Check total accesses: 10 + 5 + 0 + 3 + 8 = 26
         assert patterns["total_accesses"] == 26
-        
+
         # Check average accesses: 26 / 5 = 5.2
         assert patterns["avg_accesses"] == 5.2
-        
+
         # Check most accessed (should be sorted by retrieval_count, highest first)
         assert len(patterns["most_accessed"]) <= 5
         if patterns["most_accessed"]:
             # First one should be the one with count 10
             assert patterns["most_accessed"][0]["metadata"]["retrieval_count"] == 10
-        
+
         # Check least accessed
         assert len(patterns["least_accessed"]) <= 5
-        
+
         # Verify that the least_accessed list contains the memory with retrieval_count 0
-        least_accessed_counts = [item["metadata"]["retrieval_count"] for item in patterns["least_accessed"]]
+        least_accessed_counts = [
+            item["metadata"]["retrieval_count"] for item in patterns["least_accessed"]
+        ]
         assert 0 in least_accessed_counts
-        
+
         # Test with empty stores
         mock_stm_store.get_all.return_value = []
         mock_im_store.get_all.return_value = []
         mock_ltm_store.get_all.return_value = []
-        
+
         empty_patterns = memory_agent._get_access_patterns()
         assert empty_patterns["total_accesses"] == 0
         assert empty_patterns["avg_accesses"] == 0

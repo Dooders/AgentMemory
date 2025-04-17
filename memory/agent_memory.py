@@ -207,6 +207,7 @@ class MemoryAgent:
                 "importance_score": priority,
                 "retrieval_count": 0,
                 "memory_type": memory_type,
+                "current_tier": "stm",  # New memories always start in STM
             },
             "embeddings": embeddings,
         }
@@ -255,6 +256,7 @@ class MemoryAgent:
                 compressed_entry = self.compression_engine.compress(memory, level=1)
                 compressed_entry["metadata"]["compression_level"] = 1
                 compressed_entry["metadata"]["last_transition_time"] = current_time
+                compressed_entry["metadata"]["current_tier"] = "im"  # Update tier to IM
 
                 # Store in IM
                 self.im_store.store(self.agent_id, compressed_entry)
@@ -304,6 +306,9 @@ class MemoryAgent:
                 compressed_entry = self.compression_engine.compress(memory, level=2)
                 compressed_entry["metadata"]["compression_level"] = 2
                 compressed_entry["metadata"]["last_transition_time"] = current_time
+                compressed_entry["metadata"][
+                    "current_tier"
+                ] = "ltm"  # Update tier to LTM
 
                 # Add to batch
                 batch.append(compressed_entry)
@@ -1027,6 +1032,10 @@ class MemoryAgent:
                 if include_stm:
                     stm_memories = self.stm_store.get_all()
                     if stm_memories:
+                        # Update the current tier for all memories to be flushed
+                        for memory in stm_memories:
+                            memory["metadata"]["current_tier"] = "ltm"
+
                         stored, filtered = self.ltm_store.flush_memories(
                             stm_memories, force=force
                         )
@@ -1040,6 +1049,10 @@ class MemoryAgent:
                 if include_im:
                     im_memories = self.im_store.get_all()
                     if im_memories:
+                        # Update the current tier for all memories to be flushed
+                        for memory in im_memories:
+                            memory["metadata"]["current_tier"] = "ltm"
+
                         stored, filtered = self.ltm_store.flush_memories(
                             im_memories, force=force
                         )

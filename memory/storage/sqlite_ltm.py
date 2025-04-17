@@ -145,6 +145,7 @@ class SQLiteLTMStore:
                     importance_score REAL DEFAULT 0.0,
                     retrieval_count INTEGER DEFAULT 0,
                     memory_type TEXT,
+                    current_tier TEXT DEFAULT 'ltm',
                     
                     created_at INTEGER NOT NULL,
                     last_accessed INTEGER NOT NULL,
@@ -172,6 +173,13 @@ class SQLiteLTMStore:
                     f"""
                 CREATE INDEX IF NOT EXISTS idx_{self.table_prefix}_type 
                 ON {self.memory_table} (memory_type)
+                """
+                )
+
+                cursor.execute(
+                    f"""
+                CREATE INDEX IF NOT EXISTS idx_{self.table_prefix}_tier 
+                ON {self.memory_table} (current_tier)
                 """
                 )
 
@@ -237,8 +245,7 @@ class SQLiteLTMStore:
             allow_all_types = "*" in self.config.whitelisted_types
             if not allow_all_types and memory_type not in self.config.whitelisted_types:
                 logger.debug(
-                    "Memory type %s not in whitelist, skipping LTM storage",
-                    memory_type
+                    "Memory type %s not in whitelist, skipping LTM storage", memory_type
                 )
                 return True  # Return True as this is expected behavior
 
@@ -290,6 +297,9 @@ class SQLiteLTMStore:
             created_at = metadata.get("creation_time", int(time.time()))
             last_accessed = metadata.get("last_access_time", int(time.time()))
 
+            # Get current_tier from metadata or default to 'ltm'
+            current_tier = metadata.get("current_tier", "ltm")
+
             # Prepare content and metadata as JSON
             content_json = json.dumps(memory_entry.get("content", {}))
             metadata_json = json.dumps(metadata)
@@ -304,8 +314,8 @@ class SQLiteLTMStore:
                 (memory_id, agent_id, step_number, timestamp, 
                 content_json, metadata_json, compression_level, 
                 importance_score, retrieval_count, memory_type, 
-                created_at, last_accessed)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                current_tier, created_at, last_accessed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         memory_id,
@@ -318,6 +328,7 @@ class SQLiteLTMStore:
                         importance_score,
                         retrieval_count,
                         memory_type,
+                        current_tier,
                         created_at,
                         last_accessed,
                     ),
@@ -380,15 +391,18 @@ class SQLiteLTMStore:
         if self.config.whitelist_enabled:
             allow_all_types = "*" in self.config.whitelisted_types
             allow_all_fields = "*" in self.config.whitelisted_fields
-            
+
             filtered_entries = []
             for entry in memory_entries:
                 # Check if memory type is whitelisted
                 memory_type = entry.get("type")
-                if not allow_all_types and memory_type not in self.config.whitelisted_types:
+                if (
+                    not allow_all_types
+                    and memory_type not in self.config.whitelisted_types
+                ):
                     logger.debug(
                         "Memory type %s not in whitelist, skipping from batch",
-                        memory_type
+                        memory_type,
                     )
                     continue
 
@@ -401,7 +415,7 @@ class SQLiteLTMStore:
                     filtered_entries.append(filtered_entry)
                 else:
                     filtered_entries.append(entry)
-            
+
             memory_entries = filtered_entries
 
         # Check if any entry is missing memory_id
@@ -462,6 +476,9 @@ class SQLiteLTMStore:
                     created_at = metadata.get("creation_time", int(time.time()))
                     last_accessed = metadata.get("last_access_time", int(time.time()))
 
+                    # Get current_tier from metadata or default to 'ltm'
+                    current_tier = metadata.get("current_tier", "ltm")
+
                     # Prepare content and metadata as JSON
                     content_json = json.dumps(memory_entry.get("content", {}))
                     metadata_json = json.dumps(metadata)
@@ -473,8 +490,8 @@ class SQLiteLTMStore:
                     (memory_id, agent_id, step_number, timestamp, 
                     content_json, metadata_json, compression_level, 
                     importance_score, retrieval_count, memory_type, 
-                    created_at, last_accessed)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    current_tier, created_at, last_accessed)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                         (
                             memory_id,
@@ -487,6 +504,7 @@ class SQLiteLTMStore:
                             importance_score,
                             retrieval_count,
                             memory_type,
+                            current_tier,
                             created_at,
                             last_accessed,
                         ),
@@ -583,6 +601,12 @@ class SQLiteLTMStore:
                     "metadata": metadata,
                 }
 
+                # Ensure current_tier is in metadata
+                if "current_tier" not in memory_entry["metadata"]:
+                    memory_entry["metadata"]["current_tier"] = memory_data.get(
+                        "current_tier", "ltm"
+                    )
+
                 # Get vector embeddings if available
                 cursor.execute(
                     f"""
@@ -663,7 +687,10 @@ class SQLiteLTMStore:
             )
 
     def get_by_timerange(
-        self, start_time: Union[float, int, str], end_time: Union[float, int, str], limit: int = 100
+        self,
+        start_time: Union[float, int, str],
+        end_time: Union[float, int, str],
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Retrieve memories within a time range.
 
@@ -682,7 +709,9 @@ class SQLiteLTMStore:
                 try:
                     start_timestamp = int(float(start_time))
                 except ValueError:
-                    logger.warning(f"Could not convert start_time string to int: {start_time}")
+                    logger.warning(
+                        f"Could not convert start_time string to int: {start_time}"
+                    )
                     return []
 
             end_timestamp = end_time
@@ -690,13 +719,15 @@ class SQLiteLTMStore:
                 try:
                     end_timestamp = int(float(end_time))
                 except ValueError:
-                    logger.warning(f"Could not convert end_time string to int: {end_time}")
+                    logger.warning(
+                        f"Could not convert end_time string to int: {end_time}"
+                    )
                     return []
-                    
+
             # Cast to int to ensure type compatibility with SQLite
             start_timestamp = int(start_timestamp)
             end_timestamp = int(end_timestamp)
-                
+
             logger.debug(f"Using timerange: {start_timestamp} to {end_timestamp}")
 
             with self._get_connection() as conn:
@@ -1324,7 +1355,9 @@ class SQLiteLTMStore:
             logger.error(f"Error in search_by_step_range: {e}")
             return []
 
-    def flush_memories(self, memories: List[Dict[str, Any]], force: bool = False) -> Tuple[int, int]:
+    def flush_memories(
+        self, memories: List[Dict[str, Any]], force: bool = False
+    ) -> Tuple[int, int]:
         """Flush a list of memories to LTM storage, respecting whitelist settings.
 
         Args:
@@ -1344,15 +1377,18 @@ class SQLiteLTMStore:
         if self.config.whitelist_enabled and not force:
             allow_all_types = "*" in self.config.whitelisted_types
             allow_all_fields = "*" in self.config.whitelisted_fields
-            
+
             filtered_entries = []
             for entry in memories:
                 # Check if memory type is whitelisted
                 memory_type = entry.get("type")
-                if not allow_all_types and memory_type not in self.config.whitelisted_types:
+                if (
+                    not allow_all_types
+                    and memory_type not in self.config.whitelisted_types
+                ):
                     logger.debug(
                         "Memory type %s not in whitelist during flush, filtering out",
-                        memory_type
+                        memory_type,
                     )
                     filtered_count += 1
                     continue
@@ -1366,20 +1402,22 @@ class SQLiteLTMStore:
                     filtered_entries.append(filtered_entry)
                 else:
                     filtered_entries.append(entry)
-            
+
             memories = filtered_entries
 
         try:
             # Process memories in batches to avoid memory issues
             batch_size = self.config.batch_size
             for i in range(0, len(memories), batch_size):
-                batch = memories[i:i + batch_size]
+                batch = memories[i : i + batch_size]
                 success = self.store_batch(batch)
                 if success:
                     stored_count += len(batch)
                 else:
                     filtered_count += len(batch)
-                    logger.warning(f"Failed to store batch of {len(batch)} memories during flush")
+                    logger.warning(
+                        f"Failed to store batch of {len(batch)} memories during flush"
+                    )
 
             logger.info(
                 f"Flushed memories to LTM: {stored_count} stored, {filtered_count} filtered out"
