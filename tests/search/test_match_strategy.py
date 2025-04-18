@@ -48,7 +48,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         }
         
         # Mock vector search
-        self.mock_embedding_engine.encode_stm.return_value = [0.1, 0.2, 0.3]
+        self.mock_embedding_engine.encode.return_value = [0.1, 0.2, 0.3]
         self.mock_vector_store.find_similar_memories.return_value = [
             {"id": "mem1", "score": 0.9},
             {"id": "mem2", "score": 0.8},
