@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from memory.search.strategies.step_based import StepBasedSearchStrategy
+from memory.search.strategies.step import StepBasedSearchStrategy
 
 
 class TestStepBasedStrategy(unittest.TestCase):
