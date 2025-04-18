@@ -43,10 +43,45 @@ The system includes several built-in search strategies, each optimized for diffe
    - Supports exact matches, substring searches, and regex patterns
    - Ideal for precise filtering based on known attributes
 
-4. **CombinedSearchStrategy**
-   - Integrates results from multiple search strategies
-   - Applies configurable weights to different strategies
-   - Enables sophisticated searches that blend different retrieval approaches
+4. **StepBasedSearchStrategy**
+   - Retrieves memories based on simulation step numbers
+   - Supports step range queries and proximity-based scoring
+   - Useful for tracking event sequences in simulations
+
+5. **NarrativeSequenceStrategy**
+   - Retrieves a sequence of memories surrounding a reference memory
+   - Creates contextual narratives by gathering before/after memories
+   - Ideal for understanding the context around specific events
+
+6. **ExampleMatchingStrategy**
+   - Finds memories that match a provided example pattern
+   - Uses semantic similarity to identify structurally similar memories
+   - Useful for finding experiences with similar patterns
+
+7. **TimeWindowStrategy**
+   - Retrieves memories within specific time windows
+   - Supports queries for the last N minutes or between timestamps
+   - More flexible time-based retrieval than the basic temporal strategy
+
+8. **ContentPathStrategy**
+   - Searches based on specific content path values or patterns
+   - Provides precise access to nested content structures
+   - Supports both exact value matching and pattern matching
+
+9. **ImportanceStrategy**
+   - Retrieves memories based on their importance score
+   - Allows focusing on the most significant information
+   - Supports threshold-based filtering and sorting
+
+10. **CompoundQueryStrategy**
+    - Executes complex queries with multiple conditions and logical operators
+    - Enables sophisticated filtering across various memory attributes
+    - Supports comparison operators like ==, !=, >, >=, <, <=, in, contains
+
+11. **CombinedSearchStrategy**
+    - Integrates results from multiple search strategies
+    - Applies configurable weights to different strategies
+    - Enables sophisticated searches that blend different retrieval approaches
 
 ## Usage Guide
 
@@ -202,6 +237,164 @@ important_meetings = search_model.search(
     strategy_name="attribute",
     match_all=True,  # All conditions must match (AND logic)
     limit=10
+)
+```
+
+#### Narrative Sequence Search
+
+```python
+# Find a sequence of memories surrounding a reference memory
+narrative_sequence = search_model.search(
+    query="memory-xyz123",  # Reference memory ID as a string
+    agent_id="agent-1",
+    strategy_name="narrative_sequence",
+    context_before=5,  # Get 5 memories before the reference
+    context_after=5,   # Get 5 memories after the reference
+    limit=11           # Total memories including the reference
+)
+
+# Using a dictionary for more control
+narrative_sequence = search_model.search(
+    query={
+        "memory_id": "memory-xyz123",
+        "context_before": 3,
+        "context_after": 7
+    },
+    agent_id="agent-1",
+    strategy_name="narrative_sequence",
+    tier="im",  # Search in intermediate memory
+    limit=15
+)
+```
+
+#### Example Matching Search
+
+```python
+# Find memories matching an example pattern
+example_pattern = {
+    "location": "conference room",
+    "activity": "meeting",
+    "participants": ["user", "team"]
+}
+
+pattern_matches = search_model.search(
+    query=example_pattern,
+    agent_id="agent-1",
+    strategy_name="example_matching",
+    min_score=0.7,  # Minimum similarity threshold
+    embedding_type="compressed_vector",  # Type of embedding to use
+    limit=5
+)
+```
+
+#### Time Window Search
+
+```python
+# Get memories from the last 30 minutes
+recent_memories = search_model.search(
+    query=30,  # Minutes as an integer
+    agent_id="agent-1",
+    strategy_name="time_window",
+    memory_type="interaction",  # Optional filter by memory type
+    limit=10
+)
+
+# Get memories between specific timestamps
+date_range_memories = search_model.search(
+    query={
+        "start_time": "2023-07-01T09:00:00",
+        "end_time": "2023-07-01T17:00:00"
+    },
+    agent_id="agent-1",
+    strategy_name="time_window",
+    sort_order="asc",  # Sort by timestamp (oldest first)
+    limit=20
+)
+```
+
+#### Content Path Search
+
+```python
+# Search for memories with a specific content value at a path
+location_memories = search_model.search(
+    query={
+        "path": "location.name",
+        "value": "kitchen"
+    },
+    agent_id="agent-1",
+    strategy_name="content_path",
+    limit=5
+)
+
+# Search for memories matching a pattern at a path
+conversation_memories = search_model.search(
+    query={
+        "path": "dialog.text",
+        "pattern": "project deadline"
+    },
+    agent_id="agent-1",
+    strategy_name="content_path",
+    use_regex=False,      # Use substring matching instead of regex
+    case_sensitive=False, # Case-insensitive matching
+    limit=10
+)
+```
+
+#### Importance-Based Search
+
+```python
+# Find memories above an importance threshold
+important_memories = search_model.search(
+    query=0.8,  # Importance threshold as a float
+    agent_id="agent-1",
+    strategy_name="importance",
+    limit=5
+)
+
+# More control with dictionary query
+important_memories = search_model.search(
+    query={
+        "min_importance": 0.7
+    },
+    agent_id="agent-1",
+    strategy_name="importance",
+    sort_order="desc",  # Sort by importance (highest first)
+    tier="ltm",        # Search only in long-term memory
+    limit=10
+)
+```
+
+#### Compound Query Search
+
+```python
+# Complex query with multiple conditions using AND logic
+compound_results = search_model.search(
+    query={
+        "queries": [
+            {"field": "metadata.memory_type", "value": "interaction"},
+            {"field": "contents.location", "value": "office", "operator": "=="},
+            {"field": "metadata.importance", "value": 0.7, "operator": ">="}
+        ],
+        "operator": "AND"  # All conditions must match
+    },
+    agent_id="agent-1",
+    strategy_name="compound_query",
+    limit=10
+)
+
+# Using OR logic to match any condition
+compound_results = search_model.search(
+    query={
+        "queries": [
+            {"field": "contents.emotion", "value": "surprise"},
+            {"field": "contents.emotion", "value": "excitement"},
+            {"field": "contents.emotion", "value": "confusion"}
+        ],
+        "operator": "OR"  # Any condition can match
+    },
+    agent_id="agent-1",
+    strategy_name="compound_query",
+    limit=15
 )
 ```
 
@@ -390,6 +583,53 @@ def retrieve_decision_support(agent_id, decision_topic, search_model):
         "experiences": similar_experiences,
         "recent_context": recent_context
     }
+```
+
+### Event Analysis
+
+```python
+def analyze_event_context(agent_id, event_memory_id, search_model):
+    """Analyze the context surrounding a significant event."""
+    # Get the narrative sequence around the event
+    narrative = search_model.search(
+        query=event_memory_id,
+        agent_id=agent_id, 
+        strategy_name="narrative_sequence",
+        context_before=5,
+        context_after=5,
+        limit=11
+    )
+    
+    # Get related memories by content similarity
+    event_memory = next((m for m in narrative if m["memory_id"] == event_memory_id), None)
+    if event_memory:
+        related_memories = search_model.search(
+            query=event_memory["contents"],
+            agent_id=agent_id,
+            strategy_name="similarity",
+            limit=5
+        )
+        
+        return {
+            "narrative": narrative,
+            "related_memories": related_memories
+        }
+    
+    return {"narrative": narrative}
+```
+
+### Pattern Recognition
+
+```python
+def find_similar_patterns(agent_id, example_pattern, search_model):
+    """Find memories matching a specific pattern structure."""
+    return search_model.search(
+        query=example_pattern,
+        agent_id=agent_id,
+        strategy_name="example_matching",
+        min_score=0.6,
+        limit=10
+    )
 ```
 
 ## Conclusion
