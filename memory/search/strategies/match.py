@@ -154,7 +154,9 @@ class ExampleMatchingStrategy(SearchStrategy):
                 # Create nested dicts as needed
                 if i < len(parts) - 1:
                     if part not in current_src:
+                        # Skip this field path if an intermediate key is missing
                         break
+                        continue
 
                     if part not in current_dest:
                         current_dest[part] = {}
