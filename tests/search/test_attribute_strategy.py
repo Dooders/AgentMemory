@@ -1,6 +1,7 @@
 """Tests for the AttributeSearchStrategy class."""
 
 import unittest
+import time
 from unittest.mock import MagicMock, patch
 
 from memory.search.strategies.attribute import AttributeSearchStrategy
@@ -592,6 +593,184 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             "term_frequency",
             f"Expected 'term_frequency' but got '{override_results[0]['metadata'].get('scoring_method')}'",
         )
+
+    def test_pattern_cache(self):
+        """Test the regex pattern caching functionality."""
+        # Create clean strategy
+        strategy = AttributeSearchStrategy(
+            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+        )
+
+        # Initial cache should be empty
+        self.assertEqual(len(strategy._pattern_cache), 0)
+
+        # Compile a pattern and check it's added to cache
+        pattern1 = strategy.get_compiled_pattern("test.*pattern", True)
+        self.assertEqual(len(strategy._pattern_cache), 1)
+
+        # Get the same pattern again - should use cache
+        pattern2 = strategy.get_compiled_pattern("test.*pattern", True)
+        self.assertEqual(len(strategy._pattern_cache), 1)
+
+        # Patterns should be identical (same object in memory)
+        self.assertIs(pattern1, pattern2)
+
+        # Different pattern should create new cache entry
+        strategy.get_compiled_pattern("different.*pattern", True)
+        self.assertEqual(len(strategy._pattern_cache), 2)
+
+        # Same pattern with different case sensitivity should create new cache entry
+        strategy.get_compiled_pattern("test.*pattern", False)
+        self.assertEqual(len(strategy._pattern_cache), 3)
+
+        # Clear cache should empty it
+        strategy.clear_pattern_cache()
+        self.assertEqual(len(strategy._pattern_cache), 0)
+
+    def test_precompile_patterns(self):
+        """Test the precompile_patterns method."""
+        strategy = AttributeSearchStrategy(
+            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+        )
+
+        # Precompile multiple patterns
+        patterns = [
+            ("pattern1", True),
+            ("pattern2", False),
+            ("invalid[", True),  # Invalid pattern
+            ("pattern3", False),
+        ]
+
+        # Should return count of successful compilations
+        success_count = strategy.precompile_patterns(patterns)
+
+        # Should have 3 successful patterns (1 invalid)
+        self.assertEqual(success_count, 3)
+        self.assertEqual(len(strategy._pattern_cache), 3)
+
+        # Check cache keys
+        self.assertIn(("pattern1", True), strategy._pattern_cache)
+        self.assertIn(("pattern2", False), strategy._pattern_cache)
+        self.assertIn(("pattern3", False), strategy._pattern_cache)
+        self.assertNotIn(("invalid[", True), strategy._pattern_cache)
+
+    def test_pattern_cache_in_search(self):
+        """Test that pattern cache is used during search operations."""
+        # Set up store to return sample memories
+        self.mock_stm_store.get_all.return_value = self.sample_memories
+
+        strategy = AttributeSearchStrategy(
+            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+        )
+
+        # Spy on the get_compiled_pattern method to count calls
+        original_get_compiled_pattern = strategy.get_compiled_pattern
+        call_count = [0]
+
+        def spy_get_compiled_pattern(*args, **kwargs):
+            call_count[0] += 1
+            return original_get_compiled_pattern(*args, **kwargs)
+
+        strategy.get_compiled_pattern = spy_get_compiled_pattern
+
+        # First search with regex should compile patterns
+        strategy.search(
+            query="meet.*",
+            agent_id="agent-1",
+            tier="stm",
+            use_regex=True,
+            limit=5,
+        )
+
+        first_call_count = call_count[0]
+        self.assertGreater(first_call_count, 0)
+
+        # Reset counter
+        call_count[0] = 0
+
+        # Second search with same pattern should use cache
+        strategy.search(
+            query="meet.*",
+            agent_id="agent-1",
+            tier="stm",
+            use_regex=True,
+            limit=5,
+        )
+
+        # Should have fewer or equal calls since patterns are cached
+        second_call_count = call_count[0]
+        self.assertLessEqual(second_call_count, first_call_count)
+
+        # Restore original method
+        strategy.get_compiled_pattern = original_get_compiled_pattern
+
+    @patch("time.time")
+    def test_regex_performance(self, mock_time):
+        """Test performance improvement from regex pattern caching."""
+        # Mock time.time to return controlled values for performance measurement
+        time_values = [0.0, 0.2, 0.4, 0.5]  # Simulate elapsed time
+        mock_time.side_effect = lambda: time_values.pop(0)
+
+        # Create memories with many regex patterns
+        regex_test_memories = []
+        for i in range(100):
+            regex_test_memories.append(
+                {
+                    "id": f"memory{i}",
+                    "content": {
+                        "content": f"Test content {i} with pattern text",
+                        "metadata": {"type": "test", "tags": [f"tag{i}"]},
+                    },
+                }
+            )
+
+        self.mock_stm_store.get_all.return_value = regex_test_memories
+
+        strategy = AttributeSearchStrategy(
+            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+        )
+
+        # First run - no cached patterns
+        with patch("time.time", side_effect=[0.0, 0.2]):
+            strategy.clear_pattern_cache()
+            strategy.search(
+                query="patt.*text",
+                agent_id="agent-1",
+                tier="stm",
+                use_regex=True,
+                limit=10,
+            )
+            uncached_time = 0.2 - 0.0
+
+        # Second run - should use cached patterns
+        with patch("time.time", side_effect=[0.0, 0.1]):
+            strategy.search(
+                query="patt.*text",
+                agent_id="agent-1",
+                tier="stm",
+                use_regex=True,
+                limit=10,
+            )
+            cached_time = 0.1 - 0.0
+
+        # The cached search should be faster
+        self.assertLess(cached_time, uncached_time)
+
+        # Try with precompiled patterns
+        with patch("time.time", side_effect=[0.0, 0.05]):
+            strategy.clear_pattern_cache()
+            strategy.precompile_patterns([("patt.*text", False)])
+            strategy.search(
+                query="patt.*text",
+                agent_id="agent-1",
+                tier="stm",
+                use_regex=True,
+                limit=10,
+            )
+            precompiled_time = 0.05 - 0.0
+
+        # Precompiled should be even faster
+        self.assertLess(precompiled_time, uncached_time)
 
 
 if __name__ == "__main__":
