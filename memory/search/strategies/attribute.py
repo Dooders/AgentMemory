@@ -672,7 +672,10 @@ class AttributeSearchStrategy(SearchStrategy):
                 )
 
                 # Determine if memory should be included based on match strategy
-                if match_all and matches and all(matches):
+                if not query_conditions:
+                    # No conditions means everything matches (already handled above)
+                    continue
+                elif match_all and matches and all(matches):
                     filtered_memories.append(memory_copy)
                     logger.debug(f"Memory {memory_id} matched ALL conditions")
                 elif not match_all and matches and any(matches):
