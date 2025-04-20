@@ -24,6 +24,7 @@ class AttributeSearchStrategy(SearchStrategy):
         im_store: Intermediate Memory store
         ltm_store: Long-Term Memory store
         scoring_method: Method used for scoring matches (default "length_ratio")
+        _pattern_cache: Cache for compiled regex patterns
     """
 
     def __init__(
@@ -50,6 +51,8 @@ class AttributeSearchStrategy(SearchStrategy):
         self.im_store = im_store
         self.ltm_store = ltm_store
         self.scoring_method = scoring_method
+        # Initialize pattern cache dictionary: (pattern_str, is_case_sensitive) -> compiled_pattern
+        self._pattern_cache = {}
 
     def name(self) -> str:
         """Return the name of the search strategy.
@@ -66,6 +69,66 @@ class AttributeSearchStrategy(SearchStrategy):
             String description of the strategy
         """
         return "Searches for memories based on content and metadata attributes"
+
+    def clear_pattern_cache(self):
+        """Clear the regex pattern cache to free memory."""
+        self._pattern_cache.clear()
+        logger.debug("Cleared regex pattern cache")
+
+    def precompile_patterns(self, patterns: List[Tuple[str, bool]]):
+        """Precompile and cache a list of regex patterns for better performance.
+
+        This method is useful for precompiling commonly used patterns before
+        performing a batch of searches, reducing the overhead of on-the-fly compilation.
+
+        Args:
+            patterns: List of (pattern_str, is_case_sensitive) tuples to precompile
+
+        Returns:
+            Number of successfully compiled patterns
+        """
+        success_count = 0
+        for pattern_str, is_case_sensitive in patterns:
+            if self.get_compiled_pattern(pattern_str, is_case_sensitive) is not None:
+                success_count += 1
+
+        logger.debug(f"Precompiled {success_count}/{len(patterns)} regex patterns")
+        return success_count
+
+    def get_compiled_pattern(self, pattern_str: str, is_case_sensitive: bool):
+        """Get a compiled regex pattern from cache or compile it if not cached.
+
+        Args:
+            pattern_str: The regex pattern string
+            is_case_sensitive: Whether the pattern is case sensitive
+
+        Returns:
+            Compiled regex pattern or None if invalid
+        """
+        cache_key = (pattern_str, is_case_sensitive)
+
+        # Return from cache if available (including cached None values for invalid patterns)
+        if cache_key in self._pattern_cache:
+            if self._pattern_cache[cache_key] is None:
+                logger.debug(f"Using cached invalid pattern result for: {pattern_str}")
+            else:
+                logger.debug(f"Using cached regex pattern for: {pattern_str}")
+            return self._pattern_cache[cache_key]
+
+        # Compile new pattern
+        try:
+            flags = 0 if is_case_sensitive else re.IGNORECASE
+            compiled_pattern = re.compile(pattern_str, flags)
+            # Store in cache
+            self._pattern_cache[cache_key] = compiled_pattern
+            logger.debug(f"Compiled and cached new regex pattern for: {pattern_str}")
+            return compiled_pattern
+        except re.error:
+            logger.warning(f"Invalid regex pattern: {pattern_str}")
+            # Cache the negative result to avoid repeated compilation attempts
+            self._pattern_cache[cache_key] = None
+            logger.debug(f"Cached invalid pattern result for: {pattern_str}")
+            return None
 
     def search(
         self,
@@ -318,20 +381,19 @@ class AttributeSearchStrategy(SearchStrategy):
 
         logger.debug(f"Final conditions: {conditions}")
 
-        # For regex conditions, compile the patterns
+        # For regex conditions, get compiled patterns from cache or compile new ones
         if use_regex:
             compiled_conditions = []
             for field, value, match_type, is_case_sensitive in conditions:
                 if match_type == "regex" and isinstance(value, str):
-                    try:
-                        flags = 0 if is_case_sensitive else re.IGNORECASE
-                        pattern = re.compile(value, flags)
+                    # Get from cache or compile new pattern
+                    pattern = self.get_compiled_pattern(value, is_case_sensitive)
+                    if pattern:
                         compiled_conditions.append(
                             (field, pattern, match_type, is_case_sensitive)
                         )
-                    except re.error:
-                        logger.warning("Invalid regex pattern: %s", value)
-                        # Fall back to contains
+                    else:
+                        # Fall back to contains if regex compilation fails
                         compiled_conditions.append(
                             (field, value, "contains", is_case_sensitive)
                         )
@@ -541,13 +603,11 @@ class AttributeSearchStrategy(SearchStrategy):
                     # Apply regex matching
                     try:
                         if isinstance(value, str):
-                            # Compile regex if it's a string
-                            import re
-
-                            pattern = re.compile(
-                                value, 0 if case_sensitive else re.IGNORECASE
+                            # Use pattern cache instead of compiling regex on the fly
+                            pattern = self.get_compiled_pattern(value, case_sensitive)
+                            match_result = (
+                                bool(pattern.search(field_value)) if pattern else False
                             )
-                            match_result = bool(pattern.search(field_value))
                         else:
                             # Assume already compiled pattern
                             match_result = bool(value.search(field_value))
@@ -561,12 +621,13 @@ class AttributeSearchStrategy(SearchStrategy):
                     try:
                         str_field_value = str(field_value)
                         if isinstance(value, str):
-                            import re
-
-                            pattern = re.compile(
-                                value, 0 if case_sensitive else re.IGNORECASE
+                            # Use pattern cache instead of compiling regex on the fly
+                            pattern = self.get_compiled_pattern(value, case_sensitive)
+                            match_result = (
+                                bool(pattern.search(str_field_value))
+                                if pattern
+                                else False
                             )
-                            match_result = bool(pattern.search(str_field_value))
                         else:
                             match_result = bool(value.search(str_field_value))
                     except Exception as e:
