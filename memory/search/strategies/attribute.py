@@ -22,6 +22,7 @@ class AttributeSearchStrategy(SearchStrategy):
         stm_store: Short-Term Memory store
         im_store: Intermediate Memory store
         ltm_store: Long-Term Memory store
+        scoring_method: Method used for scoring matches (default "length_ratio")
     """
 
     def __init__(
@@ -29,6 +30,7 @@ class AttributeSearchStrategy(SearchStrategy):
         stm_store: RedisSTMStore,
         im_store: RedisIMStore,
         ltm_store: SQLiteLTMStore,
+        scoring_method: str = "length_ratio",
     ):
         """Initialize the attribute search strategy.
 
@@ -36,10 +38,17 @@ class AttributeSearchStrategy(SearchStrategy):
             stm_store: Short-Term Memory store
             im_store: Intermediate Memory store
             ltm_store: Long-Term Memory store
+            scoring_method: Method used for scoring matches
+                Options:
+                - "length_ratio": Score based on ratio of query length to field length
+                - "term_frequency": Score based on term frequency
+                - "bm25": Score based on BM25 ranking algorithm
+                - "binary": Simple binary scoring (1.0 for match, 0.0 for no match)
         """
         self.stm_store = stm_store
         self.im_store = im_store
         self.ltm_store = ltm_store
+        self.scoring_method = scoring_method
 
     def name(self) -> str:
         """Return the name of the search strategy.
@@ -69,6 +78,7 @@ class AttributeSearchStrategy(SearchStrategy):
         match_all: bool = False,
         case_sensitive: bool = False,
         use_regex: bool = False,
+        scoring_method: Optional[str] = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """Search for memories based on content and metadata attributes.
@@ -85,6 +95,12 @@ class AttributeSearchStrategy(SearchStrategy):
             match_all: Whether all query conditions must match (AND) or any (OR)
             case_sensitive: Whether to perform case-sensitive matching
             use_regex: Whether to interpret query strings as regular expressions
+            scoring_method: Method used for scoring matches (override instance default)
+                Options:
+                - "length_ratio": Score based on ratio of query length to field length
+                - "term_frequency": Score based on term frequency
+                - "bm25": Score based on BM25 ranking algorithm
+                - "binary": Simple binary scoring (1.0 for match, 0.0 for no match)
             **kwargs: Additional parameters (ignored)
 
         Returns:
@@ -113,6 +129,12 @@ class AttributeSearchStrategy(SearchStrategy):
 
         # Process all tiers or only the specified one
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
+
+        # Use provided scoring method or fallback to instance default
+        current_scoring_method = scoring_method or self.scoring_method
+        logger.debug(
+            f"Using scoring method: {current_scoring_method} (instance default: {self.scoring_method})"
+        )
 
         for current_tier in tiers_to_search:
             # Skip if tier is not supported
@@ -143,6 +165,7 @@ class AttributeSearchStrategy(SearchStrategy):
                 query_conditions,
                 match_all,
                 current_tier,
+                current_scoring_method,
             )
 
             # Add to results
@@ -364,7 +387,7 @@ class AttributeSearchStrategy(SearchStrategy):
                         metadata.get("type") == "meeting"
                         and metadata.get("importance") == "high"
                     ):
-                        # Add metadata to memory
+                        # Preserve existing metadata if present
                         if "metadata" not in memory:
                             memory["metadata"] = {}
                         memory["metadata"]["attribute_score"] = 1.0
@@ -384,34 +407,40 @@ class AttributeSearchStrategy(SearchStrategy):
             logger.debug(f"Condition {i}: {condition}")
 
         for memory in memories:
+            # Make a deep copy of the memory to avoid modifying the original
+            # This ensures we don't lose any existing metadata when filtering
+            memory_copy = memory.copy()
+            if "metadata" not in memory_copy and "metadata" in memory:
+                memory_copy["metadata"] = memory["metadata"].copy()
+
             # Debug memory info
-            memory_id = memory.get("memory_id", memory.get("id", "unknown"))
+            memory_id = memory_copy.get("memory_id", memory_copy.get("id", "unknown"))
             logger.debug(f"Checking memory: {memory_id}")
 
             # Handle different memory content structures
             memory_content = None
-            if isinstance(memory.get("content"), str):
-                memory_content = memory.get("content")
+            if isinstance(memory_copy.get("content"), str):
+                memory_content = memory_copy.get("content")
                 logger.debug(f"Memory has string content: {memory_content[:50]}...")
-            elif isinstance(memory.get("content"), dict) and "content" in memory.get(
-                "content", {}
-            ):
-                memory_content = memory.get("content", {}).get("content", "")
+            elif isinstance(
+                memory_copy.get("content"), dict
+            ) and "content" in memory_copy.get("content", {}):
+                memory_content = memory_copy.get("content", {}).get("content", "")
                 logger.debug(f"Memory has dict content: {memory_content[:50]}...")
             else:
                 logger.debug(f"Memory has no recognizable content structure")
 
             # Log metadata if available
-            if isinstance(memory.get("content"), dict) and "metadata" in memory.get(
-                "content", {}
-            ):
+            if isinstance(
+                memory_copy.get("content"), dict
+            ) and "metadata" in memory_copy.get("content", {}):
                 logger.debug(
-                    f"Memory metadata: {memory.get('content', {}).get('metadata', {})}"
+                    f"Memory metadata: {memory_copy.get('content', {}).get('metadata', {})}"
                 )
 
             # Apply metadata filtering first if specified
             if metadata_filter and not self._matches_metadata_filter(
-                memory, metadata_filter
+                memory_copy, metadata_filter
             ):
                 logger.debug(f"Memory {memory_id} filtered out by metadata filter")
                 continue
@@ -419,14 +448,14 @@ class AttributeSearchStrategy(SearchStrategy):
             # Apply query conditions
             if not query_conditions:
                 # No conditions means everything matches
-                filtered_memories.append(memory)
+                filtered_memories.append(memory_copy)
                 continue
 
             matches = []
             for i, (field_path, value, match_type, case_sensitive) in enumerate(
                 query_conditions
             ):
-                field_value = self._get_field_value(memory, field_path)
+                field_value = self._get_field_value(memory_copy, field_path)
 
                 logger.debug(
                     f"Condition {i}: Field {field_path} = {field_value}, Value = {value}, Match type = {match_type}"
@@ -555,10 +584,10 @@ class AttributeSearchStrategy(SearchStrategy):
 
             # Determine if memory should be included based on match strategy
             if match_all and all(matches):
-                filtered_memories.append(memory)
+                filtered_memories.append(memory_copy)
                 logger.debug(f"Memory {memory_id} matched ALL conditions")
             elif not match_all and any(matches):
-                filtered_memories.append(memory)
+                filtered_memories.append(memory_copy)
                 logger.debug(f"Memory {memory_id} matched SOME conditions")
             else:
                 logger.debug(f"Memory {memory_id} did not match conditions")
@@ -630,6 +659,7 @@ class AttributeSearchStrategy(SearchStrategy):
         query_conditions: List[Tuple[str, Any, str, bool]],
         match_all: bool,
         tier: str,
+        scoring_method: str = "length_ratio",
     ) -> List[Dict[str, Any]]:
         """Score memories based on match quality.
 
@@ -638,18 +668,31 @@ class AttributeSearchStrategy(SearchStrategy):
             query_conditions: List of query conditions
             match_all: Whether all conditions must match (AND) or any (OR)
             tier: Memory tier
+            scoring_method: Method used for scoring matches
+                Options:
+                - "length_ratio": Score based on ratio of query length to field length
+                - "term_frequency": Score based on term frequency
+                - "bm25": Score based on BM25 ranking algorithm
+                - "binary": Simple binary scoring (1.0 for match, 0.0 for no match)
 
         Returns:
             List of scored memories
         """
+        # Log the scoring method that will be used
+        logger.debug(f"Scoring {len(memories)} memories using method: {scoring_method}")
+
+        scored_memories = []
         for memory in memories:
+            # Create a copy of memory to avoid modifying the original
+            memory_copy = memory.copy()
+
             # Initialize score components
             match_count = 0
             match_quality = 0.0
 
             # Calculate score based on matching conditions
             for field_path, value, match_type, case_sensitive in query_conditions:
-                field_value = self._get_field_value(memory, field_path)
+                field_value = self._get_field_value(memory_copy, field_path)
 
                 if field_value is None:
                     continue
@@ -666,26 +709,66 @@ class AttributeSearchStrategy(SearchStrategy):
                     and isinstance(value, str)
                 ):
                     # Apply case sensitivity for contains check
+                    match_found = False
                     if case_sensitive:
-                        if value in field_value:
-                            match_count += 1
-                            # Higher quality for more specific matches
-                            match_quality += min(
-                                1.0, len(value) / max(1, len(field_value))
-                            )
+                        match_found = value in field_value
                     else:
-                        if value.lower() in field_value.lower():
-                            match_count += 1
-                            # Higher quality for more specific matches
+                        match_found = value.lower() in field_value.lower()
+
+                    if match_found:
+                        match_count += 1
+                        # Calculate match quality based on selected scoring method
+                        if scoring_method == "length_ratio":
+                            # Original method: higher quality for more specific matches
                             match_quality += min(
                                 1.0, len(value) / max(1, len(field_value))
                             )
+                        elif scoring_method == "term_frequency":
+                            # Term frequency: based on frequency of term in field
+                            if case_sensitive:
+                                term_count = field_value.count(value)
+                            else:
+                                term_count = field_value.lower().count(value.lower())
+                            # Normalize by field length
+                            match_quality += min(
+                                1.0, term_count / max(1, len(field_value.split()))
+                            )
+                        elif scoring_method == "bm25":
+                            # Simplified BM25-inspired scoring
+                            # Constants for BM25 formula
+                            k1 = 1.2
+                            b = 0.75
+                            avg_field_len = 100  # Assume average field length
+
+                            # Calculate term frequency
+                            if case_sensitive:
+                                term_count = field_value.count(value)
+                            else:
+                                term_count = field_value.lower().count(value.lower())
+
+                            # Field length
+                            field_len = len(field_value.split())
+
+                            # BM25 formula (simplified)
+                            numerator = term_count * (k1 + 1)
+                            denominator = term_count + k1 * (
+                                1 - b + b * field_len / avg_field_len
+                            )
+                            bm25_score = numerator / max(0.1, denominator)
+
+                            # Normalize to 0-1 range
+                            match_quality += min(1.0, bm25_score / 10.0)
+                        else:  # binary or any unsupported method
+                            match_quality += 1.0  # Simple binary scoring
 
                 elif match_type == "regex" and isinstance(field_value, str):
                     if value.search(field_value):
                         match_count += 1
-                        # Fixed quality for regex matches
-                        match_quality += 0.8
+                        if scoring_method == "binary":
+                            match_quality += 1.0
+                        else:
+                            # Fixed quality for regex matches
+                            match_quality += 0.8
 
             # Compute final score based on match strategy
             if query_conditions:
@@ -700,11 +783,22 @@ class AttributeSearchStrategy(SearchStrategy):
                 # No conditions means everything matches
                 score = 1.0
 
-            # Attach score and tier information
-            if "metadata" not in memory:
-                memory["metadata"] = {}
-            memory["metadata"]["attribute_score"] = score
-            memory["metadata"]["attribute_match_count"] = match_count
-            memory["metadata"]["memory_tier"] = tier
+            # Ensure metadata exists
+            if "metadata" not in memory_copy:
+                memory_copy["metadata"] = {}
 
-        return memories
+            # Attach score and tier information
+            memory_copy["metadata"]["attribute_score"] = score
+            memory_copy["metadata"]["attribute_match_count"] = match_count
+            memory_copy["metadata"]["memory_tier"] = tier
+
+            # Explicitly set the scoring method
+            memory_copy["metadata"]["scoring_method"] = scoring_method
+            logger.debug(
+                f"Set scoring_method in memory metadata to: {scoring_method} for memory {memory_copy.get('id', 'unknown')}"
+            )
+
+            scored_memories.append(memory_copy)
+
+        logger.debug(f"Scored {len(memories)} memories using method: {scoring_method}")
+        return scored_memories

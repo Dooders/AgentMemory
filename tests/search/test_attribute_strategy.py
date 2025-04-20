@@ -413,6 +413,186 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         self.assertEqual(len(boolean_filter_results), 1)
         self.assertEqual(boolean_filter_results[0]["id"], "memory11")
 
+    def test_scoring_methods(self):
+        """Test different scoring methods for attribute search."""
+        # Create test memories with repeated terms for testing term frequency
+        scoring_test_memories = [
+            {
+                "id": "memory1",
+                "content": {
+                    "content": "meeting meeting meeting with John",  # Term repeated 3 times
+                    "metadata": {"type": "meeting", "importance": "high"},
+                },
+            },
+            {
+                "id": "memory2",
+                "content": {
+                    "content": "This is a very long text that contains a meeting reference only once but has many more words to lower the term frequency ratio",
+                    "metadata": {"type": "meeting", "importance": "medium"},
+                },
+            },
+        ]
+
+        self.mock_stm_store.get_all.return_value = scoring_test_memories
+
+        # 1. Test different scoring methods at initialization
+        # Create strategies with different scoring methods
+        length_ratio_strategy = AttributeSearchStrategy(
+            self.mock_stm_store,
+            self.mock_im_store,
+            self.mock_ltm_store,
+            scoring_method="length_ratio",
+        )
+        term_freq_strategy = AttributeSearchStrategy(
+            self.mock_stm_store,
+            self.mock_im_store,
+            self.mock_ltm_store,
+            scoring_method="term_frequency",
+        )
+        bm25_strategy = AttributeSearchStrategy(
+            self.mock_stm_store,
+            self.mock_im_store,
+            self.mock_ltm_store,
+            scoring_method="bm25",
+        )
+        binary_strategy = AttributeSearchStrategy(
+            self.mock_stm_store,
+            self.mock_im_store,
+            self.mock_ltm_store,
+            scoring_method="binary",
+        )
+
+        # Verify that scoring_method is correctly set in the strategy instances
+        self.assertEqual(length_ratio_strategy.scoring_method, "length_ratio")
+        self.assertEqual(term_freq_strategy.scoring_method, "term_frequency")
+        self.assertEqual(bm25_strategy.scoring_method, "bm25")
+        self.assertEqual(binary_strategy.scoring_method, "binary")
+
+        # 2. Test search with different methods and compare results
+        # Length ratio - will favor shorter text with matching term
+        length_ratio_results = length_ratio_strategy.search(
+            query="meeting", agent_id="agent-1", tier="stm", limit=5
+        )
+
+        # Term frequency - will favor text with more occurrences of term
+        term_freq_results = term_freq_strategy.search(
+            query="meeting", agent_id="agent-1", tier="stm", limit=5
+        )
+
+        # BM25 - will balance term frequency and field length
+        bm25_results = bm25_strategy.search(
+            query="meeting", agent_id="agent-1", tier="stm", limit=5
+        )
+
+        # Binary - will just count matches with score 1.0
+        binary_results = binary_strategy.search(
+            query="meeting", agent_id="agent-1", tier="stm", limit=5
+        )
+
+        # All should return both memories
+        self.assertEqual(len(length_ratio_results), 2)
+        self.assertEqual(len(term_freq_results), 2)
+        self.assertEqual(len(bm25_results), 2)
+        self.assertEqual(len(binary_results), 2)
+
+        # Print metadata for debugging
+        print(
+            "Length ratio results metadata:",
+            length_ratio_results[0].get("metadata", {}),
+        )
+        print(
+            "Term frequency results metadata:", term_freq_results[0].get("metadata", {})
+        )
+        print("BM25 results metadata:", bm25_results[0].get("metadata", {}))
+        print("Binary results metadata:", binary_results[0].get("metadata", {}))
+
+        # 3. Check that scoring method is stored in metadata
+        self.assertEqual(
+            length_ratio_results[0]["metadata"]["scoring_method"],
+            "length_ratio",
+            f"Expected 'length_ratio' but got '{length_ratio_results[0]['metadata'].get('scoring_method')}'",
+        )
+        self.assertEqual(
+            term_freq_results[0]["metadata"]["scoring_method"],
+            "term_frequency",
+            f"Expected 'term_frequency' but got '{term_freq_results[0]['metadata'].get('scoring_method')}'",
+        )
+        self.assertEqual(
+            bm25_results[0]["metadata"]["scoring_method"],
+            "bm25",
+            f"Expected 'bm25' but got '{bm25_results[0]['metadata'].get('scoring_method')}'",
+        )
+        self.assertEqual(
+            binary_results[0]["metadata"]["scoring_method"],
+            "binary",
+            f"Expected 'binary' but got '{binary_results[0]['metadata'].get('scoring_method')}'",
+        )
+
+        # 4. Compare scores to ensure different methods produce different scores
+        # In term frequency, memory1 should score higher than memory2
+        mem1_tf_score = next(
+            r["metadata"]["attribute_score"]
+            for r in term_freq_results
+            if r["id"] == "memory1"
+        )
+        mem2_tf_score = next(
+            r["metadata"]["attribute_score"]
+            for r in term_freq_results
+            if r["id"] == "memory2"
+        )
+        self.assertGreater(
+            mem1_tf_score,
+            mem2_tf_score,
+            "Term frequency should score memory1 higher than memory2",
+        )
+        print(
+            f"Term frequency scores - memory1: {mem1_tf_score}, memory2: {mem2_tf_score}"
+        )
+
+        # In length ratio, memory1 should also score higher than memory2
+        mem1_lr_score = next(
+            r["metadata"]["attribute_score"]
+            for r in length_ratio_results
+            if r["id"] == "memory1"
+        )
+        mem2_lr_score = next(
+            r["metadata"]["attribute_score"]
+            for r in length_ratio_results
+            if r["id"] == "memory2"
+        )
+        self.assertGreater(
+            mem1_lr_score,
+            mem2_lr_score,
+            "Length ratio should score memory1 higher than memory2",
+        )
+        print(
+            f"Length ratio scores - memory1: {mem1_lr_score}, memory2: {mem2_lr_score}"
+        )
+
+        # 5. Test overriding scoring method in search call
+        # Create strategy with default length_ratio scoring
+        default_strategy = AttributeSearchStrategy(
+            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+        )
+
+        # Override with term_frequency in search call
+        override_results = default_strategy.search(
+            query="meeting",
+            agent_id="agent-1",
+            tier="stm",
+            scoring_method="term_frequency",
+            limit=5,
+        )
+
+        print("Override results metadata:", override_results[0].get("metadata", {}))
+
+        # Check that override was applied
+        self.assertEqual(
+            override_results[0]["metadata"]["scoring_method"],
+            "term_frequency",
+            f"Expected 'term_frequency' but got '{override_results[0]['metadata'].get('scoring_method')}'",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
