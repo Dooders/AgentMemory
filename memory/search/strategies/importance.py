@@ -103,7 +103,7 @@ class ImportanceStrategy(SearchStrategy):
         results = []
         for store in stores:
             # Get all memories for the agent
-            memories = store.list(agent_id)
+            memories = store.get_all(agent_id)
 
             # Filter memories by importance
             for memory in memories:

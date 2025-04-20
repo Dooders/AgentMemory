@@ -1,0 +1,423 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1", 
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "test-agent-importance-search": {
+      "agent_id": "test-agent-importance-search",
+      "memories": [
+        {
+          "memory_id": "stm-memory-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 1,
+          "timestamp": 1685606400,
+          "content": {
+            "content": "Project kickoff meeting scheduled for Monday at 10 AM",
+            "metadata": {
+              "importance": 0.8,
+              "type": "meeting",
+              "tags": ["project", "important"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1685606400,
+            "last_access_time": 1685606400,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "importance": 0.8,
+            "retrieval_count": 0,
+            "memory_type": "event",
+            "current_tier": "stm"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "stm-memory-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 2,
+          "timestamp": 1685613600,
+          "content": {
+            "content": "Coffee break with team members",
+            "metadata": {
+              "importance": 0.2,
+              "type": "social",
+              "tags": ["team", "break"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1685613600,
+            "last_access_time": 1685613600,
+            "compression_level": 0,
+            "importance_score": 0.2,
+            "importance": 0.2,
+            "retrieval_count": 0,
+            "memory_type": "event",
+            "current_tier": "stm"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "stm-memory-3",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 3,
+          "timestamp": 1685620800,
+          "content": {
+            "content": "Security patch needs to be applied by Friday",
+            "metadata": {
+              "importance": 0.9,
+              "type": "task",
+              "tags": ["security", "urgent", "important"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1685620800,
+            "last_access_time": 1685620800,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "importance": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "task",
+            "current_tier": "stm"
+          },
+          "type": "task",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "stm-memory-4",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 4,
+          "timestamp": 1685624400,
+          "content": {
+            "content": "Email from client about feature requests",
+            "metadata": {
+              "importance": 0.7,
+              "type": "communication",
+              "tags": ["client", "feature", "important"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1685624400,
+            "last_access_time": 1685624400,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "importance": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "communication",
+            "current_tier": "stm"
+          },
+          "type": "communication",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-memory-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 5,
+          "timestamp": 1684998000,
+          "content": {
+            "content": "Authentication system implementation details",
+            "metadata": {
+              "importance": 0.85,
+              "type": "technical",
+              "tags": ["authentication", "security", "important"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1684998000,
+            "last_access_time": 1685084400,
+            "compression_level": 1,
+            "importance_score": 0.85,
+            "importance": 0.85,
+            "retrieval_count": 3,
+            "memory_type": "technical",
+            "current_tier": "im"
+          },
+          "type": "technical",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-memory-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 6,
+          "timestamp": 1685084400,
+          "content": {
+            "content": "Lunch with product manager discussing roadmap",
+            "metadata": {
+              "importance": 0.4,
+              "type": "meeting",
+              "tags": ["product", "roadmap"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1685084400,
+            "last_access_time": 1685088000,
+            "compression_level": 1,
+            "importance_score": 0.4,
+            "importance": 0.4,
+            "retrieval_count": 1,
+            "memory_type": "event",
+            "current_tier": "im"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-memory-3",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 7,
+          "timestamp": 1685170800,
+          "content": {
+            "content": "Quarterly review presentation preparation",
+            "metadata": {
+              "importance": 0.75,
+              "type": "task",
+              "tags": ["presentation", "quarterly", "important"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1685170800,
+            "last_access_time": 1685174400,
+            "compression_level": 1,
+            "importance_score": 0.75,
+            "importance": 0.75,
+            "retrieval_count": 2,
+            "memory_type": "task",
+            "current_tier": "im"
+          },
+          "type": "task",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 8,
+          "timestamp": 1640995200,
+          "content": {
+            "content": "Company mission statement and core values",
+            "metadata": {
+              "importance": 1.0,
+              "type": "organizational",
+              "tags": ["mission", "values", "critical"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1640995200,
+            "last_access_time": 1671148800,
+            "compression_level": 2,
+            "importance_score": 1.0,
+            "importance": 1.0,
+            "retrieval_count": 15,
+            "memory_type": "organizational",
+            "current_tier": "ltm"
+          },
+          "type": "organizational",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 9,
+          "timestamp": 1655251200,
+          "content": {
+            "content": "Technical documentation for the API architecture",
+            "metadata": {
+              "importance": 0.9,
+              "type": "technical",
+              "tags": ["api", "architecture", "important"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1655251200,
+            "last_access_time": 1671148800,
+            "compression_level": 2,
+            "importance_score": 0.9,
+            "importance": 0.9,
+            "retrieval_count": 12,
+            "memory_type": "technical",
+            "current_tier": "ltm"
+          },
+          "type": "technical",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-3",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 10,
+          "timestamp": 1658275200,
+          "content": {
+            "content": "Team building event at the park",
+            "metadata": {
+              "importance": 0.3,
+              "type": "social",
+              "tags": ["team", "event"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1658275200,
+            "last_access_time": 1658361600,
+            "compression_level": 2,
+            "importance_score": 0.3,
+            "importance": 0.3,
+            "retrieval_count": 1,
+            "memory_type": "event",
+            "current_tier": "ltm"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-4",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 11,
+          "timestamp": 1660089600,
+          "content": {
+            "content": "Security protocols for handling sensitive data",
+            "metadata": {
+              "importance": 0.95,
+              "type": "policy",
+              "tags": ["security", "data", "critical"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1660089600,
+            "last_access_time": 1671148800,
+            "compression_level": 2,
+            "importance_score": 0.95,
+            "importance": 0.95,
+            "retrieval_count": 18,
+            "memory_type": "policy",
+            "current_tier": "ltm"
+          },
+          "type": "policy",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-5",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 12,
+          "timestamp": 1664582400,
+          "content": {
+            "content": "Office moved to new location downtown",
+            "metadata": {
+              "importance": 0.6,
+              "type": "organizational",
+              "tags": ["office", "location"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1664582400,
+            "last_access_time": 1664668800,
+            "compression_level": 2,
+            "importance_score": 0.6,
+            "importance": 0.6,
+            "retrieval_count": 4,
+            "memory_type": "organizational",
+            "current_tier": "ltm"
+          },
+          "type": "organizational",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-6",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 13,
+          "timestamp": 1673740800,
+          "content": {
+            "content": "Weekly team standup meeting notes",
+            "metadata": {
+              "importance": 0.5,
+              "type": "meeting",
+              "tags": ["team", "standup"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1673740800,
+            "last_access_time": 1673827200,
+            "compression_level": 2,
+            "importance_score": 0.5,
+            "importance": 0.5,
+            "retrieval_count": 3,
+            "memory_type": "event",
+            "current_tier": "ltm"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-7",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 14,
+          "timestamp": 1675468800,
+          "content": {
+            "content": "Project deadline extended by two weeks",
+            "metadata": {
+              "importance": 0.8,
+              "type": "project",
+              "tags": ["deadline", "project", "important"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1675468800,
+            "last_access_time": 1675555200,
+            "compression_level": 2,
+            "importance_score": 0.8,
+            "importance": 0.8,
+            "retrieval_count": 6,
+            "memory_type": "project",
+            "current_tier": "ltm"
+          },
+          "type": "project",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-memory-8",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 15,
+          "timestamp": 1678435200,
+          "content": {
+            "content": "Casual conversation about weekend plans",
+            "metadata": {
+              "importance": 0.1,
+              "type": "social",
+              "tags": ["casual", "weekend"]
+            }
+          },
+          "metadata": {
+            "creation_time": 1678435200,
+            "last_access_time": 1678521600,
+            "compression_level": 2,
+            "importance_score": 0.1,
+            "importance": 0.1,
+            "retrieval_count": 0,
+            "memory_type": "event",
+            "current_tier": "ltm"
+          },
+          "type": "event",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 
