@@ -470,189 +470,257 @@ class AttributeSearchStrategy(SearchStrategy):
             logger.debug(f"Condition {i}: {condition}")
 
         for memory in memories:
-            # Make a deep copy of the memory to avoid modifying the original
-            # This ensures we don't lose any existing metadata when filtering
-            memory_copy = copy.deepcopy(memory)
-            if "metadata" not in memory_copy and "metadata" in memory:
-                memory_copy["metadata"] = memory["metadata"].copy()
+            try:
+                # Make a deep copy of the memory to avoid modifying the original
+                # This ensures we don't lose any existing metadata when filtering
+                memory_copy = copy.deepcopy(memory)
+                if "metadata" not in memory_copy and "metadata" in memory:
+                    memory_copy["metadata"] = memory["metadata"].copy()
 
-            # Debug memory info
-            memory_id = memory_copy.get("memory_id", memory_copy.get("id", "unknown"))
-            logger.debug(f"Checking memory: {memory_id}")
-
-            # Handle different memory content structures
-            memory_content = None
-            if isinstance(memory_copy.get("content"), str):
-                memory_content = memory_copy.get("content")
-                logger.debug(f"Memory has string content: {memory_content[:50]}...")
-            elif isinstance(
-                memory_copy.get("content"), dict
-            ) and "content" in memory_copy.get("content", {}):
-                memory_content = memory_copy.get("content", {}).get("content", "")
-                logger.debug(f"Memory has dict content: {memory_content[:50]}...")
-            else:
-                logger.debug(f"Memory has no recognizable content structure")
-
-            # Log metadata if available
-            if isinstance(
-                memory_copy.get("content"), dict
-            ) and "metadata" in memory_copy.get("content", {}):
-                logger.debug(
-                    f"Memory metadata: {memory_copy.get('content', {}).get('metadata', {})}"
+                # Debug memory info
+                memory_id = memory_copy.get(
+                    "memory_id", memory_copy.get("id", "unknown")
                 )
+                logger.debug(f"Checking memory: {memory_id}")
 
-            # Apply metadata filtering first if specified
-            if metadata_filter and not self._matches_metadata_filter(
-                memory_copy, metadata_filter
-            ):
-                logger.debug(f"Memory {memory_id} filtered out by metadata filter")
-                continue
+                # Handle different memory content structures
+                memory_content = None
+                if isinstance(memory_copy.get("content"), str):
+                    memory_content = memory_copy.get("content")
+                    logger.debug(f"Memory has string content: {memory_content[:50]}...")
+                elif isinstance(
+                    memory_copy.get("content"), dict
+                ) and "content" in memory_copy.get("content", {}):
+                    memory_content = memory_copy.get("content", {}).get("content", "")
+                    logger.debug(f"Memory has dict content: {memory_content[:50]}...")
+                else:
+                    logger.debug(f"Memory has no recognizable content structure")
 
-            # Apply query conditions
-            if not query_conditions:
-                # No conditions means everything matches
-                filtered_memories.append(memory_copy)
-                continue
+                # Log metadata if available
+                if isinstance(
+                    memory_copy.get("content"), dict
+                ) and "metadata" in memory_copy.get("content", {}):
+                    logger.debug(
+                        f"Memory metadata: {memory_copy.get('content', {}).get('metadata', {})}"
+                    )
 
-            matches = []
-            for i, (field_path, value, match_type, case_sensitive) in enumerate(
-                query_conditions
-            ):
-                field_value = self._get_field_value(memory_copy, field_path)
-
-                logger.debug(
-                    f"Condition {i}: Field {field_path} = {field_value}, Value = {value}, Match type = {match_type}"
-                )
-
-                if field_value is None:
-                    matches.append(False)
-                    logger.debug(f"Condition {i}: No field value found")
-                    continue
-
-                match_result = False
-
-                # Handle different field value types
-                if match_type == "equals":
-                    # Convert values to strings for comparison if types differ
-                    if type(field_value) != type(value):
-                        try:
-                            # Try to convert both to strings for comparison
-                            str_field_value = str(field_value)
-                            str_value = str(value)
-                            match_result = str_field_value == str_value
-                        except Exception as e:
-                            logger.warning(
-                                f"Type conversion error in equals matching: {e}"
-                            )
-                            match_result = False
-                    else:
-                        match_result = field_value == value
-
-                elif match_type == "contains":
-                    if isinstance(field_value, str) and isinstance(value, str):
-                        # Apply case sensitivity for contains check
-                        if case_sensitive:
-                            match_result = value in field_value
-                        else:
-                            match_result = value.lower() in field_value.lower()
-                    elif isinstance(field_value, (int, float, bool)) and isinstance(
-                        value, str
-                    ):
-                        # Convert numeric/boolean field value to string for matching
-                        str_field_value = str(field_value)
-                        if case_sensitive:
-                            match_result = value in str_field_value
-                        else:
-                            match_result = value.lower() in str_field_value.lower()
-                    elif isinstance(field_value, str) and isinstance(
-                        value, (int, float, bool)
-                    ):
-                        # Convert value to string for matching
-                        str_value = str(value)
-                        if case_sensitive:
-                            match_result = str_value in field_value
-                        else:
-                            match_result = str_value.lower() in field_value.lower()
-
-                elif match_type == "array_contains" and isinstance(field_value, list):
-                    # Handle different types in arrays
-                    for item in field_value:
-                        if isinstance(item, str) and isinstance(value, str):
-                            # String comparison
-                            if case_sensitive and item == value:
-                                match_result = True
-                                break
-                            elif not case_sensitive and item.lower() == value.lower():
-                                match_result = True
-                                break
-                        elif isinstance(item, (int, float, bool)) and isinstance(
-                            value, str
+                # Apply metadata filtering first if specified
+                if metadata_filter:
+                    try:
+                        if not self._matches_metadata_filter(
+                            memory_copy, metadata_filter
                         ):
-                            # Convert numeric/boolean to string
-                            str_item = str(item)
-                            if case_sensitive and str_item == value:
-                                match_result = True
-                                break
-                            elif (
-                                not case_sensitive and str_item.lower() == value.lower()
-                            ):
-                                match_result = True
-                                break
-
-                elif match_type == "regex" and isinstance(field_value, str):
-                    # Apply regex matching
-                    try:
-                        if isinstance(value, str):
-                            # Use pattern cache instead of compiling regex on the fly
-                            pattern = self.get_compiled_pattern(value, case_sensitive)
-                            match_result = (
-                                bool(pattern.search(field_value)) if pattern else False
+                            logger.debug(
+                                f"Memory {memory_id} filtered out by metadata filter"
                             )
-                        else:
-                            # Assume already compiled pattern
-                            match_result = bool(value.search(field_value))
-                    except (re.error, AttributeError) as e:
-                        logger.warning(
-                            f"Regex matching error: {e} for pattern: {value}"
-                        )
-                        match_result = False
-                elif match_type == "regex" and not isinstance(field_value, str):
-                    # Try to convert field value to string for regex matching
-                    try:
-                        str_field_value = str(field_value)
-                        if isinstance(value, str):
-                            # Use pattern cache instead of compiling regex on the fly
-                            pattern = self.get_compiled_pattern(value, case_sensitive)
-                            match_result = (
-                                bool(pattern.search(str_field_value))
-                                if pattern
-                                else False
-                            )
-                        else:
-                            match_result = bool(value.search(str_field_value))
+                            continue
                     except Exception as e:
                         logger.warning(
-                            f"Error converting field to string for regex: {e}"
+                            f"Error in metadata filtering for memory {memory_id}: {e}"
                         )
+                        # Skip this memory if metadata filtering fails
+                        continue
+
+                # Apply query conditions
+                if not query_conditions:
+                    # No conditions means everything matches
+                    filtered_memories.append(memory_copy)
+                    continue
+
+                matches = []
+                for i, (field_path, value, match_type, case_sensitive) in enumerate(
+                    query_conditions
+                ):
+                    try:
+                        field_value = self._get_field_value(memory_copy, field_path)
+
+                        logger.debug(
+                            f"Condition {i}: Field {field_path} = {field_value}, Value = {value}, Match type = {match_type}"
+                        )
+
+                        if field_value is None:
+                            matches.append(False)
+                            logger.debug(f"Condition {i}: No field value found")
+                            continue
+
                         match_result = False
 
-                matches.append(match_result)
-                logger.debug(f"Condition {i}: Match result = {match_result}")
+                        # Handle different field value types
+                        if match_type == "equals":
+                            # Convert values to strings for comparison if types differ
+                            if type(field_value) != type(value):
+                                try:
+                                    # Try to convert both to strings for comparison
+                                    str_field_value = str(field_value)
+                                    str_value = str(value)
+                                    match_result = str_field_value == str_value
+                                except Exception as e:
+                                    logger.warning(
+                                        f"Type conversion error in equals matching: {e}"
+                                    )
+                                    match_result = False
+                            else:
+                                match_result = field_value == value
 
-            # Debug output for match_all
-            logger.debug(
-                f"Memory {memory_id} matches: {matches} for conditions: {query_conditions}"
-            )
+                        elif match_type == "contains":
+                            try:
+                                if isinstance(field_value, str) and isinstance(
+                                    value, str
+                                ):
+                                    # Apply case sensitivity for contains check
+                                    if case_sensitive:
+                                        match_result = value in field_value
+                                    else:
+                                        match_result = (
+                                            value.lower() in field_value.lower()
+                                        )
+                                elif isinstance(
+                                    field_value, (int, float, bool)
+                                ) and isinstance(value, str):
+                                    # Convert numeric/boolean field value to string for matching
+                                    str_field_value = str(field_value)
+                                    if case_sensitive:
+                                        match_result = value in str_field_value
+                                    else:
+                                        match_result = (
+                                            value.lower() in str_field_value.lower()
+                                        )
+                                elif isinstance(field_value, str) and isinstance(
+                                    value, (int, float, bool)
+                                ):
+                                    # Convert value to string for matching
+                                    str_value = str(value)
+                                    if case_sensitive:
+                                        match_result = str_value in field_value
+                                    else:
+                                        match_result = (
+                                            str_value.lower() in field_value.lower()
+                                        )
+                                elif isinstance(field_value, list):
+                                    # Try to find the value in a list of items
+                                    for item in field_value:
+                                        try:
+                                            str_item = str(item)
+                                            str_val = str(value)
+                                            if case_sensitive and str_val in str_item:
+                                                match_result = True
+                                                break
+                                            elif (
+                                                not case_sensitive
+                                                and str_val.lower() in str_item.lower()
+                                            ):
+                                                match_result = True
+                                                break
+                                        except Exception:
+                                            # Skip items that can't be converted to string
+                                            continue
+                            except Exception as e:
+                                logger.warning(f"Error in contains matching: {e}")
+                                match_result = False
 
-            # Determine if memory should be included based on match strategy
-            if match_all and all(matches):
-                filtered_memories.append(memory_copy)
-                logger.debug(f"Memory {memory_id} matched ALL conditions")
-            elif not match_all and any(matches):
-                filtered_memories.append(memory_copy)
-                logger.debug(f"Memory {memory_id} matched SOME conditions")
-            else:
-                logger.debug(f"Memory {memory_id} did not match conditions")
+                        elif match_type == "array_contains" and isinstance(
+                            field_value, list
+                        ):
+                            try:
+                                # Handle different types in arrays
+                                for item in field_value:
+                                    try:
+                                        if isinstance(item, str) and isinstance(
+                                            value, str
+                                        ):
+                                            # String comparison
+                                            if case_sensitive and item == value:
+                                                match_result = True
+                                                break
+                                            elif (
+                                                not case_sensitive
+                                                and item.lower() == value.lower()
+                                            ):
+                                                match_result = True
+                                                break
+                                        elif isinstance(item, (int, float, bool)):
+                                            # Convert numeric/boolean to string
+                                            str_item = str(item)
+                                            str_value = str(value)
+                                            if case_sensitive and str_item == str_value:
+                                                match_result = True
+                                                break
+                                            elif (
+                                                not case_sensitive
+                                                and str_item.lower()
+                                                == str_value.lower()
+                                            ):
+                                                match_result = True
+                                                break
+                                    except Exception as e:
+                                        logger.debug(f"Error comparing array item: {e}")
+                                        continue
+                            except Exception as e:
+                                logger.warning(f"Error in array_contains matching: {e}")
+                                match_result = False
+
+                        elif match_type == "regex":
+                            try:
+                                # Convert field_value to string if it's not already
+                                str_field_value = (
+                                    field_value
+                                    if isinstance(field_value, str)
+                                    else str(field_value)
+                                )
+
+                                # Apply regex matching
+                                if isinstance(value, str):
+                                    # Use pattern cache instead of compiling regex on the fly
+                                    pattern = self.get_compiled_pattern(
+                                        value, case_sensitive
+                                    )
+                                    match_result = (
+                                        bool(pattern.search(str_field_value))
+                                        if pattern
+                                        else False
+                                    )
+                                else:
+                                    # Assume already compiled pattern
+                                    match_result = bool(value.search(str_field_value))
+                            except (re.error, AttributeError, TypeError) as e:
+                                logger.warning(
+                                    f"Regex matching error: {e} for pattern: {value}"
+                                )
+                                match_result = False
+                            except Exception as e:
+                                logger.warning(
+                                    f"Unexpected error in regex matching: {e}"
+                                )
+                                match_result = False
+
+                        matches.append(match_result)
+                        logger.debug(f"Condition {i}: Match result = {match_result}")
+
+                    except Exception as e:
+                        logger.warning(
+                            f"Error processing condition {i} for memory {memory_id}: {e}"
+                        )
+                        matches.append(False)
+
+                # Debug output for match_all
+                logger.debug(
+                    f"Memory {memory_id} matches: {matches} for conditions: {query_conditions}"
+                )
+
+                # Determine if memory should be included based on match strategy
+                if match_all and matches and all(matches):
+                    filtered_memories.append(memory_copy)
+                    logger.debug(f"Memory {memory_id} matched ALL conditions")
+                elif not match_all and matches and any(matches):
+                    filtered_memories.append(memory_copy)
+                    logger.debug(f"Memory {memory_id} matched SOME conditions")
+                else:
+                    logger.debug(f"Memory {memory_id} did not match conditions")
+
+            except Exception as e:
+                memory_id = memory.get("memory_id", memory.get("id", "unknown"))
+                logger.warning(f"Error processing memory {memory_id}: {e}")
+                continue
 
         logger.debug(f"Filtered memories count: {len(filtered_memories)}")
         return filtered_memories
@@ -663,19 +731,37 @@ class AttributeSearchStrategy(SearchStrategy):
         """Check if a memory matches all metadata filters.
 
         Args:
-            memory: Memory to check
+            memory: Memory dictionary
             metadata_filter: Metadata filters to apply
 
         Returns:
             True if memory matches all filters
         """
-        for field_path, filter_value in metadata_filter.items():
-            field_value = self._get_field_value(memory, field_path)
+        try:
+            for field_path, filter_value in metadata_filter.items():
+                field_value = self._get_field_value(memory, field_path)
 
-            if field_value is None or field_value != filter_value:
-                return False
+                if field_value is None:
+                    return False
 
-        return True
+                try:
+                    # Handle type differences by string conversion if needed
+                    if type(field_value) != type(filter_value):
+                        str_field_value = str(field_value)
+                        str_filter_value = str(filter_value)
+                        if str_field_value != str_filter_value:
+                            return False
+                    elif field_value != filter_value:
+                        return False
+                except Exception as e:
+                    logger.warning(f"Error comparing metadata values: {e}")
+                    return False
+
+            return True
+        except Exception as e:
+            memory_id = memory.get("memory_id", memory.get("id", "unknown"))
+            logger.warning(f"Error in metadata filtering for memory {memory_id}: {e}")
+            return False
 
     def _get_field_value(self, memory: Dict[str, Any], field_path: str) -> Any:
         """Get the value of a field from a memory dict.
@@ -687,12 +773,18 @@ class AttributeSearchStrategy(SearchStrategy):
         Returns:
             Field value or None if not found
         """
+        # Handle empty or None field path
+        if not field_path:
+            logger.warning("Empty field path provided")
+            return None
+
         parts = field_path.split(".")
         value = memory
 
-        # Debug the field path and initial value
+        # Debug the field path and initial memory ID
+        memory_id = memory.get("memory_id", memory.get("id", "unknown"))
         logger.debug(
-            f"Getting field value for path '{field_path}' from memory {memory.get('memory_id', memory.get('id', 'unknown'))}"
+            f"Getting field value for path '{field_path}' from memory {memory_id}"
         )
 
         # Handle special case for content.content which might be directly in memory['content']
@@ -705,11 +797,31 @@ class AttributeSearchStrategy(SearchStrategy):
                 if isinstance(value, dict) and part in value:
                     value = value[part]
                     logger.debug(f"Found part '{part}', current value: {value}")
+                elif isinstance(value, list) and part.isdigit():
+                    # Handle array indexing if part is a digit
+                    index = int(part)
+                    if 0 <= index < len(value):
+                        value = value[index]
+                        logger.debug(
+                            f"Found array index '{part}', current value: {value}"
+                        )
+                    else:
+                        logger.debug(f"Array index '{part}' out of bounds for {value}")
+                        return None
                 else:
-                    logger.debug(f"Could not find part '{part}' in {value}")
+                    logger.debug(
+                        f"Could not find part '{part}' in {type(value).__name__}"
+                    )
                     return None
-        except (TypeError, AttributeError) as e:
-            logger.debug(f"Error accessing field '{field_path}': {e}")
+        except (TypeError, AttributeError, IndexError, ValueError) as e:
+            logger.debug(
+                f"Error accessing field '{field_path}' in memory {memory_id}: {e}"
+            )
+            return None
+        except Exception as e:
+            logger.warning(
+                f"Unexpected error accessing field '{field_path}' in memory {memory_id}: {e}"
+            )
             return None
 
         logger.debug(f"Final value for '{field_path}': {value}")
@@ -745,122 +857,166 @@ class AttributeSearchStrategy(SearchStrategy):
 
         scored_memories = []
         for memory in memories:
-            # Create a deep copy of memory to avoid modifying the original
-            memory_copy = copy.deepcopy(memory)
+            try:
+                # Create a deep copy of memory to avoid modifying the original
+                memory_copy = copy.deepcopy(memory)
+                memory_id = memory_copy.get(
+                    "memory_id", memory_copy.get("id", "unknown")
+                )
 
-            # Initialize score components
-            match_count = 0
-            match_quality = 0.0
+                # Initialize score components
+                match_count = 0
+                match_quality = 0.0
 
-            # Calculate score based on matching conditions
-            for field_path, value, match_type, case_sensitive in query_conditions:
-                field_value = self._get_field_value(memory_copy, field_path)
+                # Calculate score based on matching conditions
+                for field_path, value, match_type, case_sensitive in query_conditions:
+                    try:
+                        field_value = self._get_field_value(memory_copy, field_path)
 
-                if field_value is None:
-                    continue
+                        if field_value is None:
+                            continue
 
-                # Check match and calculate match quality
-                if match_type == "equals":
-                    if field_value == value:
-                        match_count += 1
-                        match_quality += 1.0  # Perfect match
+                        # Check match and calculate match quality
+                        if match_type == "equals":
+                            if field_value == value:
+                                match_count += 1
+                                match_quality += 1.0  # Perfect match
 
-                elif (
-                    match_type == "contains"
-                    and isinstance(field_value, str)
-                    and isinstance(value, str)
-                ):
-                    # Apply case sensitivity for contains check
-                    match_found = False
-                    if case_sensitive:
-                        match_found = value in field_value
+                        elif match_type == "contains":
+                            try:
+                                # Ensure we have strings for comparison
+                                str_field_value = (
+                                    str(field_value)
+                                    if not isinstance(field_value, str)
+                                    else field_value
+                                )
+                                str_value = (
+                                    str(value) if not isinstance(value, str) else value
+                                )
+
+                                # Apply case sensitivity for contains check
+                                match_found = False
+                                if case_sensitive:
+                                    match_found = str_value in str_field_value
+                                else:
+                                    match_found = (
+                                        str_value.lower() in str_field_value.lower()
+                                    )
+
+                                if match_found:
+                                    match_count += 1
+                                    # Calculate match quality based on selected scoring method
+                                    if scoring_method == "length_ratio":
+                                        # Original method: higher quality for more specific matches
+                                        match_quality += min(
+                                            1.0,
+                                            len(str_value)
+                                            / max(1, len(str_field_value)),
+                                        )
+                                    elif scoring_method == "term_frequency":
+                                        # Term frequency: based on frequency of term in field
+                                        if case_sensitive:
+                                            term_count = str_field_value.count(
+                                                str_value
+                                            )
+                                        else:
+                                            term_count = str_field_value.lower().count(
+                                                str_value.lower()
+                                            )
+                                        # Normalize by field length
+                                        match_quality += min(
+                                            1.0,
+                                            term_count
+                                            / max(1, len(str_field_value.split())),
+                                        )
+                                    elif scoring_method == "bm25":
+                                        # Simplified BM25-inspired scoring
+                                        # Constants for BM25 formula
+                                        k1 = 1.2
+                                        b = 0.75
+                                        avg_field_len = (
+                                            100  # Assume average field length
+                                        )
+
+                                        # Calculate term frequency
+                                        if case_sensitive:
+                                            term_count = str_field_value.count(
+                                                str_value
+                                            )
+                                        else:
+                                            term_count = str_field_value.lower().count(
+                                                str_value.lower()
+                                            )
+
+                                        # Field length
+                                        field_len = len(str_field_value.split())
+
+                                        # BM25 formula (simplified)
+                                        numerator = term_count * (k1 + 1)
+                                        denominator = term_count + k1 * (
+                                            1 - b + b * field_len / avg_field_len
+                                        )
+                                        bm25_score = numerator / max(0.1, denominator)
+
+                                        # Normalize to 0-1 range
+                                        match_quality += min(1.0, bm25_score / 10.0)
+                                    else:  # binary or any unsupported method
+                                        match_quality += 1.0  # Simple binary scoring
+                            except Exception as e:
+                                logger.warning(f"Error in contains scoring: {e}")
+                                continue
+
+                        elif match_type == "regex" and isinstance(field_value, str):
+                            try:
+                                if value.search(field_value):
+                                    match_count += 1
+                                    if scoring_method == "binary":
+                                        match_quality += 1.0
+                                    else:
+                                        # Fixed quality for regex matches
+                                        match_quality += 0.8
+                            except Exception as e:
+                                logger.warning(f"Error in regex scoring: {e}")
+                                continue
+                    except Exception as e:
+                        logger.warning(
+                            f"Error scoring condition {field_path} for memory {memory_id}: {e}"
+                        )
+                        continue
+
+                # Compute final score based on match strategy
+                if query_conditions:
+                    if match_all:
+                        # For AND, score is reduced if not all conditions match
+                        condition_ratio = match_count / len(query_conditions)
+                        score = match_quality * condition_ratio
                     else:
-                        match_found = value.lower() in field_value.lower()
-
-                    if match_found:
-                        match_count += 1
-                        # Calculate match quality based on selected scoring method
-                        if scoring_method == "length_ratio":
-                            # Original method: higher quality for more specific matches
-                            match_quality += min(
-                                1.0, len(value) / max(1, len(field_value))
-                            )
-                        elif scoring_method == "term_frequency":
-                            # Term frequency: based on frequency of term in field
-                            if case_sensitive:
-                                term_count = field_value.count(value)
-                            else:
-                                term_count = field_value.lower().count(value.lower())
-                            # Normalize by field length
-                            match_quality += min(
-                                1.0, term_count / max(1, len(field_value.split()))
-                            )
-                        elif scoring_method == "bm25":
-                            # Simplified BM25-inspired scoring
-                            # Constants for BM25 formula
-                            k1 = 1.2
-                            b = 0.75
-                            avg_field_len = 100  # Assume average field length
-
-                            # Calculate term frequency
-                            if case_sensitive:
-                                term_count = field_value.count(value)
-                            else:
-                                term_count = field_value.lower().count(value.lower())
-
-                            # Field length
-                            field_len = len(field_value.split())
-
-                            # BM25 formula (simplified)
-                            numerator = term_count * (k1 + 1)
-                            denominator = term_count + k1 * (
-                                1 - b + b * field_len / avg_field_len
-                            )
-                            bm25_score = numerator / max(0.1, denominator)
-
-                            # Normalize to 0-1 range
-                            match_quality += min(1.0, bm25_score / 10.0)
-                        else:  # binary or any unsupported method
-                            match_quality += 1.0  # Simple binary scoring
-
-                elif match_type == "regex" and isinstance(field_value, str):
-                    if value.search(field_value):
-                        match_count += 1
-                        if scoring_method == "binary":
-                            match_quality += 1.0
-                        else:
-                            # Fixed quality for regex matches
-                            match_quality += 0.8
-
-            # Compute final score based on match strategy
-            if query_conditions:
-                if match_all:
-                    # For AND, score is reduced if not all conditions match
-                    condition_ratio = match_count / len(query_conditions)
-                    score = match_quality * condition_ratio
+                        # For OR, score is based on best matches
+                        score = match_quality / max(1, len(query_conditions))
                 else:
-                    # For OR, score is based on best matches
-                    score = match_quality / max(1, len(query_conditions))
-            else:
-                # No conditions means everything matches
-                score = 1.0
+                    # No conditions means everything matches
+                    score = 1.0
 
-            # Ensure metadata exists
-            if "metadata" not in memory_copy:
-                memory_copy["metadata"] = {}
+                # Ensure metadata exists
+                if "metadata" not in memory_copy:
+                    memory_copy["metadata"] = {}
 
-            # Attach score and tier information
-            memory_copy["metadata"]["attribute_score"] = score
-            memory_copy["metadata"]["attribute_match_count"] = match_count
-            memory_copy["metadata"]["memory_tier"] = tier
+                # Attach score and tier information
+                memory_copy["metadata"]["attribute_score"] = score
+                memory_copy["metadata"]["attribute_match_count"] = match_count
+                memory_copy["metadata"]["memory_tier"] = tier
 
-            # Explicitly set the scoring method
-            memory_copy["metadata"]["scoring_method"] = scoring_method
-            logger.debug(
-                f"Set scoring_method in memory metadata to: {scoring_method} for memory {memory_copy.get('id', 'unknown')}"
-            )
+                # Explicitly set the scoring method
+                memory_copy["metadata"]["scoring_method"] = scoring_method
+                logger.debug(
+                    f"Set scoring_method in memory metadata to: {scoring_method} for memory {memory_id}"
+                )
 
-            scored_memories.append(memory_copy)
+                scored_memories.append(memory_copy)
+            except Exception as e:
+                memory_id = memory.get("memory_id", memory.get("id", "unknown"))
+                logger.warning(f"Error scoring memory {memory_id}: {e}")
+                continue
 
         logger.debug(f"Scored {len(memories)} memories using method: {scoring_method}")
         return scored_memories

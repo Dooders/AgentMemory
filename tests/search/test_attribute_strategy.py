@@ -815,6 +815,124 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         # Precompiled should be even faster
         self.assertLess(precompiled_time, uncached_time)
 
+    def test_error_handling(self):
+        """Test error handling in attribute search."""
+        # Create memories with problematic data structures
+        error_test_memories = [
+            {
+                "id": "memory_valid",
+                "content": {
+                    "content": "Valid content",
+                    "metadata": {"type": "valid", "tags": ["valid"]},
+                },
+            },
+            {
+                "id": "memory_missing_content",
+                # Missing content field
+                "metadata": {"type": "invalid"},
+            },
+            {
+                "id": "memory_null_fields",
+                "content": None,
+                "metadata": None,
+            },
+            {
+                "id": "memory_nested_array",
+                "content": {
+                    "content": "Content with nested array",
+                    "metadata": {
+                        "type": "array_test",
+                        "nested": {"array": [1, 2, 3]},
+                    }
+                }
+            },
+            {
+                "id": "memory_unconvertible",
+                "content": {
+                    "content": "Content with unconvertible values",
+                    "metadata": {
+                        "type": "complex",
+                        "value": complex(1, 2),  # Complex numbers can't easily convert to strings
+                    }
+                }
+            }
+        ]
+
+        # Set up store to return error test memories
+        self.mock_stm_store.get_all.return_value = error_test_memories
+
+        # Test basic search - should not crash and should return valid results
+        results = self.strategy.search(
+            query="valid", agent_id="agent-1", tier="stm", limit=5
+        )
+        
+        # Should return at least the valid memory
+        self.assertGreaterEqual(len(results), 1)
+        self.assertIn("memory_valid", [r["id"] for r in results])
+
+        # Test accessing nested arrays
+        results = self.strategy.search(
+            query="array",
+            agent_id="agent-1", 
+            tier="stm",
+            metadata_fields=["content.metadata.nested.array"],
+            limit=5
+        )
+        
+        # Should find the memory with nested array
+        self.assertIn("memory_nested_array", [r["id"] for r in results])
+
+        # Test with empty field path
+        try:
+            # This should log a warning but not crash
+            field_value = self.strategy._get_field_value(error_test_memories[0], "")
+            self.assertIsNone(field_value)
+        except Exception as e:
+            self.fail(f"_get_field_value with empty path raised exception: {e}")
+            
+        # Test array indexing in field path
+        memory_with_array = {
+            "id": "array_memory",
+            "content": {
+                "content": "Array test",
+                "metadata": {
+                    "tags": ["tag1", "tag2", "tag3"]
+                }
+            }
+        }
+        
+        # Get the second tag using array indexing
+        tag2 = self.strategy._get_field_value(memory_with_array, "content.metadata.tags.1")
+        self.assertEqual(tag2, "tag2")
+        
+        # Test out of bounds index
+        out_of_bounds = self.strategy._get_field_value(memory_with_array, "content.metadata.tags.10")
+        self.assertIsNone(out_of_bounds)
+        
+        # Test with metadata filter containing type mismatches
+        results = self.strategy.search(
+            query="test",
+            agent_id="agent-1",
+            tier="stm",
+            metadata_filter={"content.metadata.type": "array_test"},
+            limit=5
+        )
+        
+        # Should find the array_test memory
+        self.assertIn("memory_nested_array", [r["id"] for r in results])
+        
+        # Test with invalid regex pattern - should not crash
+        results = self.strategy.search(
+            query="[invalid regex",
+            agent_id="agent-1",
+            tier="stm",
+            use_regex=True,
+            limit=5
+        )
+        
+        # Should handle the error and not crash
+        self.assertEqual(type(results), list)
+
 
 if __name__ == "__main__":
     unittest.main()
