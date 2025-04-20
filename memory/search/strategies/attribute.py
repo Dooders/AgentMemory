@@ -678,7 +678,7 @@ class AttributeSearchStrategy(SearchStrategy):
                 elif match_all and matches and all(matches):
                     filtered_memories.append(memory_copy)
                     logger.debug(f"Memory {memory_id} matched ALL conditions")
-                elif not match_all and matches and any(matches):
+                elif not match_all and any(matches):
                     filtered_memories.append(memory_copy)
                     logger.debug(f"Memory {memory_id} matched SOME conditions")
                 else:
