@@ -1,0 +1,333 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1", 
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "test-agent-attribute-search": {
+      "agent_id": "test-agent-attribute-search",
+      "memories": [
+        {
+          "memory_id": "test-agent-attribute-search-meeting-123456-1",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 1,
+          "timestamp": 1686816000,
+          "content": {
+            "content": "Meeting with Alice about the new project. We discussed timelines and resource allocation.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "project", "planning"],
+              "participants": ["Alice", "Bob"],
+              "date": "2023-06-15",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686816000,
+            "last_access_time": 1686816000,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "event",
+            "current_tier": "stm"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-task-123456-2",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 2,
+          "timestamp": 1686902400,
+          "content": {
+            "content": "Remember to finish the documentation for the API by Friday.",
+            "metadata": {
+              "type": "task",
+              "importance": "medium",
+              "tags": ["task", "documentation", "deadline"],
+              "deadline": "2023-06-23",
+              "source": "self"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686902400,
+            "last_access_time": 1686902400,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "task",
+            "current_tier": "stm"
+          },
+          "type": "task",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-meeting-123456-3",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 3,
+          "timestamp": 1687075200,
+          "content": {
+            "content": "Meeting with the development team to review progress on the authentication system.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "medium",
+              "tags": ["meeting", "review", "development"],
+              "participants": ["Charlie", "Dave", "Eve"],
+              "date": "2023-06-18",
+              "source": "slack"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687075200,
+            "last_access_time": 1687075200,
+            "compression_level": 0,
+            "importance_score": 0.6,
+            "retrieval_count": 0,
+            "memory_type": "event",
+            "current_tier": "stm"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-note-123456-4",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 4,
+          "timestamp": 1687161600,
+          "content": {
+            "content": "Critical security patch needs to be applied to all production servers immediately.",
+            "metadata": {
+              "type": "note",
+              "importance": "high",
+              "tags": ["security", "urgent", "production"],
+              "source": "email"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687161600,
+            "last_access_time": 1687161600,
+            "compression_level": 0,
+            "importance_score": 0.95,
+            "retrieval_count": 0,
+            "memory_type": "note",
+            "current_tier": "stm"
+          },
+          "type": "note",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-contact-123456-5",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 5,
+          "timestamp": 1687248000,
+          "content": {
+            "content": "Contact info for project consultant: john.doe@example.com, 555-123-4567",
+            "metadata": {
+              "type": "contact",
+              "importance": "low",
+              "tags": ["contact", "project"],
+              "name": "John Doe",
+              "source": "email"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687248000,
+            "last_access_time": 1687248000,
+            "compression_level": 0,
+            "importance_score": 0.4,
+            "retrieval_count": 0,
+            "memory_type": "info",
+            "current_tier": "stm"
+          },
+          "type": "info",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-meeting-123456-6",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 6,
+          "timestamp": 1685520000,
+          "content": {
+            "content": "Meeting with product team about Q3 roadmap priorities and feature requests.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "roadmap", "planning"],
+              "participants": ["Frank", "Grace", "Helen"],
+              "date": "2023-05-31",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1685520000,
+            "last_access_time": 1685606400,
+            "compression_level": 1,
+            "importance_score": 0.85,
+            "retrieval_count": 3,
+            "memory_type": "event",
+            "current_tier": "im"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-task-123456-7",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 7,
+          "timestamp": 1685606400,
+          "content": {
+            "content": "Create technical specifications document for the authentication system based on requirements.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["task", "documentation", "auth"],
+              "deadline": "2023-06-07",
+              "source": "manager"
+            }
+          },
+          "metadata": {
+            "creation_time": 1685606400,
+            "last_access_time": 1685692800,
+            "compression_level": 1,
+            "importance_score": 0.8,
+            "retrieval_count": 5,
+            "memory_type": "task",
+            "current_tier": "im"
+          },
+          "type": "task",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-note-123456-8",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 8,
+          "timestamp": 1685692800,
+          "content": {
+            "content": "Need to follow up with security team about encryption requirements for user data.",
+            "metadata": {
+              "type": "note",
+              "importance": "medium",
+              "tags": ["security", "encryption", "followup"],
+              "source": "meeting"
+            }
+          },
+          "metadata": {
+            "creation_time": 1685692800,
+            "last_access_time": 1685779200,
+            "compression_level": 1,
+            "importance_score": 0.7,
+            "retrieval_count": 2,
+            "memory_type": "note",
+            "current_tier": "im"
+          },
+          "type": "note",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-meeting-123456-9",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 9,
+          "timestamp": 1680307200,
+          "content": {
+            "content": "Quarterly planning meeting with executive team. Discussed annual objectives and key results.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "quarterly", "planning", "okr"],
+              "participants": ["CEO", "CTO", "CPO", "Department Heads"],
+              "date": "2023-04-01",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1680307200,
+            "last_access_time": 1682899200,
+            "compression_level": 2,
+            "importance_score": 0.9,
+            "retrieval_count": 8,
+            "memory_type": "event",
+            "current_tier": "ltm"
+          },
+          "type": "event",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-task-123456-10",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 10,
+          "timestamp": 1680393600,
+          "content": {
+            "content": "Develop prototype for the new user authentication system with OAuth integration.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["task", "development", "auth", "oauth"],
+              "deadline": "2023-04-15",
+              "source": "product"
+            }
+          },
+          "metadata": {
+            "creation_time": 1680393600,
+            "last_access_time": 1682985600,
+            "compression_level": 2,
+            "importance_score": 0.85,
+            "retrieval_count": 10,
+            "memory_type": "task",
+            "current_tier": "ltm"
+          },
+          "type": "task",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-attribute-search-meeting-123456-11",
+          "agent_id": "test-agent-attribute-search",
+          "step_number": 11,
+          "timestamp": 1680480000,
+          "content": {
+            "content": "Security review meeting for discussing best practices in API security and data protection.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "security", "api", "review"],
+              "participants": ["Security Team", "Dev Team", "QA"],
+              "date": "2023-04-02",
+              "source": "slack"
+            }
+          },
+          "metadata": {
+            "creation_time": 1680480000,
+            "last_access_time": 1680566400,
+            "compression_level": 2,
+            "importance_score": 0.9,
+            "retrieval_count": 7,
+            "memory_type": "event",
+            "current_tier": "ltm"
+          },
+          "type": "event",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 

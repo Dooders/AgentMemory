@@ -257,7 +257,7 @@ def create_memory_system(
 
         print(f"Loading memory system from file: {memory_file}")
         if os.path.exists(memory_file):
-            memory_system = AgentMemorySystem.load_from_json(memory_file)
+            memory_system = AgentMemorySystem.load_from_json(memory_file, use_mock_redis=use_mock_redis)
             if memory_system:
                 print(f"Successfully loaded memory system from {memory_file}")
                 return memory_system

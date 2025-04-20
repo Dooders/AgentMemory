@@ -1,20 +1,21 @@
 """Core classes for the Tiered Adaptive Semantic Memory (TASM) system."""
 
+import json
 import logging
-from typing import Any, Dict, List, Optional, Union
+import os
 import time
 import uuid
-import json
-import os
+from typing import Any, Dict, List, Optional, Union
 
-from memory.config import MemoryConfig
 from memory.agent_memory import MemoryAgent
-from memory.schema import validate_memory_system_json, MEMORY_SYSTEM_SCHEMA
+from memory.config import MemoryConfig
+from memory.schema import MEMORY_SYSTEM_SCHEMA, validate_memory_system_json
 
 logger = logging.getLogger(__name__)
 
 # System constants
 SYSTEM_NAME = "TASM"  # Tiered Adaptive Semantic Memory
+
 
 class AgentMemorySystem:
     """Central manager for the Tiered Adaptive Semantic Memory (TASM) system.
@@ -329,47 +330,57 @@ class AgentMemorySystem:
 
     def add_memory(self, memory_data: Dict[str, Any]) -> str:
         """Add a memory entry to the system.
-        
+
         Args:
             memory_data: Dictionary containing memory data
-            
+
         Returns:
             memory_id of the added memory
         """
         # Generate memory_id if not provided
-        memory_id = memory_data.get("memory_id", f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}")
+        memory_id = memory_data.get(
+            "memory_id", f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        )
         memory_data["memory_id"] = memory_id
-        
+
         # Get agent_id from memory or use a default
         agent_id = memory_data.get("agent_id", "default_agent")
-        
+
         # Get or create memory agent
         memory_agent = self.get_memory_agent(agent_id)
-        
+
         # Store in STM
         step_number = memory_data.get("step_number", 0)
         priority = memory_data.get("metadata", {}).get("importance_score", 1.0)
         memory_type = memory_data.get("type", "generic")
-        
+
         # Choose appropriate method based on memory type
         if memory_type == "state":
-            memory_agent.store_state(memory_data.get("content", {}), step_number, priority)
+            memory_agent.store_state(
+                memory_data.get("content", {}), step_number, priority
+            )
         elif memory_type == "interaction":
-            memory_agent.store_interaction(memory_data.get("content", {}), step_number, priority)
+            memory_agent.store_interaction(
+                memory_data.get("content", {}), step_number, priority
+            )
         elif memory_type == "action":
-            memory_agent.store_action(memory_data.get("content", {}), step_number, priority)
+            memory_agent.store_action(
+                memory_data.get("content", {}), step_number, priority
+            )
         else:
             # For generic types, use store_state as a fallback
-            memory_agent.store_state(memory_data.get("content", {}), step_number, priority)
-            
+            memory_agent.store_state(
+                memory_data.get("content", {}), step_number, priority
+            )
+
         return memory_id
-        
+
     def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a memory by its memory_id.
-        
+
         Args:
             memory_id: Unique identifier for the memory
-            
+
         Returns:
             Memory entry or None if not found
         """
@@ -379,17 +390,17 @@ class AgentMemorySystem:
             memory = memory_agent.stm_store.get(agent_id, memory_id)
             if memory:
                 return memory
-                
+
             # Try IM next
             memory = memory_agent.im_store.get(agent_id, memory_id)
             if memory:
                 return memory
-                
+
             # Try LTM last
             memory = memory_agent.ltm_store.get(memory_id)
             if memory:
                 return memory
-                
+
         # Memory not found
         logger.warning(f"Memory with ID {memory_id} not found in any agent's stores")
         return None
@@ -424,10 +435,10 @@ class AgentMemorySystem:
 
     def save_to_json(self, filepath: str) -> bool:
         """Save the memory system to a JSON file.
-        
+
         Args:
             filepath: Path to save the JSON file
-            
+
         Returns:
             True if saving was successful
         """
@@ -436,40 +447,46 @@ class AgentMemorySystem:
             config_dict = {}
             for key, value in self.config.__dict__.items():
                 # Skip complex objects that aren't JSON serializable
-                if isinstance(value, (str, int, float, bool, list, dict)) or value is None:
+                if (
+                    isinstance(value, (str, int, float, bool, list, dict))
+                    or value is None
+                ):
                     config_dict[key] = value
-            
+
             # Create the data structure to save
-            data = {
-                "config": config_dict,
-                "agents": {}
-            }
-            
+            data = {"config": config_dict, "agents": {}}
+
             # Save agent data
             for agent_id, agent in self.agents.items():
                 # Get all memories from different tiers
                 stm_memories = []
                 im_memories = []
                 ltm_memories = []
-                
+
                 try:
                     stm_memories = agent.stm_store.get_all(agent_id)
                 except Exception as e:
-                    logger.warning(f"Could not get STM memories for agent {agent_id}: {e}")
-                
+                    logger.warning(
+                        f"Could not get STM memories for agent {agent_id}: {e}"
+                    )
+
                 try:
                     im_memories = agent.im_store.get_all(agent_id)
                 except Exception as e:
-                    logger.warning(f"Could not get IM memories for agent {agent_id}: {e}")
-                
+                    logger.warning(
+                        f"Could not get IM memories for agent {agent_id}: {e}"
+                    )
+
                 try:
                     ltm_memories = agent.ltm_store.get_all(agent_id)
                 except Exception as e:
-                    logger.warning(f"Could not get LTM memories for agent {agent_id}: {e}")
-                
+                    logger.warning(
+                        f"Could not get LTM memories for agent {agent_id}: {e}"
+                    )
+
                 # Combine all memories
                 all_memories = stm_memories + im_memories + ltm_memories
-                
+
                 # Clean up non-serializable objects in memories
                 clean_memories = []
                 for memory in all_memories:
@@ -483,75 +500,117 @@ class AgentMemorySystem:
                                 # Convert numpy arrays to lists if needed
                                 if hasattr(embed_val, "tolist"):
                                     clean_memory[k][embed_key] = embed_val.tolist()
-                                elif isinstance(embed_val, (list, dict, str, int, float, bool)) or embed_val is None:
+                                elif (
+                                    isinstance(
+                                        embed_val, (list, dict, str, int, float, bool)
+                                    )
+                                    or embed_val is None
+                                ):
                                     clean_memory[k][embed_key] = embed_val
                         else:
                             clean_memory[k] = v
-                    
+
                     clean_memories.append(clean_memory)
-                
+
                 data["agents"][agent_id] = {
                     "agent_id": agent_id,
-                    "memories": clean_memories
+                    "memories": clean_memories,
                 }
-            
+
             # Validate against schema
             if not validate_memory_system_json(data):
                 logger.error("Generated JSON does not conform to schema")
                 return False
-            
+
             # Ensure directory exists
             os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
-            
+
             # Write to file
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-                
+
             logger.info(f"Memory system saved to {filepath}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to save memory system to {filepath}: {e}")
             return False
-    
+
     @classmethod
-    def load_from_json(cls, filepath: str) -> Optional["AgentMemorySystem"]:
+    def load_from_json(
+        cls, filepath: str, use_mock_redis: bool = False
+    ) -> Optional["AgentMemorySystem"]:
         """Load a memory system from a JSON file.
-        
+
         Args:
             filepath: Path to the JSON file
-            
+            use_mock_redis: Whether to use MockRedis for Redis storage
+
         Returns:
             AgentMemorySystem instance or None if loading failed
         """
         try:
             # Read from file
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
+
             # Validate against schema
             if not validate_memory_system_json(data):
                 logger.error(f"JSON file {filepath} does not conform to schema")
                 return None
-            
-            # Create config
-            config = MemoryConfig(**data.get("config", {}))
-            
+
+            # Create config with Redis mock settings if requested
+            config_data = data.get("config", {})
+
+            # Extract nested configs
+            from memory.config import RedisIMConfig, RedisSTMConfig, SQLiteLTMConfig
+
+            # Create clean config data without nested configs
+            clean_config_data = {}
+            for key, value in config_data.items():
+                if key not in ["stm_config", "im_config", "ltm_config"]:
+                    clean_config_data[key] = value
+
+            # Create config instance
+            config = MemoryConfig(**clean_config_data)
+
+            # Set up STM config
+            if "stm_config" in config_data:
+                stm_config_data = config_data["stm_config"]
+                stm_config = RedisSTMConfig(**stm_config_data)
+                if use_mock_redis:
+                    stm_config.use_mock = True
+                config.stm_config = stm_config
+
+            # Set up IM config
+            if "im_config" in config_data:
+                im_config_data = config_data["im_config"]
+                im_config = RedisIMConfig(**im_config_data)
+                if use_mock_redis:
+                    im_config.use_mock = True
+                config.im_config = im_config
+
+            # Set up LTM config
+            if "ltm_config" in config_data:
+                ltm_config_data = config_data["ltm_config"]
+                ltm_config = SQLiteLTMConfig(**ltm_config_data)
+                config.ltm_config = ltm_config
+
             # Create memory system
             memory_system = cls(config)
-            
+
             # Load agents and their memories
             for agent_id, agent_data in data.get("agents", {}).items():
                 # Get or create agent
                 memory_agent = memory_system.get_memory_agent(agent_id)
-                
+
                 # Add memories
                 for memory in agent_data.get("memories", []):
                     memory_type = memory.get("type", "generic")
                     content = memory.get("content", {})
                     step_number = memory.get("step_number", 0)
                     priority = memory.get("metadata", {}).get("importance_score", 1.0)
-                    
+
                     # Store according to memory type
                     if memory_type == "state":
                         memory_agent.store_state(content, step_number, priority)
@@ -562,37 +621,40 @@ class AgentMemorySystem:
                     else:
                         # For generic types, use store_state as fallback
                         memory_agent.store_state(content, step_number, priority)
-            
+
             logger.info(f"Memory system loaded from {filepath}")
             return memory_system
-            
+
         except Exception as e:
             logger.error(f"Failed to load memory system from {filepath}: {e}")
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def _check_agent_exists(self, agent_id: str) -> None:
         """Check if an agent exists and raise an error if not.
-        
+
         Args:
             agent_id: ID of the agent to check
-            
+
         Raises:
             ValueError: If the agent doesn't exist
         """
         if agent_id not in self.agents:
             raise ValueError(f"Agent with ID {agent_id} does not exist")
-    
+
     def _get_agent(self, agent_id: str) -> MemoryAgent:
         """Get the memory agent for an agent ID.
-        
+
         This is a helper method that verifies the agent exists before returning.
-        
+
         Args:
             agent_id: ID of the agent to retrieve
-            
+
         Returns:
             MemoryAgent instance for the specified agent
-            
+
         Raises:
             ValueError: If the agent doesn't exist
         """
