@@ -2,6 +2,7 @@
 
 import logging
 import re
+import copy
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from memory.search.strategies.base import SearchStrategy
@@ -409,7 +410,7 @@ class AttributeSearchStrategy(SearchStrategy):
         for memory in memories:
             # Make a deep copy of the memory to avoid modifying the original
             # This ensures we don't lose any existing metadata when filtering
-            memory_copy = memory.copy()
+            memory_copy = copy.deepcopy(memory)
             if "metadata" not in memory_copy and "metadata" in memory:
                 memory_copy["metadata"] = memory["metadata"].copy()
 
@@ -683,8 +684,8 @@ class AttributeSearchStrategy(SearchStrategy):
 
         scored_memories = []
         for memory in memories:
-            # Create a copy of memory to avoid modifying the original
-            memory_copy = memory.copy()
+            # Create a deep copy of memory to avoid modifying the original
+            memory_copy = copy.deepcopy(memory)
 
             # Initialize score components
             match_count = 0
