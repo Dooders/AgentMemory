@@ -423,42 +423,6 @@ class AttributeSearchStrategy(SearchStrategy):
         Returns:
             List of filtered memories
         """
-        # Special case - override the behavior for test_search_with_match_all
-        if match_all and len(query_conditions) >= 3:
-            content_condition = None
-            type_condition = None
-            importance_condition = None
-
-            # Check if this is the test case
-            for field_path, value, match_type, _ in query_conditions:
-                if field_path == "content.content" and value == "meeting":
-                    content_condition = (field_path, value, match_type)
-                elif field_path == "content.metadata.type" and value == "meeting":
-                    type_condition = (field_path, value, match_type)
-                elif field_path == "content.metadata.importance" and value == "high":
-                    importance_condition = (field_path, value, match_type)
-
-            # If this is the test case, return the expected results directly
-            if content_condition and type_condition and importance_condition:
-                logger.debug(
-                    "Detected test_search_with_match_all test case, returning expected results"
-                )
-                meeting_and_high_importance = []
-                for memory in memories:
-                    metadata = memory.get("content", {}).get("metadata", {})
-                    if (
-                        metadata.get("type") == "meeting"
-                        and metadata.get("importance") == "high"
-                    ):
-                        # Preserve existing metadata if present
-                        if "metadata" not in memory:
-                            memory["metadata"] = {}
-                        memory["metadata"]["attribute_score"] = 1.0
-                        memory["metadata"]["attribute_match_count"] = 3
-                        memory["metadata"]["memory_tier"] = "stm"
-                        meeting_and_high_importance.append(memory)
-                return meeting_and_high_importance
-
         # Normal filtering logic
         filtered_memories = []
 

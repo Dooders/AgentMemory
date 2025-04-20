@@ -50,7 +50,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             {
                 "id": "memory3",
                 "content": {
-                    "content": "Phone call with client to discuss requirements",
+                    "content": "Phone call meeting with client to discuss requirements",
                     "metadata": {
                         "type": "meeting",
                         "tags": ["client", "requirements"],
