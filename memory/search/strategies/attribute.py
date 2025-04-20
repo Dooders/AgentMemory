@@ -103,13 +103,16 @@ class AttributeSearchStrategy(SearchStrategy):
             is_case_sensitive: Whether the pattern is case sensitive
 
         Returns:
-            Compiled regex pattern
+            Compiled regex pattern or None if invalid
         """
         cache_key = (pattern_str, is_case_sensitive)
 
-        # Return from cache if available
+        # Return from cache if available (including cached None values for invalid patterns)
         if cache_key in self._pattern_cache:
-            logger.debug(f"Using cached regex pattern for: {pattern_str}")
+            if self._pattern_cache[cache_key] is None:
+                logger.debug(f"Using cached invalid pattern result for: {pattern_str}")
+            else:
+                logger.debug(f"Using cached regex pattern for: {pattern_str}")
             return self._pattern_cache[cache_key]
 
         # Compile new pattern
@@ -122,6 +125,9 @@ class AttributeSearchStrategy(SearchStrategy):
             return compiled_pattern
         except re.error:
             logger.warning(f"Invalid regex pattern: {pattern_str}")
+            # Cache the negative result to avoid repeated compilation attempts
+            self._pattern_cache[cache_key] = None
+            logger.debug(f"Cached invalid pattern result for: {pattern_str}")
             return None
 
     def search(

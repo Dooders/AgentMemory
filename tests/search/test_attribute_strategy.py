@@ -3,6 +3,7 @@
 import unittest
 import time
 from unittest.mock import MagicMock, patch
+import re
 
 from memory.search.strategies.attribute import AttributeSearchStrategy
 
@@ -600,29 +601,66 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         strategy = AttributeSearchStrategy(
             self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
         )
-
+        
         # Initial cache should be empty
         self.assertEqual(len(strategy._pattern_cache), 0)
-
+        
         # Compile a pattern and check it's added to cache
         pattern1 = strategy.get_compiled_pattern("test.*pattern", True)
         self.assertEqual(len(strategy._pattern_cache), 1)
-
+        
         # Get the same pattern again - should use cache
         pattern2 = strategy.get_compiled_pattern("test.*pattern", True)
         self.assertEqual(len(strategy._pattern_cache), 1)
-
+        
         # Patterns should be identical (same object in memory)
         self.assertIs(pattern1, pattern2)
-
+        
         # Different pattern should create new cache entry
         strategy.get_compiled_pattern("different.*pattern", True)
         self.assertEqual(len(strategy._pattern_cache), 2)
-
+        
         # Same pattern with different case sensitivity should create new cache entry
         strategy.get_compiled_pattern("test.*pattern", False)
         self.assertEqual(len(strategy._pattern_cache), 3)
-
+        
+        # Test caching of invalid patterns
+        invalid_pattern = "invalid[pattern"  # Missing closing bracket
+        
+        # Instead of relying on log capture, just verify the behavior:
+        # First attempt should try compilation and return None
+        result1 = strategy.get_compiled_pattern(invalid_pattern, True)
+        self.assertIsNone(result1)
+        self.assertEqual(len(strategy._pattern_cache), 4)
+        
+        # Check that the invalid pattern is now in the cache with None value
+        self.assertIn((invalid_pattern, True), strategy._pattern_cache)
+        self.assertIsNone(strategy._pattern_cache[(invalid_pattern, True)])
+        
+        # Second attempt should use cached result
+        # Use a spy to verify the method doesn't try to compile again
+        original_compile = re.compile
+        compile_called = [False]
+        
+        def mock_compile(*args, **kwargs):
+            compile_called[0] = True
+            return original_compile(*args, **kwargs)
+        
+        try:
+            re.compile = mock_compile
+            
+            # Get the pattern again - should use cache and not call re.compile
+            result2 = strategy.get_compiled_pattern(invalid_pattern, True)
+            self.assertIsNone(result2)
+            self.assertFalse(compile_called[0], "re.compile should not have been called")
+            
+        finally:
+            # Restore original compile function
+            re.compile = original_compile
+        
+        # Cache size shouldn't change
+        self.assertEqual(len(strategy._pattern_cache), 4)
+        
         # Clear cache should empty it
         strategy.clear_pattern_cache()
         self.assertEqual(len(strategy._pattern_cache), 0)
@@ -632,7 +670,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         strategy = AttributeSearchStrategy(
             self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
         )
-
+        
         # Precompile multiple patterns
         patterns = [
             ("pattern1", True),
@@ -640,19 +678,24 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             ("invalid[", True),  # Invalid pattern
             ("pattern3", False),
         ]
-
+        
         # Should return count of successful compilations
         success_count = strategy.precompile_patterns(patterns)
-
+        
         # Should have 3 successful patterns (1 invalid)
         self.assertEqual(success_count, 3)
-        self.assertEqual(len(strategy._pattern_cache), 3)
-
-        # Check cache keys
-        self.assertIn(("pattern1", True), strategy._pattern_cache)
-        self.assertIn(("pattern2", False), strategy._pattern_cache)
-        self.assertIn(("pattern3", False), strategy._pattern_cache)
-        self.assertNotIn(("invalid[", True), strategy._pattern_cache)
+        
+        # Cache should have all 4 patterns (the invalid one with None value)
+        self.assertEqual(len(strategy._pattern_cache), 4)
+        
+        # Valid patterns should have compiled regex objects
+        self.assertIsNotNone(strategy._pattern_cache[("pattern1", True)])
+        self.assertIsNotNone(strategy._pattern_cache[("pattern2", False)])
+        self.assertIsNotNone(strategy._pattern_cache[("pattern3", False)])
+        
+        # Invalid pattern should be cached as None
+        self.assertIn(("invalid[", True), strategy._pattern_cache)
+        self.assertIsNone(strategy._pattern_cache[("invalid[", True)])
 
     def test_pattern_cache_in_search(self):
         """Test that pattern cache is used during search operations."""
