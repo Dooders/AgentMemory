@@ -1,9 +1,9 @@
 """Tests for the AttributeSearchStrategy class."""
 
-import unittest
-import time
-from unittest.mock import MagicMock, patch
 import re
+import time
+import unittest
+from unittest.mock import MagicMock, patch
 
 from memory.search.strategies.attribute import AttributeSearchStrategy
 
@@ -601,66 +601,68 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         strategy = AttributeSearchStrategy(
             self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
         )
-        
+
         # Initial cache should be empty
         self.assertEqual(len(strategy._pattern_cache), 0)
-        
+
         # Compile a pattern and check it's added to cache
         pattern1 = strategy.get_compiled_pattern("test.*pattern", True)
         self.assertEqual(len(strategy._pattern_cache), 1)
-        
+
         # Get the same pattern again - should use cache
         pattern2 = strategy.get_compiled_pattern("test.*pattern", True)
         self.assertEqual(len(strategy._pattern_cache), 1)
-        
+
         # Patterns should be identical (same object in memory)
         self.assertIs(pattern1, pattern2)
-        
+
         # Different pattern should create new cache entry
         strategy.get_compiled_pattern("different.*pattern", True)
         self.assertEqual(len(strategy._pattern_cache), 2)
-        
+
         # Same pattern with different case sensitivity should create new cache entry
         strategy.get_compiled_pattern("test.*pattern", False)
         self.assertEqual(len(strategy._pattern_cache), 3)
-        
+
         # Test caching of invalid patterns
         invalid_pattern = "invalid[pattern"  # Missing closing bracket
-        
+
         # Instead of relying on log capture, just verify the behavior:
         # First attempt should try compilation and return None
         result1 = strategy.get_compiled_pattern(invalid_pattern, True)
         self.assertIsNone(result1)
         self.assertEqual(len(strategy._pattern_cache), 4)
-        
+
         # Check that the invalid pattern is now in the cache with None value
         self.assertIn((invalid_pattern, True), strategy._pattern_cache)
         self.assertIsNone(strategy._pattern_cache[(invalid_pattern, True)])
-        
+
         # Second attempt should use cached result
         # Use a spy to verify the method doesn't try to compile again
         original_compile = re.compile
         compile_called = [False]
-        
+
         def mock_compile(*args, **kwargs):
             compile_called[0] = True
             return original_compile(*args, **kwargs)
-        
+
         try:
             re.compile = mock_compile
-            
+
             # Get the pattern again - should use cache and not call re.compile
             result2 = strategy.get_compiled_pattern(invalid_pattern, True)
             self.assertIsNone(result2)
-            self.assertFalse(compile_called[0], "re.compile should not have been called")
-            
+            self.assertFalse(
+                compile_called[0], "re.compile should not have been called"
+            )
+
         finally:
             # Restore original compile function
             re.compile = original_compile
-        
+
         # Cache size shouldn't change
         self.assertEqual(len(strategy._pattern_cache), 4)
-        
+
         # Clear cache should empty it
         strategy.clear_pattern_cache()
         self.assertEqual(len(strategy._pattern_cache), 0)
@@ -670,7 +672,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         strategy = AttributeSearchStrategy(
             self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
         )
-        
+
         # Precompile multiple patterns
         patterns = [
             ("pattern1", True),
@@ -678,21 +680,21 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             ("invalid[", True),  # Invalid pattern
             ("pattern3", False),
         ]
-        
+
         # Should return count of successful compilations
         success_count = strategy.precompile_patterns(patterns)
-        
+
         # Should have 3 successful patterns (1 invalid)
         self.assertEqual(success_count, 3)
-        
+
         # Cache should have all 4 patterns (the invalid one with None value)
         self.assertEqual(len(strategy._pattern_cache), 4)
-        
+
         # Valid patterns should have compiled regex objects
         self.assertIsNotNone(strategy._pattern_cache[("pattern1", True)])
         self.assertIsNotNone(strategy._pattern_cache[("pattern2", False)])
         self.assertIsNotNone(strategy._pattern_cache[("pattern3", False)])
-        
+
         # Invalid pattern should be cached as None
         self.assertIn(("invalid[", True), strategy._pattern_cache)
         self.assertIsNone(strategy._pattern_cache[("invalid[", True)])
@@ -843,8 +845,8 @@ class TestAttributeSearchStrategy(unittest.TestCase):
                     "metadata": {
                         "type": "array_test",
                         "nested": {"array": [1, 2, 3]},
-                    }
-                }
+                    },
+                },
             },
             {
                 "id": "memory_unconvertible",
@@ -852,10 +854,12 @@ class TestAttributeSearchStrategy(unittest.TestCase):
                     "content": "Content with unconvertible values",
                     "metadata": {
                         "type": "complex",
-                        "value": complex(1, 2),  # Complex numbers can't easily convert to strings
-                    }
-                }
-            }
+                        "value": complex(
+                            1, 2
+                        ),  # Complex numbers can't easily convert to strings
+                    },
+                },
+            },
         ]
 
         # Set up store to return error test memories
@@ -865,7 +869,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         results = self.strategy.search(
             query="valid", agent_id="agent-1", tier="stm", limit=5
         )
-        
+
         # Should return at least the valid memory
         self.assertGreaterEqual(len(results), 1)
         self.assertIn("memory_valid", [r["id"] for r in results])
@@ -873,12 +877,12 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         # Test accessing nested arrays
         results = self.strategy.search(
             query="array",
-            agent_id="agent-1", 
+            agent_id="agent-1",
             tier="stm",
             metadata_fields=["content.metadata.nested.array"],
-            limit=5
+            limit=5,
         )
-        
+
         # Should find the memory with nested array
         self.assertIn("memory_nested_array", [r["id"] for r in results])
 
@@ -889,47 +893,49 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             self.assertIsNone(field_value)
         except Exception as e:
             self.fail(f"_get_field_value with empty path raised exception: {e}")
-            
+
         # Test array indexing in field path
         memory_with_array = {
             "id": "array_memory",
             "content": {
                 "content": "Array test",
-                "metadata": {
-                    "tags": ["tag1", "tag2", "tag3"]
-                }
-            }
+                "metadata": {"tags": ["tag1", "tag2", "tag3"]},
+            },
         }
-        
+
         # Get the second tag using array indexing
-        tag2 = self.strategy._get_field_value(memory_with_array, "content.metadata.tags.1")
+        tag2 = self.strategy._get_field_value(
+            memory_with_array, "content.metadata.tags.1"
+        )
         self.assertEqual(tag2, "tag2")
-        
+
         # Test out of bounds index
-        out_of_bounds = self.strategy._get_field_value(memory_with_array, "content.metadata.tags.10")
+        out_of_bounds = self.strategy._get_field_value(
+            memory_with_array, "content.metadata.tags.10"
+        )
         self.assertIsNone(out_of_bounds)
-        
+
         # Test with metadata filter containing type mismatches
         results = self.strategy.search(
             query="test",
             agent_id="agent-1",
             tier="stm",
             metadata_filter={"content.metadata.type": "array_test"},
-            limit=5
+            limit=5,
         )
-        
+
         # Should find the array_test memory
         self.assertIn("memory_nested_array", [r["id"] for r in results])
-        
+
         # Test with invalid regex pattern - should not crash
         results = self.strategy.search(
             query="[invalid regex",
             agent_id="agent-1",
             tier="stm",
             use_regex=True,
-            limit=5
+            limit=5,
         )
-        
+
         # Should handle the error and not crash
         self.assertEqual(type(results), list)
 

@@ -1,8 +1,8 @@
 """Attribute-based search strategy for the agent memory search model."""
 
+import copy
 import logging
 import re
-import copy
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from memory.search.strategies.base import SearchStrategy
@@ -132,7 +132,7 @@ class AttributeSearchStrategy(SearchStrategy):
 
     def search(
         self,
-        query: Union[str, Dict[str, Any], List[float]],
+        query: Union[str, Dict[str, Any]],
         agent_id: str,
         limit: int = 10,
         metadata_filter: Optional[Dict[str, Any]] = None,
@@ -246,7 +246,7 @@ class AttributeSearchStrategy(SearchStrategy):
 
     def _process_query(
         self,
-        query: Union[str, Dict[str, Any], List[float]],
+        query: Union[str, Dict[str, Any]],
         content_fields: Optional[List[str]],
         metadata_fields: Optional[List[str]],
         case_sensitive: bool,
