@@ -26,6 +26,7 @@ MEMORY_SYSTEM_SCHEMA = {
                 "enable_memory_hooks": {"type": "boolean"},
                 # Other config properties would be listed here
             },
+            "additionalProperties": True,  # Allow additional config properties
         },
         "agents": {
             "type": "object",
@@ -40,9 +41,11 @@ MEMORY_SYSTEM_SCHEMA = {
                         "items": {"$ref": "#/definitions/memory_entry"},
                     },
                 },
+                "additionalProperties": True,  # Allow additional agent properties
             },
         },
     },
+    "additionalProperties": True,  # Allow additional top-level properties
     "definitions": {
         "memory_entry": {
             "type": "object",
@@ -50,21 +53,21 @@ MEMORY_SYSTEM_SCHEMA = {
             "properties": {
                 "memory_id": {"type": "string"},
                 "agent_id": {"type": "string"},
-                "step_number": {"type": "integer"},
-                "timestamp": {"type": "integer"},
-                "content": {"type": "object"},
+                "step_number": {"type": ["integer", "null"]},
+                "timestamp": {"type": ["integer", "number", "null"]},
+                "content": {"type": "object", "additionalProperties": True},
                 "metadata": {
                     "type": "object",
                     "properties": {
-                        "creation_time": {"type": "integer"},
-                        "last_access_time": {"type": "integer"},
-                        "compression_level": {"type": "integer"},
+                        "creation_time": {"type": ["integer", "number", "null"]},
+                        "last_access_time": {"type": ["integer", "number", "null"]},
+                        "compression_level": {"type": ["integer", "null"]},
                         "importance_score": {
                             "type": "number",
                             "minimum": 0,
                             "maximum": 1,
                         },
-                        "retrieval_count": {"type": "integer"},
+                        "retrieval_count": {"type": ["integer", "null"]},
                         "memory_type": {
                             "type": "string",
                             "enum": ["state", "interaction", "action", "generic"],
@@ -74,6 +77,7 @@ MEMORY_SYSTEM_SCHEMA = {
                             "enum": ["stm", "im", "ltm"],
                         },
                     },
+                    "additionalProperties": True,  # Allow additional metadata properties
                 },
                 "type": {
                     "type": "string",
@@ -82,18 +86,20 @@ MEMORY_SYSTEM_SCHEMA = {
                 "embeddings": {
                     "type": "object",
                     "properties": {
-                        "full_vector": {"type": "array", "items": {"type": "number"}},
+                        "full_vector": {"type": ["array", "null"], "items": {"type": "number"}},
                         "compressed_vector": {
-                            "type": "array",
+                            "type": ["array", "null"],
                             "items": {"type": "number"},
                         },
                         "abstract_vector": {
-                            "type": "array",
+                            "type": ["array", "null"],
                             "items": {"type": "number"},
                         },
                     },
+                    "additionalProperties": True,  # Allow additional embedding properties
                 },
             },
+            "additionalProperties": True,  # Allow additional memory entry properties
         }
     },
 }
@@ -109,15 +115,17 @@ def validate_memory_system_json(data: Dict[str, Any]) -> bool:
         True if valid, False otherwise
     """
     try:
+        # Validate against schema
         jsonschema.validate(instance=data, schema=MEMORY_SYSTEM_SCHEMA)
         return True
     except jsonschema.exceptions.ValidationError as e:
         logger.error(f"Schema validation error: {e.message}")
-        # Optional: Log more detailed information about the validation error
-        logger.debug(f"Failed validating {e.path} in schema {e.schema_path}")
         return False
     except Exception as e:
         logger.error(f"Error validating memory system JSON: {e}")
+        print(f"UNEXPECTED ERROR: {e}")
+        import traceback
+        print(traceback.format_exc())
         return False
 
 

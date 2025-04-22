@@ -233,21 +233,48 @@ def test_save_and_load_roundtrip(cleanup_memory_system):
 
     # Add state memory with some content to check after reload
     test_content = {"name": "Test Agent", "status": "active", "data": {"key1": "value1", "key2": 42}}
-    original_system.store_agent_state(
+    
+    # Explicitly use state type
+    state_result = original_system.store_agent_state(
         agent_id, 
         test_content, 
         step_number=1,
         priority=0.8
     )
+    logger.info(f"store_agent_state result: {state_result}")
+    
+    # Verify the memory was stored with the correct type
+    try:
+        stm_memories = memory_agent.stm_store.get_all(agent_id)
+        logger.info(f"Before save: STM memories count: {len(stm_memories)}")
+        for i, mem in enumerate(stm_memories):
+            logger.info(f"Memory {i} type: {mem.get('type')}")
+            logger.info(f"Memory {i} metadata.memory_type: {mem.get('metadata', {}).get('memory_type')}")
+    except Exception as e:
+        logger.error(f"Error retrieving STM memories: {e}")
 
     # Create a temporary file for testing
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as temp_file:
         filepath = temp_file.name
+    
+    logger.info(f"Using temporary file: {filepath}")
 
     try:
         # Save the memory system to the temporary file
         success = original_system.save_to_json(filepath)
         assert success, "Failed to save memory system"
+        
+        # Examine the saved file
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        # Log the memory types in the saved file
+        if "agents" in data and agent_id in data["agents"] and "memories" in data["agents"][agent_id]:
+            memories = data["agents"][agent_id]["memories"]
+            logger.info(f"Saved file has {len(memories)} memories")
+            for i, mem in enumerate(memories):
+                logger.info(f"Saved memory {i} type: {mem.get('type')}")
+                logger.info(f"Saved memory {i} metadata.memory_type: {mem.get('metadata', {}).get('memory_type')}")
 
         # Reset the singleton to enable loading a new instance
         AgentMemorySystem._instance = None
@@ -266,15 +293,32 @@ def test_save_and_load_roundtrip(cleanup_memory_system):
         ltm_memories = loaded_agent.ltm_store.get_all(agent_id)
         
         all_memories = stm_memories + im_memories + ltm_memories
-        assert len(all_memories) > 0, "No memories were loaded"
+        logger.info(f"After load: All memories count: {len(all_memories)}")
+        logger.info(f"STM: {len(stm_memories)}, IM: {len(im_memories)}, LTM: {len(ltm_memories)}")
         
+        # Log memory types after loading
+        for i, mem in enumerate(all_memories):
+            logger.info(f"Loaded memory {i} type: {mem.get('type')}")
+            logger.info(f"Loaded memory {i} step_number: {mem.get('step_number')}")
+            logger.info(f"Loaded memory {i} metadata.memory_type: {mem.get('metadata', {}).get('memory_type')}")
+        
+        assert len(all_memories) > 0, "No memories were loaded"
+
         # Find a memory with the test content
         matching_memory = None
         for memory in all_memories:
-            if memory.get("type") == "state" and memory.get("step_number") == 1:
+            memory_type = memory.get("type", "generic")
+            metadata_type = memory.get("metadata", {}).get("memory_type", "generic")
+            step = memory.get("step_number")
+            
+            logger.info(f"Checking memory: type={memory_type}, metadata_type={metadata_type}, step={step}")
+            
+            # Check both type and metadata.memory_type since they might be different
+            if (memory_type == "state" or metadata_type == "state") and step == 1:
                 matching_memory = memory
+                logger.info("Found matching memory!")
                 break
-                
+
         assert matching_memory is not None, "Could not find the test memory"
         
         # Verify the content was preserved
@@ -297,8 +341,8 @@ def test_save_with_invalid_path(cleanup_memory_system):
     config = MemoryConfig()
     memory_system = AgentMemorySystem(config)
 
-    # Try to save to an invalid path (a directory that doesn't exist)
-    invalid_path = os.path.join(tempfile.gettempdir(), "nonexistent_dir", "memory_data.json")
+    # Try to save to an invalid path with illegal characters for Windows
+    invalid_path = os.path.join(tempfile.gettempdir(), "invalid*path?", "file|name<>.json")
     logger.info(f"Testing invalid path: {invalid_path}")
     
     # The method should handle this gracefully

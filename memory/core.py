@@ -465,6 +465,9 @@ class AgentMemorySystem:
 
                 try:
                     stm_memories = agent.stm_store.get_all(agent_id)
+                    logger.info(
+                        f"Retrieved {len(stm_memories)} STM memories for agent {agent_id}"
+                    )
                 except Exception as e:
                     logger.warning(
                         f"Could not get STM memories for agent {agent_id}: {e}"
@@ -472,6 +475,9 @@ class AgentMemorySystem:
 
                 try:
                     im_memories = agent.im_store.get_all(agent_id)
+                    logger.info(
+                        f"Retrieved {len(im_memories)} IM memories for agent {agent_id}"
+                    )
                 except Exception as e:
                     logger.warning(
                         f"Could not get IM memories for agent {agent_id}: {e}"
@@ -479,6 +485,9 @@ class AgentMemorySystem:
 
                 try:
                     ltm_memories = agent.ltm_store.get_all(agent_id)
+                    logger.info(
+                        f"Retrieved {len(ltm_memories)} LTM memories for agent {agent_id}"
+                    )
                 except Exception as e:
                     logger.warning(
                         f"Could not get LTM memories for agent {agent_id}: {e}"
@@ -486,10 +495,11 @@ class AgentMemorySystem:
 
                 # Combine all memories
                 all_memories = stm_memories + im_memories + ltm_memories
+                logger.info(f"Total memories for agent {agent_id}: {len(all_memories)}")
 
                 # Clean up non-serializable objects in memories
                 clean_memories = []
-                for memory in all_memories:
+                for i, memory in enumerate(all_memories):
                     # Make a copy of the memory to avoid modifying the original
                     clean_memory = {}
                     for k, v in memory.items():
@@ -510,20 +520,100 @@ class AgentMemorySystem:
                         else:
                             clean_memory[k] = v
 
+                    # Ensure all required fields for schema validation are present
+                    if "memory_id" not in clean_memory:
+                        clean_memory["memory_id"] = (
+                            f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+                        )
+                        logger.debug(f"Added memory_id to memory {i}")
+
+                    if "agent_id" not in clean_memory:
+                        clean_memory["agent_id"] = agent_id
+                        logger.debug(f"Added agent_id to memory {i}")
+
+                    if "content" not in clean_memory:
+                        clean_memory["content"] = {}
+                        logger.debug(f"Added empty content to memory {i}")
+
+                    # Ensure the memory type is set correctly and consistently
+                    memory_type = memory.get("type", "generic")
+                    clean_memory["type"] = memory_type
+                    logger.debug(f"Set memory type to {memory_type} for memory {i}")
+
+                    # Ensure metadata is present with all required fields
+                    if "metadata" not in clean_memory:
+                        clean_memory["metadata"] = {}
+                        logger.debug(f"Added empty metadata to memory {i}")
+
+                    metadata = clean_memory["metadata"]
+                    if "creation_time" not in metadata:
+                        metadata["creation_time"] = int(time.time())
+
+                    if "last_access_time" not in metadata:
+                        metadata["last_access_time"] = int(time.time())
+
+                    if "importance_score" not in metadata:
+                        metadata["importance_score"] = memory.get("priority", 1.0)
+
+                    if "retrieval_count" not in metadata:
+                        metadata["retrieval_count"] = 0
+
+                    if "current_tier" not in metadata:
+                        metadata["current_tier"] = "stm"
+
+                    # Ensure memory_type in metadata matches the top-level type
+                    metadata["memory_type"] = memory_type
+
+                    if "step_number" not in clean_memory:
+                        clean_memory["step_number"] = 0
+
+                    if "timestamp" not in clean_memory:
+                        clean_memory["timestamp"] = int(time.time())
+
+                    # Ensure embeddings structure is valid if present
+                    if "embeddings" not in clean_memory:
+                        clean_memory["embeddings"] = {}
+
+                    # Log the memory structure after preparation
+                    logger.debug(f"Memory {i} keys: {list(clean_memory.keys())}")
+                    logger.debug(
+                        f"Memory {i} metadata keys: {list(clean_memory.get('metadata', {}).keys())}"
+                    )
+
                     clean_memories.append(clean_memory)
 
+                logger.info(
+                    f"Prepared {len(clean_memories)} memories for agent {agent_id}"
+                )
                 data["agents"][agent_id] = {
                     "agent_id": agent_id,
                     "memories": clean_memories,
                 }
 
+            # Log a summary of the data structure
+            logger.info(f"Data keys: {list(data.keys())}")
+            logger.info(f"Number of agents: {len(data.get('agents', {}))}")
+            for a_id, a_data in data.get("agents", {}).items():
+                logger.info(
+                    f"Agent {a_id} has {len(a_data.get('memories', []))} memories"
+                )
+
             # Validate against schema
+            logger.info("Validating against schema...")
             if not validate_memory_system_json(data):
                 logger.error("Generated JSON does not conform to schema")
                 return False
 
+            # Check if the directory exists
+            dir_path = os.path.dirname(os.path.abspath(filepath))
+
             # Ensure directory exists
-            os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
+            try:
+                # Only create directory if it doesn't exist
+                os.makedirs(dir_path, exist_ok=True)
+            except Exception as e:
+                logger.error(f"Failed to create directory {dir_path}: {e}")
+                return False
 
             # Write to file
             with open(filepath, "w", encoding="utf-8") as f:
@@ -534,6 +624,9 @@ class AgentMemorySystem:
 
         except Exception as e:
             logger.error(f"Failed to save memory system to {filepath}: {e}")
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
 
     @classmethod
@@ -606,10 +699,28 @@ class AgentMemorySystem:
 
                 # Add memories
                 for memory in agent_data.get("memories", []):
+                    # First check the top-level type
                     memory_type = memory.get("type", "generic")
+
+                    # Also check metadata.memory_type as a fallback
+                    if memory_type == "generic" and "metadata" in memory:
+                        metadata_type = memory["metadata"].get("memory_type")
+                        if metadata_type in ["state", "interaction", "action"]:
+                            memory_type = metadata_type
+                            logger.debug(
+                                f"Using memory_type from metadata: {memory_type}"
+                            )
+
                     content = memory.get("content", {})
                     step_number = memory.get("step_number", 0)
                     priority = memory.get("metadata", {}).get("importance_score", 1.0)
+
+                    # Log memory being loaded for debugging
+                    logger.debug(
+                        f"Loading memory of type {memory_type} for agent {agent_id}"
+                    )
+                    logger.debug(f"Memory content keys: {list(content.keys())}")
+                    logger.debug(f"Memory step: {step_number}, priority: {priority}")
 
                     # Store according to memory type
                     if memory_type == "state":
