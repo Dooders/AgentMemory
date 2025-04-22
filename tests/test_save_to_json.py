@@ -341,8 +341,12 @@ def test_save_with_invalid_path(cleanup_memory_system):
     config = MemoryConfig()
     memory_system = AgentMemorySystem(config)
 
-    # Try to save to an invalid path with illegal characters for Windows
-    invalid_path = os.path.join(tempfile.gettempdir(), "invalid*path?", "file|name<>.json")
+    # Try to save to an invalid path with characters or structures invalid for the current OS
+    if os.name == "nt":  # Windows
+        invalid_path = os.path.join(tempfile.gettempdir(), "invalid*path?", "file|name<>.json")
+    else:  # POSIX (Linux/macOS)
+        invalid_path = os.path.join(tempfile.gettempdir(), "invalid_path", "\0file.json")  # Null byte is invalid
+    
     logger.info(f"Testing invalid path: {invalid_path}")
     
     # The method should handle this gracefully
