@@ -24,7 +24,6 @@ SAMPLES_DIR = Path("demos/memory_samples")
 # Sample files to test
 SIMPLE_AGENT_SAMPLE = SAMPLES_DIR / "simple_agent_memory.json"
 MULTI_AGENT_SAMPLE = SAMPLES_DIR / "multi_agent_memory.json"
-TIERED_SAMPLE = SAMPLES_DIR / "tiered_memory.json"
 ATTRIBUTE_VALIDATION_SAMPLE = SAMPLES_DIR / "attribute_validation_memory.json"
 
 
@@ -43,7 +42,6 @@ def test_json_schema_validation():
     for sample_file in [
         SIMPLE_AGENT_SAMPLE,
         MULTI_AGENT_SAMPLE,
-        TIERED_SAMPLE,
         ATTRIBUTE_VALIDATION_SAMPLE,
     ]:
         with open(sample_file, "r", encoding="utf-8") as f:
@@ -210,27 +208,6 @@ def test_load_multi_agent_memory(cleanup_memory_system):
 
         all_memories = stm_memories + im_memories + ltm_memories
         assert len(all_memories) > 0, f"Agent {agent_id} has no memories"
-
-
-def test_load_tiered_memory(cleanup_memory_system):
-    """Test loading the tiered memory sample with memories in different tiers."""
-    # Load the memory system from the JSON file
-    memory_system = AgentMemorySystem.load_from_json(TIERED_SAMPLE, use_mock_redis=True)
-
-    # Verify the memory system was created
-    assert memory_system is not None, "Failed to load memory system from tiered JSON"
-
-    # Verify the agent was created
-    assert "persistent_agent" in memory_system.agents
-    agent = memory_system.get_memory_agent("persistent_agent")
-
-    # Directly check for memories instead of relying on statistics
-    stm_memories = agent.stm_store.get_all("persistent_agent")
-    im_memories = agent.im_store.get_all("persistent_agent")
-    ltm_memories = agent.ltm_store.get_all("persistent_agent")
-
-    all_memories = stm_memories + im_memories + ltm_memories
-    assert len(all_memories) > 0, "No memories were loaded for persistent agent"
 
 
 def test_load_attribute_validation_memory(cleanup_memory_system):

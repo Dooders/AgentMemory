@@ -1,0 +1,478 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "test-agent-importance-search": {
+      "agent_id": "test-agent-importance-search",
+      "memories": [
+        {
+          "memory_id": "stm-high-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 1,
+          "timestamp": 1686816000,
+          "content": {
+            "content": "Critical security vulnerability found in production code. Must be fixed immediately.",
+            "metadata": {
+              "type": "alert",
+              "tags": [
+                "security",
+                "critical",
+                "important"
+              ],
+              "source": "security_scan"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686816000,
+            "last_access_time": 1686816000,
+            "compression_level": 0,
+            "importance": 0.95,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "stm-high-importance-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 2,
+          "timestamp": 1686902400,
+          "content": {
+            "content": "Meeting with CEO about new strategic direction for the company.",
+            "metadata": {
+              "type": "meeting",
+              "tags": [
+                "strategy",
+                "important",
+                "executive"
+              ],
+              "participants": [
+                "CEO",
+                "CTO",
+                "CPO"
+              ],
+              "date": "2023-06-16"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686902400,
+            "last_access_time": 1686902400,
+            "compression_level": 0,
+            "importance": 0.85,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "stm-medium-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 3,
+          "timestamp": 1687075200,
+          "content": {
+            "content": "Weekly team meeting about project progress. All milestones on track.",
+            "metadata": {
+              "type": "meeting",
+              "tags": [
+                "team",
+                "weekly",
+                "status"
+              ],
+              "participants": [
+                "Team Members"
+              ],
+              "date": "2023-06-18"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687075200,
+            "last_access_time": 1687075200,
+            "compression_level": 0,
+            "importance": 0.65,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "stm-medium-importance-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 4,
+          "timestamp": 1687161600,
+          "content": {
+            "content": "Reminder to complete documentation for API endpoints by end of week.",
+            "metadata": {
+              "type": "task",
+              "tags": [
+                "documentation",
+                "deadline",
+                "development"
+              ],
+              "deadline": "2023-06-23"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687161600,
+            "last_access_time": 1687161600,
+            "compression_level": 0,
+            "importance": 0.6,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "stm-low-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 5,
+          "timestamp": 1687248000,
+          "content": {
+            "content": "Office supplies need to be restocked soon.",
+            "metadata": {
+              "type": "note",
+              "tags": [
+                "office",
+                "supplies",
+                "routine"
+              ]
+            }
+          },
+          "metadata": {
+            "creation_time": 1687248000,
+            "last_access_time": 1687248000,
+            "compression_level": 0,
+            "importance": 0.25,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-high-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 6,
+          "timestamp": 1685520000,
+          "content": {
+            "content": "Quarterly financial targets need to be updated based on new market analysis.",
+            "metadata": {
+              "type": "task",
+              "tags": [
+                "finance",
+                "quarterly",
+                "important"
+              ],
+              "deadline": "2023-06-30"
+            }
+          },
+          "metadata": {
+            "creation_time": 1685520000,
+            "last_access_time": 1685606400,
+            "compression_level": 1,
+            "importance": 0.8,
+            "retrieval_count": 3,
+            "memory_type": "action",
+            "current_tier": "im"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-high-importance-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 13,
+          "timestamp": 1685865600,
+          "content": {
+            "content": "Major client partnership agreement ready for signing. Legal review completed.",
+            "metadata": {
+              "type": "business",
+              "tags": [
+                "partnership",
+                "client",
+                "agreement",
+                "important"
+              ],
+              "deadline": "2023-06-10"
+            }
+          },
+          "metadata": {
+            "creation_time": 1685865600,
+            "last_access_time": 1685952000,
+            "compression_level": 1,
+            "importance": 0.87,
+            "retrieval_count": 4,
+            "memory_type": "generic",
+            "current_tier": "im"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-medium-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 7,
+          "timestamp": 1685606400,
+          "content": {
+            "content": "Customer feedback on new UI design is mostly positive, but navigation needs improvement.",
+            "metadata": {
+              "type": "feedback",
+              "tags": [
+                "customer",
+                "ui",
+                "product"
+              ],
+              "source": "user_testing"
+            }
+          },
+          "metadata": {
+            "creation_time": 1685606400,
+            "last_access_time": 1685692800,
+            "compression_level": 1,
+            "importance": 0.55,
+            "retrieval_count": 2,
+            "memory_type": "generic",
+            "current_tier": "im"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-medium-importance-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 14,
+          "timestamp": 1686038400,
+          "content": {
+            "content": "New database migration plan drafted and ready for review. Scheduled for next sprint.",
+            "metadata": {
+              "type": "technical",
+              "tags": [
+                "database",
+                "migration",
+                "planning"
+              ],
+              "source": "dev_team"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686038400,
+            "last_access_time": 1686124800,
+            "compression_level": 1,
+            "importance": 0.68,
+            "retrieval_count": 3,
+            "memory_type": "generic",
+            "current_tier": "im"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-low-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 8,
+          "timestamp": 1685692800,
+          "content": {
+            "content": "Team lunch scheduled for next Friday at 12:30.",
+            "metadata": {
+              "type": "event",
+              "tags": [
+                "social",
+                "team",
+                "lunch"
+              ],
+              "date": "2023-06-02"
+            }
+          },
+          "metadata": {
+            "creation_time": 1685692800,
+            "last_access_time": 1685779200,
+            "compression_level": 1,
+            "importance": 0.3,
+            "retrieval_count": 1,
+            "memory_type": "interaction",
+            "current_tier": "im"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "im-low-importance-2",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 15,
+          "timestamp": 1686211200,
+          "content": {
+            "content": "Office wifi password has been updated. New password is in the shared password manager.",
+            "metadata": {
+              "type": "note",
+              "tags": [
+                "office",
+                "it",
+                "infrastructure"
+              ],
+              "source": "it_department"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686211200,
+            "last_access_time": 1686297600,
+            "compression_level": 1,
+            "importance": 0.35,
+            "retrieval_count": 2,
+            "memory_type": "generic",
+            "current_tier": "im"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-highest-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 9,
+          "timestamp": 1680307200,
+          "content": {
+            "content": "Company vision and mission statement established. Will guide all product decisions.",
+            "metadata": {
+              "type": "information",
+              "tags": [
+                "company",
+                "vision",
+                "strategy",
+                "important"
+              ],
+              "source": "board_meeting"
+            }
+          },
+          "metadata": {
+            "creation_time": 1680307200,
+            "last_access_time": 1682899200,
+            "compression_level": 2,
+            "importance": 0.98,
+            "retrieval_count": 15,
+            "memory_type": "generic",
+            "current_tier": "ltm"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-high-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 10,
+          "timestamp": 1680393600,
+          "content": {
+            "content": "Authentication system architecture decisions and security protocols defined.",
+            "metadata": {
+              "type": "technical",
+              "tags": [
+                "architecture",
+                "security",
+                "authentication",
+                "important"
+              ],
+              "source": "design_doc"
+            }
+          },
+          "metadata": {
+            "creation_time": 1680393600,
+            "last_access_time": 1682985600,
+            "compression_level": 2,
+            "importance": 0.9,
+            "retrieval_count": 10,
+            "memory_type": "generic",
+            "current_tier": "ltm"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-medium-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 11,
+          "timestamp": 1680480000,
+          "content": {
+            "content": "Team structure reorganized to focus on product verticals instead of technologies.",
+            "metadata": {
+              "type": "organizational",
+              "tags": [
+                "team",
+                "structure",
+                "organization"
+              ],
+              "source": "hr"
+            }
+          },
+          "metadata": {
+            "creation_time": 1680480000,
+            "last_access_time": 1680566400,
+            "compression_level": 2,
+            "importance": 0.7,
+            "retrieval_count": 5,
+            "memory_type": "generic",
+            "current_tier": "ltm"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "ltm-low-importance-1",
+          "agent_id": "test-agent-importance-search",
+          "step_number": 12,
+          "timestamp": 1680566400,
+          "content": {
+            "content": "Old project codebase archived. Reference if needed for legacy integrations.",
+            "metadata": {
+              "type": "technical",
+              "tags": [
+                "archive",
+                "legacy",
+                "codebase"
+              ],
+              "source": "dev_ops"
+            }
+          },
+          "metadata": {
+            "creation_time": 1680566400,
+            "last_access_time": 1680652800,
+            "compression_level": 2,
+            "importance": 0.4,
+            "retrieval_count": 2,
+            "memory_type": "generic",
+            "current_tier": "ltm"
+          },
+          "type": "generic",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+}

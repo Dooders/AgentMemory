@@ -270,6 +270,160 @@ class TestImportanceStrategy(unittest.TestCase):
                 query={"top_n": 0}, agent_id="agent-1", tier="stm"  # Should be > 0
             )
 
+    def test_query_as_direct_value(self):
+        """Test search with direct numeric value for query."""
+        # Set up mock memory data
+        memories = [
+            {
+                "id": "mem1",
+                "content": "Important meeting",
+                "metadata": {"importance": 8},
+            },
+            {"id": "mem2", "content": "Regular task", "metadata": {"importance": 3}},
+            {"id": "mem3", "content": "Critical alert", "metadata": {"importance": 9}},
+            {"id": "mem4", "content": "Routine check", "metadata": {"importance": 2}},
+        ]
+
+        # Configure mock to return all memories for listing
+        self.mock_stm_store.list.return_value = memories
+
+        # Perform search with direct numeric value (minimum importance of 5)
+        results = self.strategy.search(
+            query=5.0, agent_id="agent-1", tier="stm", limit=5
+        )
+
+        # Verify results only include memories with importance >= 5
+        self.assertEqual(len(results), 2)
+        result_ids = [r["id"] for r in results]
+        self.assertIn("mem1", result_ids)  # importance 8
+        self.assertIn("mem3", result_ids)  # importance 9
+
+    def test_sort_order_parameter(self):
+        """Test search with different sort order parameters."""
+        # Set up mock memory data
+        memories = [
+            {
+                "id": "mem1",
+                "content": "Important meeting",
+                "metadata": {"importance": 8},
+            },
+            {"id": "mem2", "content": "Regular task", "metadata": {"importance": 3}},
+            {"id": "mem3", "content": "Critical alert", "metadata": {"importance": 9}},
+            {"id": "mem4", "content": "Routine check", "metadata": {"importance": 2}},
+        ]
+
+        # Configure mock to return all memories for listing
+        self.mock_im_store.list.return_value = memories
+
+        # Test with descending sort order (default)
+        desc_results = self.strategy.search(
+            query={"min_importance": 1}, agent_id="agent-1", tier="im", limit=5
+        )
+
+        # Verify descending order (highest importance first)
+        self.assertEqual(desc_results[0]["id"], "mem3")  # importance 9
+        self.assertEqual(desc_results[1]["id"], "mem1")  # importance 8
+        self.assertEqual(desc_results[2]["id"], "mem2")  # importance 3
+        self.assertEqual(desc_results[3]["id"], "mem4")  # importance 2
+
+        # Test with ascending sort order
+        asc_results = self.strategy.search(
+            query={"min_importance": 1},
+            agent_id="agent-1",
+            tier="im",
+            limit=5,
+            sort_order="asc",
+        )
+
+        # Verify ascending order (lowest importance first)
+        self.assertEqual(asc_results[0]["id"], "mem4")  # importance 2
+        self.assertEqual(asc_results[1]["id"], "mem2")  # importance 3
+        self.assertEqual(asc_results[2]["id"], "mem1")  # importance 8
+        self.assertEqual(asc_results[3]["id"], "mem3")  # importance 9
+
+    def test_all_tiers_search(self):
+        """Test search across all memory tiers."""
+        # Set up mock memory data for each tier
+        stm_memories = [
+            {"id": "stm1", "content": "STM memory", "metadata": {"importance": 7}},
+        ]
+        im_memories = [
+            {"id": "im1", "content": "IM memory", "metadata": {"importance": 5}},
+        ]
+        ltm_memories = [
+            {"id": "ltm1", "content": "LTM memory", "metadata": {"importance": 8}},
+        ]
+
+        # Configure mocks to return tier-specific memories
+        self.mock_stm_store.list.return_value = stm_memories
+        self.mock_im_store.list.return_value = im_memories
+        self.mock_ltm_store.list.return_value = ltm_memories
+
+        # Perform search without specifying tier (should search all)
+        results = self.strategy.search(
+            query={"min_importance": 6}, agent_id="agent-1", limit=5
+        )
+
+        # Verify results include memories from all tiers that meet the criteria
+        self.assertEqual(len(results), 2)
+        result_ids = [r["id"] for r in results]
+        self.assertIn("ltm1", result_ids)  # importance 8 from LTM
+        self.assertIn("stm1", result_ids)  # importance 7 from STM
+        self.assertNotIn("im1", result_ids)  # importance 5 from IM (below threshold)
+
+    def test_combined_top_n_and_importance_filters(self):
+        """Test search with both top_n and min/max importance filters."""
+        # Set up mock memory data
+        memories = [
+            {"id": "mem1", "content": "Memory 1", "metadata": {"importance": 8}},
+            {"id": "mem2", "content": "Memory 2", "metadata": {"importance": 3}},
+            {"id": "mem3", "content": "Memory 3", "metadata": {"importance": 9}},
+            {"id": "mem4", "content": "Memory 4", "metadata": {"importance": 6}},
+            {"id": "mem5", "content": "Memory 5", "metadata": {"importance": 5}},
+            {"id": "mem6", "content": "Memory 6", "metadata": {"importance": 7}},
+        ]
+
+        # Configure mock to return all memories for listing
+        self.mock_ltm_store.list.return_value = memories
+
+        # Test combining top_n with min/max importance filters
+        results = self.strategy.search(
+            query={"top_n": 2, "min_importance": 5, "max_importance": 8},
+            agent_id="agent-1",
+            tier="ltm",
+        )
+
+        # Should return top 2 memories in the importance range 5-8
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]["id"], "mem1")  # importance 8
+        self.assertEqual(results[1]["id"], "mem6")  # importance 7
+
+    def test_get_stores_for_tier(self):
+        """Test the _get_stores_for_tier method with all possible inputs."""
+        # Test each tier specifically
+        stm_stores = self.strategy._get_stores_for_tier("stm")
+        self.assertEqual(len(stm_stores), 1)
+        self.assertEqual(stm_stores[0], self.mock_stm_store)
+
+        im_stores = self.strategy._get_stores_for_tier("im")
+        self.assertEqual(len(im_stores), 1)
+        self.assertEqual(im_stores[0], self.mock_im_store)
+
+        ltm_stores = self.strategy._get_stores_for_tier("ltm")
+        self.assertEqual(len(ltm_stores), 1)
+        self.assertEqual(ltm_stores[0], self.mock_ltm_store)
+
+        # Test None or invalid tier (should return all stores)
+        all_stores = self.strategy._get_stores_for_tier(None)
+        self.assertEqual(len(all_stores), 3)
+        self.assertIn(self.mock_stm_store, all_stores)
+        self.assertIn(self.mock_im_store, all_stores)
+        self.assertIn(self.mock_ltm_store, all_stores)
+
+        # Test with invalid tier value
+        invalid_stores = self.strategy._get_stores_for_tier("invalid_tier")
+        self.assertEqual(len(invalid_stores), 3)  # Should default to all stores
+
 
 if __name__ == "__main__":
     unittest.main()
