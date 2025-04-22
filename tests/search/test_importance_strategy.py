@@ -319,7 +319,7 @@ class TestImportanceStrategy(unittest.TestCase):
         desc_results = self.strategy.search(
             query={"min_importance": 1}, agent_id="agent-1", tier="im", limit=5
         )
-        
+
         # Verify descending order (highest importance first)
         self.assertEqual(desc_results[0]["id"], "mem3")  # importance 9
         self.assertEqual(desc_results[1]["id"], "mem1")  # importance 8
@@ -332,9 +332,9 @@ class TestImportanceStrategy(unittest.TestCase):
             agent_id="agent-1",
             tier="im",
             limit=5,
-            sort_order="asc"
+            sort_order="asc",
         )
-        
+
         # Verify ascending order (lowest importance first)
         self.assertEqual(asc_results[0]["id"], "mem4")  # importance 2
         self.assertEqual(asc_results[1]["id"], "mem2")  # importance 3

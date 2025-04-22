@@ -120,6 +120,7 @@ def validate_attribute_search():
     log_print(logger, f"Testing search strategy: {search_strategy.name()}")
     log_print(logger, f"Description: {search_strategy.description()}")
 
+
     # Test 1: Basic content search
     run_test(
         search_strategy,

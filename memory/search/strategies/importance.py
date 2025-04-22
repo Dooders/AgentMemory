@@ -1,4 +1,5 @@
-from typing import Dict, List, Any, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+
 from .base import SearchStrategy
 
 
@@ -20,6 +21,13 @@ class ImportanceStrategy(SearchStrategy):
         self.stm_store = stm_store
         self.im_store = im_store
         self.ltm_store = ltm_store
+
+        # Mapping for string importance values to numeric values
+        self.importance_mapping = {
+            "low": 0.3,
+            "medium": 0.6,
+            "high": 0.9,
+        }
 
     def name(self) -> str:
         """Return the name of the strategy."""
@@ -103,7 +111,7 @@ class ImportanceStrategy(SearchStrategy):
         results = []
         for store in stores:
             # Get all memories for the agent
-            memories = store.get_all(agent_id)
+            memories = store.list(agent_id)
 
             # Filter memories by importance
             for memory in memories:
@@ -112,7 +120,21 @@ class ImportanceStrategy(SearchStrategy):
                 if "importance" not in metadata:
                     continue
 
-                importance = metadata["importance"]
+                importance_value = metadata["importance"]
+
+                # Convert string importance to float if needed
+                if isinstance(importance_value, str):
+                    if importance_value.lower() in self.importance_mapping:
+                        importance = self.importance_mapping[importance_value.lower()]
+                    else:
+                        try:
+                            importance = float(importance_value)
+                        except (ValueError, TypeError):
+                            # Skip if we can't convert to float
+                            continue
+                else:
+                    importance = float(importance_value)
+
                 if min_importance <= importance <= max_importance:
                     results.append(memory)
 
@@ -126,8 +148,20 @@ class ImportanceStrategy(SearchStrategy):
 
         # Sort by importance
         reverse_sort = sort_order.lower() == "desc"
+
+        def get_importance(memory):
+            importance_value = memory.get("metadata", {}).get("importance", 0)
+            if isinstance(importance_value, str):
+                if importance_value.lower() in self.importance_mapping:
+                    return self.importance_mapping[importance_value.lower()]
+                try:
+                    return float(importance_value)
+                except (ValueError, TypeError):
+                    return 0
+            return float(importance_value)
+
         results.sort(
-            key=lambda x: x.get("metadata", {}).get("importance", 0),
+            key=get_importance,
             reverse=reverse_sort,
         )
 

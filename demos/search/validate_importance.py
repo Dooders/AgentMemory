@@ -91,6 +91,7 @@ def validate_importance_search():
         return
 
     # DEBUG: Print the memory count in each store
+    log_print(logger, f"Memory system loaded: {memory_system}")
     agent = memory_system.get_memory_agent(AGENT_ID)
     try:
         stm_memories = agent.stm_store.get_all(AGENT_ID)

@@ -4,7 +4,7 @@
     "cleanup_interval": 100,
     "enable_memory_hooks": false,
     "stm_config": {
-      "host": "127.0.0.1", 
+      "host": "127.0.0.1",
       "port": 6379,
       "db": 0,
       "namespace": "agent-stm",
@@ -37,8 +37,15 @@
             "metadata": {
               "type": "meeting",
               "importance": "high",
-              "tags": ["meeting", "project", "planning"],
-              "participants": ["Alice", "Bob"],
+              "tags": [
+                "meeting",
+                "project",
+                "planning"
+              ],
+              "participants": [
+                "Alice",
+                "Bob"
+              ],
               "date": "2023-06-15",
               "source": "calendar"
             }
@@ -49,10 +56,10 @@
             "compression_level": 0,
             "importance_score": 0.9,
             "retrieval_count": 0,
-            "memory_type": "event",
+            "memory_type": "interaction",
             "current_tier": "stm"
           },
-          "type": "event",
+          "type": "interaction",
           "embeddings": {}
         },
         {
@@ -65,7 +72,11 @@
             "metadata": {
               "type": "task",
               "importance": "medium",
-              "tags": ["task", "documentation", "deadline"],
+              "tags": [
+                "task",
+                "documentation",
+                "deadline"
+              ],
               "deadline": "2023-06-23",
               "source": "self"
             }
@@ -76,10 +87,10 @@
             "compression_level": 0,
             "importance_score": 0.7,
             "retrieval_count": 0,
-            "memory_type": "task",
+            "memory_type": "action",
             "current_tier": "stm"
           },
-          "type": "task",
+          "type": "action",
           "embeddings": {}
         },
         {
@@ -92,8 +103,16 @@
             "metadata": {
               "type": "meeting",
               "importance": "medium",
-              "tags": ["meeting", "review", "development"],
-              "participants": ["Charlie", "Dave", "Eve"],
+              "tags": [
+                "meeting",
+                "review",
+                "development"
+              ],
+              "participants": [
+                "Charlie",
+                "Dave",
+                "Eve"
+              ],
               "date": "2023-06-18",
               "source": "slack"
             }
@@ -104,10 +123,10 @@
             "compression_level": 0,
             "importance_score": 0.6,
             "retrieval_count": 0,
-            "memory_type": "event",
+            "memory_type": "interaction",
             "current_tier": "stm"
           },
-          "type": "event",
+          "type": "interaction",
           "embeddings": {}
         },
         {
@@ -120,7 +139,11 @@
             "metadata": {
               "type": "note",
               "importance": "high",
-              "tags": ["security", "urgent", "production"],
+              "tags": [
+                "security",
+                "urgent",
+                "production"
+              ],
               "source": "email"
             }
           },
@@ -130,10 +153,10 @@
             "compression_level": 0,
             "importance_score": 0.95,
             "retrieval_count": 0,
-            "memory_type": "note",
+            "memory_type": "generic",
             "current_tier": "stm"
           },
-          "type": "note",
+          "type": "generic",
           "embeddings": {}
         },
         {
@@ -146,7 +169,10 @@
             "metadata": {
               "type": "contact",
               "importance": "low",
-              "tags": ["contact", "project"],
+              "tags": [
+                "contact",
+                "project"
+              ],
               "name": "John Doe",
               "source": "email"
             }
@@ -157,10 +183,10 @@
             "compression_level": 0,
             "importance_score": 0.4,
             "retrieval_count": 0,
-            "memory_type": "info",
+            "memory_type": "generic",
             "current_tier": "stm"
           },
-          "type": "info",
+          "type": "generic",
           "embeddings": {}
         },
         {
@@ -173,8 +199,16 @@
             "metadata": {
               "type": "meeting",
               "importance": "high",
-              "tags": ["meeting", "roadmap", "planning"],
-              "participants": ["Frank", "Grace", "Helen"],
+              "tags": [
+                "meeting",
+                "roadmap",
+                "planning"
+              ],
+              "participants": [
+                "Frank",
+                "Grace",
+                "Helen"
+              ],
               "date": "2023-05-31",
               "source": "calendar"
             }
@@ -185,10 +219,10 @@
             "compression_level": 1,
             "importance_score": 0.85,
             "retrieval_count": 3,
-            "memory_type": "event",
+            "memory_type": "interaction",
             "current_tier": "im"
           },
-          "type": "event",
+          "type": "interaction",
           "embeddings": {}
         },
         {
@@ -201,7 +235,11 @@
             "metadata": {
               "type": "task",
               "importance": "high",
-              "tags": ["task", "documentation", "auth"],
+              "tags": [
+                "task",
+                "documentation",
+                "auth"
+              ],
               "deadline": "2023-06-07",
               "source": "manager"
             }
@@ -212,10 +250,10 @@
             "compression_level": 1,
             "importance_score": 0.8,
             "retrieval_count": 5,
-            "memory_type": "task",
+            "memory_type": "action",
             "current_tier": "im"
           },
-          "type": "task",
+          "type": "action",
           "embeddings": {}
         },
         {
@@ -228,7 +266,11 @@
             "metadata": {
               "type": "note",
               "importance": "medium",
-              "tags": ["security", "encryption", "followup"],
+              "tags": [
+                "security",
+                "encryption",
+                "followup"
+              ],
               "source": "meeting"
             }
           },
@@ -238,10 +280,10 @@
             "compression_level": 1,
             "importance_score": 0.7,
             "retrieval_count": 2,
-            "memory_type": "note",
+            "memory_type": "generic",
             "current_tier": "im"
           },
-          "type": "note",
+          "type": "generic",
           "embeddings": {}
         },
         {
@@ -254,8 +296,18 @@
             "metadata": {
               "type": "meeting",
               "importance": "high",
-              "tags": ["meeting", "quarterly", "planning", "okr"],
-              "participants": ["CEO", "CTO", "CPO", "Department Heads"],
+              "tags": [
+                "meeting",
+                "quarterly",
+                "planning",
+                "okr"
+              ],
+              "participants": [
+                "CEO",
+                "CTO",
+                "CPO",
+                "Department Heads"
+              ],
               "date": "2023-04-01",
               "source": "calendar"
             }
@@ -266,10 +318,10 @@
             "compression_level": 2,
             "importance_score": 0.9,
             "retrieval_count": 8,
-            "memory_type": "event",
+            "memory_type": "interaction",
             "current_tier": "ltm"
           },
-          "type": "event",
+          "type": "interaction",
           "embeddings": {}
         },
         {
@@ -282,7 +334,12 @@
             "metadata": {
               "type": "task",
               "importance": "high",
-              "tags": ["task", "development", "auth", "oauth"],
+              "tags": [
+                "task",
+                "development",
+                "auth",
+                "oauth"
+              ],
               "deadline": "2023-04-15",
               "source": "product"
             }
@@ -293,10 +350,10 @@
             "compression_level": 2,
             "importance_score": 0.85,
             "retrieval_count": 10,
-            "memory_type": "task",
+            "memory_type": "action",
             "current_tier": "ltm"
           },
-          "type": "task",
+          "type": "action",
           "embeddings": {}
         },
         {
@@ -309,8 +366,17 @@
             "metadata": {
               "type": "meeting",
               "importance": "high",
-              "tags": ["meeting", "security", "api", "review"],
-              "participants": ["Security Team", "Dev Team", "QA"],
+              "tags": [
+                "meeting",
+                "security",
+                "api",
+                "review"
+              ],
+              "participants": [
+                "Security Team",
+                "Dev Team",
+                "QA"
+              ],
               "date": "2023-04-02",
               "source": "slack"
             }
@@ -321,13 +387,13 @@
             "compression_level": 2,
             "importance_score": 0.9,
             "retrieval_count": 7,
-            "memory_type": "event",
+            "memory_type": "interaction",
             "current_tier": "ltm"
           },
-          "type": "event",
+          "type": "interaction",
           "embeddings": {}
         }
       ]
     }
   }
-} 
+}
