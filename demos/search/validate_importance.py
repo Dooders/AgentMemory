@@ -64,12 +64,14 @@ def run_test(
 
     log_print(logger, f"Found {len(results)} results")
     pretty_print_memories(results, f"Results for {test_name}", logger)
-    
+
     # Print importance scores for top results
     if results:
-        log_print(logger, f"\nImportance scores for top {min(5, len(results))} results:")
+        log_print(
+            logger, f"\nImportance scores for top {min(5, len(results))} results:"
+        )
         for idx, result in enumerate(results[:5]):
-            importance = result.get("metadata", {}).get("importance", 0)
+            importance = result.get("metadata", {}).get("importance_score", 0)
             memory_id = result.get("memory_id", result.get("id", f"Result {idx+1}"))
             log_print(logger, f"  {memory_id}: {importance:.4f}")
 
@@ -97,29 +99,41 @@ def validate_importance_search():
         stm_memories = agent.stm_store.get_all(AGENT_ID)
         log_print(logger, f"STM memories loaded: {len(stm_memories)}")
         if stm_memories:
-            log_print(logger, f"First STM memory: {stm_memories[0]['memory_id']} - Importance: {stm_memories[0]['metadata'].get('importance', 'N/A')}")
+            log_print(
+                logger,
+                f"First STM memory: {stm_memories[0]['memory_id']} - Importance: {stm_memories[0]['metadata'].get('importance_score', 'N/A')}",
+            )
     except Exception as e:
         log_print(logger, f"Error getting STM memories: {str(e)}")
-    
+
     try:
         im_memories = agent.im_store.get_all(AGENT_ID)
         log_print(logger, f"IM memories loaded: {len(im_memories)}")
         if im_memories:
-            log_print(logger, f"First IM memory: {im_memories[0]['memory_id']} - Importance: {im_memories[0]['metadata'].get('importance', 'N/A')}")
+            log_print(
+                logger,
+                f"First IM memory: {im_memories[0]['memory_id']} - Importance: {im_memories[0]['metadata'].get('importance_score', 'N/A')}",
+            )
     except Exception as e:
         log_print(logger, f"Error getting IM memories: {str(e)}")
-    
+
     try:
         ltm_memories = agent.ltm_store.get_all(AGENT_ID)
         log_print(logger, f"LTM memories loaded: {len(ltm_memories)}")
         if ltm_memories:
-            log_print(logger, f"First LTM memory: {ltm_memories[0]['memory_id']} - Importance: {ltm_memories[0]['metadata'].get('importance', 'N/A')}")
+            log_print(
+                logger,
+                f"First LTM memory: {ltm_memories[0]['memory_id']} - Importance: {ltm_memories[0]['metadata'].get('importance_score', 'N/A')}",
+            )
     except Exception as e:
         log_print(logger, f"Error getting LTM memories: {str(e)}")
-        
+
     # Examine the JSON file directly
     import json
-    json_path = os.path.join(os.path.dirname(__file__), "..", "memory_samples", MEMORY_SAMPLE)
+
+    json_path = os.path.join(
+        os.path.dirname(__file__), "..", "memory_samples", MEMORY_SAMPLE
+    )
     try:
         with open(json_path, "r") as f:
             data = json.load(f)
@@ -127,8 +141,14 @@ def validate_importance_search():
             log_print(logger, f"Memories in JSON file: {len(memories)}")
             for i, mem in enumerate(memories[:3]):  # Show first 3 memories
                 log_print(logger, f"Memory {i+1} from JSON: {mem['memory_id']}")
-                log_print(logger, f"  Metadata importance: {mem['metadata'].get('importance', 'N/A')}")
-                log_print(logger, f"  Memory tier: {mem['metadata'].get('current_tier', 'N/A')}")
+                log_print(
+                    logger,
+                    f"  Metadata importance: {mem['metadata'].get('importance_score', mem['metadata'].get('importance', 'N/A'))}",
+                )
+                log_print(
+                    logger,
+                    f"  Memory tier: {mem['metadata'].get('current_tier', 'N/A')}",
+                )
     except Exception as e:
         log_print(logger, f"Error reading JSON file: {str(e)}")
 
@@ -157,7 +177,7 @@ def validate_importance_search():
         AGENT_ID,
     )
 
-    # Test 3: Top N results 
+    # Test 3: Top N results
     run_test(
         search_strategy,
         "Top N Results Search",
@@ -251,6 +271,7 @@ def validate_importance_search():
         AGENT_ID,
     )
 
+
 if __name__ == "__main__":
     # Setup logging
     logger = setup_logging("validate_importance_search")
@@ -258,4 +279,4 @@ if __name__ == "__main__":
 
     validate_importance_search()
 
-    log_print(logger, "Validation Complete") 
+    log_print(logger, "Validation Complete")

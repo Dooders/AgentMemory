@@ -111,16 +111,20 @@ class ImportanceStrategy(SearchStrategy):
         results = []
         for store in stores:
             # Get all memories for the agent
-            memories = store.list(agent_id)
+            memories = store.get_all(agent_id)
 
             # Filter memories by importance
             for memory in memories:
                 metadata = memory.get("metadata", {})
-                # Skip memories without importance metadata
-                if "importance" not in metadata:
-                    continue
 
-                importance_value = metadata["importance"]
+                # Get importance - check both field names for compatibility
+                importance_value = metadata.get("importance_score")
+                if importance_value is None:
+                    importance_value = metadata.get("importance")
+
+                # Skip memories without importance metadata
+                if importance_value is None:
+                    continue
 
                 # Convert string importance to float if needed
                 if isinstance(importance_value, str):
@@ -150,7 +154,12 @@ class ImportanceStrategy(SearchStrategy):
         reverse_sort = sort_order.lower() == "desc"
 
         def get_importance(memory):
-            importance_value = memory.get("metadata", {}).get("importance", 0)
+            metadata = memory.get("metadata", {})
+            # Check both field names for compatibility
+            importance_value = metadata.get("importance_score")
+            if importance_value is None:
+                importance_value = metadata.get("importance", 0)
+
             if isinstance(importance_value, str):
                 if importance_value.lower() in self.importance_mapping:
                     return self.importance_mapping[importance_value.lower()]
