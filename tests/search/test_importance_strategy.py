@@ -41,8 +41,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem4", "content": "Routine check", "metadata": {"importance": 2}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_stm_store.get_all.return_value = memories
 
         # Perform search with min_importance
         results = self.strategy.search(
@@ -73,8 +73,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem4", "content": "Routine check", "metadata": {"importance": 2}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_im_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_im_store.get_all.return_value = memories
 
         # Perform search with max_importance
         results = self.strategy.search(
@@ -110,8 +110,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem5", "content": "Routine check", "metadata": {"importance": 2}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_ltm_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_ltm_store.get_all.return_value = memories
 
         # Perform search with importance range
         results = self.strategy.search(
@@ -152,8 +152,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem5", "content": "Routine check", "metadata": {"importance": 2}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_stm_store.get_all.return_value = memories
 
         # Perform search with top_n
         results = self.strategy.search(
@@ -193,8 +193,8 @@ class TestImportanceStrategy(unittest.TestCase):
             },
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_im_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_im_store.get_all.return_value = memories
 
         # Perform search with metadata filter
         results = self.strategy.search(
@@ -222,8 +222,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem4", "content": "Also missing", "metadata": {"type": "task"}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_ltm_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_ltm_store.get_all.return_value = memories
 
         # Perform search
         results = self.strategy.search(
@@ -284,8 +284,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem4", "content": "Routine check", "metadata": {"importance": 2}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_stm_store.get_all.return_value = memories
 
         # Perform search with direct numeric value (minimum importance of 5)
         results = self.strategy.search(
@@ -312,8 +312,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem4", "content": "Routine check", "metadata": {"importance": 2}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_im_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_im_store.get_all.return_value = memories
 
         # Test with descending sort order (default)
         desc_results = self.strategy.search(
@@ -355,9 +355,9 @@ class TestImportanceStrategy(unittest.TestCase):
         ]
 
         # Configure mocks to return tier-specific memories
-        self.mock_stm_store.list.return_value = stm_memories
-        self.mock_im_store.list.return_value = im_memories
-        self.mock_ltm_store.list.return_value = ltm_memories
+        self.mock_stm_store.get_all.return_value = stm_memories
+        self.mock_im_store.get_all.return_value = im_memories
+        self.mock_ltm_store.get_all.return_value = ltm_memories
 
         # Perform search without specifying tier (should search all)
         results = self.strategy.search(
@@ -383,8 +383,8 @@ class TestImportanceStrategy(unittest.TestCase):
             {"id": "mem6", "content": "Memory 6", "metadata": {"importance": 7}},
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_ltm_store.list.return_value = memories
+        # Configure mock to return all memories for get_all
+        self.mock_ltm_store.get_all.return_value = memories
 
         # Test combining top_n with min/max importance filters
         results = self.strategy.search(

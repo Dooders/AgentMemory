@@ -206,7 +206,9 @@ class AgentMemorySystem:
         return memory_agent.retrieve_by_attributes(attributes, memory_type)
 
     # Add memory statistics method
-    def get_memory_statistics(self, agent_id: str) -> Dict[str, Any]:
+    def get_memory_statistics(
+        self, agent_id: str, simplified: bool = False
+    ) -> Dict[str, Any]:
         """Get statistics about an agent's memory usage.
 
         Args:
@@ -216,7 +218,7 @@ class AgentMemorySystem:
             Dictionary containing memory statistics
         """
         memory_agent = self.get_memory_agent(agent_id)
-        return memory_agent.get_memory_statistics()
+        return memory_agent.get_memory_statistics(simplified)
 
     # Add memory management methods
     def force_memory_maintenance(self, agent_id: Optional[str] = None) -> bool:
@@ -732,14 +734,34 @@ class AgentMemorySystem:
 
                     # Store according to memory type
                     if memory_type == "state":
-                        memory_agent.store_state(content, step_number, priority)
+                        memory_agent.store_state(
+                            content,
+                            step_number,
+                            priority,
+                            memory.get("metadata", {}).get("current_tier", "stm"),
+                        )
                     elif memory_type == "interaction":
-                        memory_agent.store_interaction(content, step_number, priority)
+                        memory_agent.store_interaction(
+                            content,
+                            step_number,
+                            priority,
+                            memory.get("metadata", {}).get("current_tier", "stm"),
+                        )
                     elif memory_type == "action":
-                        memory_agent.store_action(content, step_number, priority)
+                        memory_agent.store_action(
+                            content,
+                            step_number,
+                            priority,
+                            memory.get("metadata", {}).get("current_tier", "stm"),
+                        )
                     else:
                         # For generic types, use store_state as fallback
-                        memory_agent.store_state(content, step_number, priority)
+                        memory_agent.store_state(
+                            content,
+                            step_number,
+                            priority,
+                            memory.get("metadata", {}).get("current_tier", "stm"),
+                        )
 
             logger.info(f"Memory system loaded from {filepath}")
             return memory_system

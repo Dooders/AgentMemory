@@ -602,8 +602,11 @@ class MemoryAgent:
         results.sort(key=lambda x: x["timestamp"], reverse=True)
         return results
 
-    def get_memory_statistics(self) -> Dict[str, Any]:
+    def get_memory_statistics(self, simplified: bool = False) -> Dict[str, Any]:
         """Get statistics about memory usage and performance.
+
+        Args:
+            simplified: If True, returns only basic tier statistics
 
         Returns:
             Dictionary containing memory statistics including:
@@ -633,18 +636,21 @@ class MemoryAgent:
                     "avg_importance": self._calculate_tier_importance("ltm"),
                     "compression_ratio": self._calculate_compression_ratio("ltm"),
                 },
-            },
-            "total_memories": (
-                self.stm_store.count(self.agent_id)
-                + self.im_store.count(self.agent_id)
-                + self.ltm_store.count()
-            ),
-            "memory_types": self._get_memory_type_distribution(),
-            "access_patterns": self._get_access_patterns(),
+            }
         }
 
-        return stats
+        if not simplified:
+            stats.update({
+                "total_memories": (
+                    self.stm_store.count(self.agent_id)
+                    + self.im_store.count(self.agent_id)
+                    + self.ltm_store.count()
+                ),
+                "memory_types": self._get_memory_type_distribution(),
+                "access_patterns": self._get_access_patterns(),
+            })
 
+        return stats
     def force_maintenance(self) -> bool:
         """Force memory tier transitions and cleanup operations.
 
