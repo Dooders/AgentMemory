@@ -71,6 +71,7 @@ class AgentMemorySystem:
         state_data: Dict[str, Any],
         step_number: int,
         priority: float = 1.0,
+        tier: str = "stm",
     ) -> bool:
         """Store an agent's state in memory.
 
@@ -79,12 +80,13 @@ class AgentMemorySystem:
             state_data: Dictionary of state attributes
             step_number: Current simulation step
             priority: Importance of this memory (0.0-1.0)
+            tier: Memory tier to store in ("stm", "im", or "ltm", default: "stm")
 
         Returns:
             True if storage was successful
         """
         memory_agent = self.get_memory_agent(agent_id)
-        return memory_agent.store_state(state_data, step_number, priority)
+        return memory_agent.store_state(state_data, step_number, priority, tier)
 
     def store_agent_interaction(
         self,
@@ -92,6 +94,7 @@ class AgentMemorySystem:
         interaction_data: Dict[str, Any],
         step_number: int,
         priority: float = 1.0,
+        tier: str = "stm",
     ) -> bool:
         """Store information about an agent's interaction.
 
@@ -100,12 +103,15 @@ class AgentMemorySystem:
             interaction_data: Dictionary of interaction attributes
             step_number: Current simulation step
             priority: Importance of this memory (0.0-1.0)
+            tier: Memory tier to store in ("stm", "im", or "ltm", default: "stm")
 
         Returns:
             True if storage was successful
         """
         memory_agent = self.get_memory_agent(agent_id)
-        return memory_agent.store_interaction(interaction_data, step_number, priority)
+        return memory_agent.store_interaction(
+            interaction_data, step_number, priority, tier
+        )
 
     def store_agent_action(
         self,
@@ -113,6 +119,7 @@ class AgentMemorySystem:
         action_data: Dict[str, Any],
         step_number: int,
         priority: float = 1.0,
+        tier: str = "stm",
     ) -> bool:
         """Store information about an agent's action.
 
@@ -121,12 +128,13 @@ class AgentMemorySystem:
             action_data: Dictionary of action attributes
             step_number: Current simulation step
             priority: Importance of this memory (0.0-1.0)
+            tier: Memory tier to store in ("stm", "im", or "ltm", default: "stm")
 
         Returns:
             True if storage was successful
         """
         memory_agent = self.get_memory_agent(agent_id)
-        return memory_agent.store_action(action_data, step_number, priority)
+        return memory_agent.store_action(action_data, step_number, priority, tier)
 
     # Add memory retrieval methods
     def retrieve_similar_states(

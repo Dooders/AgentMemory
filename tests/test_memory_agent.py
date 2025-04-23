@@ -179,7 +179,7 @@ class TestMemoryStorage:
     """Tests for memory storage operations."""
 
     def test_store_state(self, memory_agent, mock_stm_store):
-        """Test storing a state memory."""
+        """Test storing a state memory in the default tier (STM)."""
         state_data = {"position": [1, 2, 3], "inventory": ["sword", "shield"]}
         step_number = 42
         priority = 0.8
@@ -192,7 +192,7 @@ class TestMemoryStorage:
 
             # Check the _create_memory_entry call
             mock_create.assert_called_once_with(
-                state_data, step_number, "state", priority
+                state_data, step_number, "state", priority, "stm"
             )
 
             # Check the store call
@@ -202,6 +202,56 @@ class TestMemoryStorage:
 
             assert result is True
             assert memory_agent._insert_count == 1
+
+    def test_store_state_custom_tier(self, memory_agent, mock_im_store, mock_ltm_store):
+        """Test storing a state memory in a custom tier."""
+        state_data = {"position": [1, 2, 3], "inventory": ["sword", "shield"]}
+        step_number = 42
+        priority = 0.8
+
+        # Configure mocks to return True
+        mock_im_store.store.return_value = True
+        mock_ltm_store.store.return_value = True
+
+        # Test storing in IM tier
+        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+            mock_create.return_value = {"memory_id": "test-memory-im"}
+
+            result = memory_agent.store_state(
+                state_data, step_number, priority, tier="im"
+            )
+
+            # Check the _create_memory_entry call
+            mock_create.assert_called_once_with(
+                state_data, step_number, "state", priority, "im"
+            )
+
+            # Check the store call to IM store
+            mock_im_store.store.assert_called_once_with(
+                memory_agent.agent_id, {"memory_id": "test-memory-im"}
+            )
+
+            assert result is True
+
+        # Test storing in LTM tier
+        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+            mock_create.return_value = {"memory_id": "test-memory-ltm"}
+
+            result = memory_agent.store_state(
+                state_data, step_number, priority, tier="ltm"
+            )
+
+            # Check the _create_memory_entry call
+            mock_create.assert_called_once_with(
+                state_data, step_number, "state", priority, "ltm"
+            )
+
+            # Check the store call to LTM store
+            mock_ltm_store.store.assert_called_once_with(
+                {"memory_id": "test-memory-ltm"}
+            )
+
+            assert result is True
 
     def test_store_interaction(self, memory_agent, mock_stm_store):
         """Test storing an interaction memory."""
@@ -219,12 +269,40 @@ class TestMemoryStorage:
 
             # Check the _create_memory_entry call
             mock_create.assert_called_once_with(
-                interaction_data, step_number, "interaction", priority
+                interaction_data, step_number, "interaction", priority, "stm"
             )
 
             # Check the store call
             mock_stm_store.store.assert_called_once_with(
                 memory_agent.agent_id, {"memory_id": "test-memory-2"}
+            )
+
+            assert result is True
+            assert memory_agent._insert_count == 1
+
+    def test_store_interaction_custom_tier(self, memory_agent, mock_im_store):
+        """Test storing an interaction memory in a custom tier."""
+        interaction_data = {"agent": "agent1", "target": "agent2", "action": "greet"}
+        step_number = 42
+        priority = 0.5
+        tier = "im"
+
+        # Patch the _create_memory_entry method
+        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+            mock_create.return_value = {"memory_id": "test-memory-2-im"}
+
+            result = memory_agent.store_interaction(
+                interaction_data, step_number, priority, tier
+            )
+
+            # Check the _create_memory_entry call
+            mock_create.assert_called_once_with(
+                interaction_data, step_number, "interaction", priority, tier
+            )
+
+            # Check the store call
+            mock_im_store.store.assert_called_once_with(
+                memory_agent.agent_id, {"memory_id": "test-memory-2-im"}
             )
 
             assert result is True
@@ -244,7 +322,7 @@ class TestMemoryStorage:
 
             # Check the _create_memory_entry call
             mock_create.assert_called_once_with(
-                action_data, step_number, "action", priority
+                action_data, step_number, "action", priority, "stm"
             )
 
             # Check the store call
@@ -254,6 +332,67 @@ class TestMemoryStorage:
 
             assert result is True
             assert memory_agent._insert_count == 1
+
+    def test_store_action_custom_tier(self, memory_agent, mock_ltm_store):
+        """Test storing an action memory in a custom tier."""
+        action_data = {"action_type": "move", "direction": "north", "result": "success"}
+        step_number = 42
+        priority = 0.7
+        tier = "ltm"
+
+        # Configure mock to return True
+        mock_ltm_store.store.return_value = True
+
+        # Patch the _create_memory_entry method
+        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+            mock_create.return_value = {"memory_id": "test-memory-3-ltm"}
+
+            result = memory_agent.store_action(action_data, step_number, priority, tier)
+
+            # Check the _create_memory_entry call
+            mock_create.assert_called_once_with(
+                action_data, step_number, "action", priority, tier
+            )
+
+            # Check the store call
+            mock_ltm_store.store.assert_called_once_with(
+                {"memory_id": "test-memory-3-ltm"}
+            )
+
+            assert result is True
+
+    def test_store_in_tier(
+        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+    ):
+        """Test the _store_in_tier method for different tiers."""
+        memory_entry = {"memory_id": "test-memory-tier", "content": {"test": "data"}}
+
+        # Configure mocks to return True
+        mock_stm_store.store.return_value = True
+        mock_im_store.store.return_value = True
+        mock_ltm_store.store.return_value = True
+
+        # Test storing in STM
+        result_stm = memory_agent._store_in_tier("stm", memory_entry)
+        mock_stm_store.store.assert_called_with(memory_agent.agent_id, memory_entry)
+        assert result_stm is True
+
+        # Test storing in IM
+        result_im = memory_agent._store_in_tier("im", memory_entry)
+        mock_im_store.store.assert_called_with(memory_agent.agent_id, memory_entry)
+        assert result_im is True
+
+        # Test storing in LTM
+        result_ltm = memory_agent._store_in_tier("ltm", memory_entry)
+        mock_ltm_store.store.assert_called_with(memory_entry)
+        assert result_ltm is True
+
+        # Test invalid tier
+        with mock.patch("memory.agent_memory.logger.warning") as mock_logger:
+            result_invalid = memory_agent._store_in_tier("invalid_tier", memory_entry)
+            mock_logger.assert_called_once()
+            mock_stm_store.store.assert_called_with(memory_agent.agent_id, memory_entry)
+            assert result_invalid is True
 
     def test_cleanup_triggered(self, memory_agent):
         """Test that cleanup is triggered after multiple insertions."""
@@ -275,7 +414,7 @@ class TestMemoryStorage:
             assert memory_agent._insert_count == 5
 
     def test_create_memory_entry(self, memory_agent, mock_embedding_engine):
-        """Test memory entry creation."""
+        """Test memory entry creation with default tier."""
         test_data = {"test": "data"}
         step_number = 42
         memory_type = "state"
@@ -302,9 +441,7 @@ class TestMemoryStorage:
             assert metadata["importance_score"] == priority
             assert metadata["retrieval_count"] == 0
             assert metadata["memory_type"] == memory_type
-            assert (
-                metadata["current_tier"] == "stm"
-            )  # Verify current_tier is set to "stm"
+            assert metadata["current_tier"] == "stm"
 
             # Check embeddings
             assert "embeddings" in entry
@@ -313,6 +450,41 @@ class TestMemoryStorage:
             mock_embedding_engine.encode_stm.assert_called_once_with(test_data)
             mock_embedding_engine.encode_im.assert_called_once_with(test_data)
             mock_embedding_engine.encode_ltm.assert_called_once_with(test_data)
+
+    def test_create_memory_entry_with_tier(
+        self, memory_agent, mock_embedding_engine, mock_compression_engine
+    ):
+        """Test memory entry creation with different tiers and compression."""
+        test_data = {"test": "data"}
+        step_number = 42
+        memory_type = "state"
+        priority = 0.9
+
+        # Test IM tier
+        with mock.patch("time.time", return_value=12345):
+            entry_im = memory_agent._create_memory_entry(
+                test_data, step_number, memory_type, priority, tier="im"
+            )
+
+            # Check compression level and tier
+            assert entry_im["metadata"]["compression_level"] == 1
+            assert entry_im["metadata"]["current_tier"] == "im"
+
+            # Verify compression engine was called for IM
+            mock_compression_engine.compress.assert_called_with(test_data, level=1)
+
+        # Test LTM tier
+        with mock.patch("time.time", return_value=12346):
+            entry_ltm = memory_agent._create_memory_entry(
+                test_data, step_number, memory_type, priority, tier="ltm"
+            )
+
+            # Check compression level and tier
+            assert entry_ltm["metadata"]["compression_level"] == 2
+            assert entry_ltm["metadata"]["current_tier"] == "ltm"
+
+            # Verify compression engine was called for LTM
+            mock_compression_engine.compress.assert_called_with(test_data, level=2)
 
 
 class TestMemoryTransitions:
@@ -1095,47 +1267,51 @@ class TestUtilityFunctions:
         # Setup memory data
         stm_memories = [
             {
-                "memory_id": "stm1", 
+                "memory_id": "stm1",
                 "content": {"data": "stm_data1"},
-                "metadata": {"current_tier": "stm"}
+                "metadata": {"current_tier": "stm"},
             },
             {
-                "memory_id": "stm2", 
+                "memory_id": "stm2",
                 "content": {"data": "stm_data2"},
-                "metadata": {"current_tier": "stm"}
-            }
+                "metadata": {"current_tier": "stm"},
+            },
         ]
-        
+
         # Configure mocks
         mock_stm_store.get_all.return_value = stm_memories
         mock_im_store.get_all.return_value = []
-        
+
         # LTM store flush_memories returns different counts based on force parameter
         mock_ltm_store.flush_memories.side_effect = [
             (1, 1),  # With force=False: 1 stored, 1 filtered
-            (2, 0)   # With force=True: 2 stored, 0 filtered
+            (2, 0),  # With force=True: 2 stored, 0 filtered
         ]
-        
+
         # Test flushing with normal filtering
-        result1 = memory_agent.flush_to_ltm(include_stm=True, include_im=False, force=False)
-        
+        result1 = memory_agent.flush_to_ltm(
+            include_stm=True, include_im=False, force=False
+        )
+
         # Verify call with force=False
         mock_ltm_store.flush_memories.assert_called_with(stm_memories, force=False)
-        
+
         # Check filtering results
         assert result1["stm_stored"] == 1
         assert result1["stm_filtered"] == 1
-        
+
         # Reset mocks
         mock_ltm_store.flush_memories.reset_mock()
         mock_stm_store.clear.reset_mock()
-        
+
         # Test flushing with force=True to bypass filtering
-        result2 = memory_agent.flush_to_ltm(include_stm=True, include_im=False, force=True)
-        
+        result2 = memory_agent.flush_to_ltm(
+            include_stm=True, include_im=False, force=True
+        )
+
         # Verify call with force=True
         mock_ltm_store.flush_memories.assert_called_with(stm_memories, force=True)
-        
+
         # Check forced results
         assert result2["stm_stored"] == 2
         assert result2["stm_filtered"] == 0
@@ -1145,28 +1321,23 @@ class TestUtilityFunctions:
     ):
         """Test error handling during memory flush operations."""
         # Setup memory data
-        stm_memories = [
-            {
-                "memory_id": "stm1",
-                "metadata": {"current_tier": "stm"}
-            }
-        ]
+        stm_memories = [{"memory_id": "stm1", "metadata": {"current_tier": "stm"}}]
         mock_stm_store.get_all.return_value = stm_memories
-        
+
         # Configure LTM store to raise an exception on first call, then succeed
         mock_ltm_store.flush_memories.side_effect = [
             Exception("Database error"),
-            (1, 0)  # Second attempt succeeds
+            (1, 0),  # Second attempt succeeds
         ]
-        
+
         # Mock time.sleep to avoid waiting during test
         with mock.patch("time.sleep"):
             # Test flush with retry logic
             result = memory_agent.flush_to_ltm(include_stm=True, include_im=False)
-            
+
             # Should have called flush_memories twice due to retry
             assert mock_ltm_store.flush_memories.call_count == 2
-            
+
             # Final result should show the successful second attempt
             assert result["stm_stored"] == 1
             assert result["stm_filtered"] == 0

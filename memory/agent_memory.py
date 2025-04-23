@@ -83,7 +83,11 @@ class MemoryAgent:
         logger.debug("MemoryAgent initialized for agent %s", agent_id)
 
     def store_state(
-        self, state_data: Dict[str, Any], step_number: int, priority: float = 1.0
+        self,
+        state_data: Dict[str, Any],
+        step_number: int,
+        priority: float = 1.0,
+        tier: str = "stm",
     ) -> bool:
         """Store an agent state in memory.
 
@@ -91,17 +95,18 @@ class MemoryAgent:
             state_data: Dictionary containing agent state attributes
             step_number: Current simulation step number
             priority: Importance of this memory (0.0-1.0)
+            tier: Memory tier to store in ("stm", "im", or "ltm", default: "stm")
 
         Returns:
             True if storage was successful
         """
         # Create a standardized memory entry
         memory_entry = self._create_memory_entry(
-            state_data, step_number, "state", priority
+            state_data, step_number, "state", priority, tier
         )
 
-        # Store in Short-Term Memory first
-        success = self.stm_store.store(self.agent_id, memory_entry)
+        # Store in specified memory tier
+        success = self._store_in_tier(tier, memory_entry)
 
         # Increment insert count and check if cleanup is needed
         self._insert_count += 1
@@ -111,7 +116,11 @@ class MemoryAgent:
         return success
 
     def store_interaction(
-        self, interaction_data: Dict[str, Any], step_number: int, priority: float = 1.0
+        self,
+        interaction_data: Dict[str, Any],
+        step_number: int,
+        priority: float = 1.0,
+        tier: str = "stm",
     ) -> bool:
         """Store an agent interaction in memory.
 
@@ -119,17 +128,18 @@ class MemoryAgent:
             interaction_data: Dictionary containing interaction details
             step_number: Current simulation step number
             priority: Importance of this memory (0.0-1.0)
+            tier: Memory tier to store in ("stm", "im", or "ltm", default: "stm")
 
         Returns:
             True if storage was successful
         """
         # Create a standardized memory entry
         memory_entry = self._create_memory_entry(
-            interaction_data, step_number, "interaction", priority
+            interaction_data, step_number, "interaction", priority, tier
         )
 
-        # Store in Short-Term Memory first
-        success = self.stm_store.store(self.agent_id, memory_entry)
+        # Store in specified memory tier
+        success = self._store_in_tier(tier, memory_entry)
 
         # Increment insert count and check if cleanup is needed
         self._insert_count += 1
@@ -139,7 +149,11 @@ class MemoryAgent:
         return success
 
     def store_action(
-        self, action_data: Dict[str, Any], step_number: int, priority: float = 1.0
+        self,
+        action_data: Dict[str, Any],
+        step_number: int,
+        priority: float = 1.0,
+        tier: str = "stm",
     ) -> bool:
         """Store an agent action in memory.
 
@@ -147,17 +161,18 @@ class MemoryAgent:
             action_data: Dictionary containing action details
             step_number: Current simulation step number
             priority: Importance of this memory (0.0-1.0)
+            tier: Memory tier to store in ("stm", "im", or "ltm", default: "stm")
 
         Returns:
             True if storage was successful
         """
         # Create a standardized memory entry
         memory_entry = self._create_memory_entry(
-            action_data, step_number, "action", priority
+            action_data, step_number, "action", priority, tier
         )
 
-        # Store in Short-Term Memory first
-        success = self.stm_store.store(self.agent_id, memory_entry)
+        # Store in specified memory tier
+        success = self._store_in_tier(tier, memory_entry)
 
         # Increment insert count and check if cleanup is needed
         self._insert_count += 1
@@ -166,8 +181,33 @@ class MemoryAgent:
 
         return success
 
+    def _store_in_tier(self, tier: str, memory_entry: Dict[str, Any]) -> bool:
+        """Store a memory entry in the specified tier.
+
+        Args:
+            tier: Memory tier to store in ("stm", "im", or "ltm")
+            memory_entry: Memory entry to store
+
+        Returns:
+            True if storage was successful
+        """
+        if tier == "stm":
+            return self.stm_store.store(self.agent_id, memory_entry)
+        elif tier == "im":
+            return self.im_store.store(self.agent_id, memory_entry)
+        elif tier == "ltm":
+            return self.ltm_store.store(memory_entry)
+        else:
+            logger.warning(f"Unknown memory tier '{tier}', defaulting to STM")
+            return self.stm_store.store(self.agent_id, memory_entry)
+
     def _create_memory_entry(
-        self, data: Dict[str, Any], step_number: int, memory_type: str, priority: float
+        self,
+        data: Dict[str, Any],
+        step_number: int,
+        memory_type: str,
+        priority: float,
+        tier: str = "stm",
     ) -> Dict[str, Any]:
         """Create a standardized memory entry.
 
@@ -176,6 +216,7 @@ class MemoryAgent:
             step_number: Current simulation step
             memory_type: Type of memory ("state", "interaction", "action")
             priority: Importance of this memory (0.0-1.0)
+            tier: Target memory tier for storage ("stm", "im", or "ltm")
 
         Returns:
             Formatted memory entry
@@ -193,6 +234,17 @@ class MemoryAgent:
                 "abstract_vector": self.embedding_engine.encode_ltm(data),
             }
 
+        # Determine compression level based on tier
+        compression_level = 0
+        if tier == "im":
+            compression_level = 1
+            if self.compression_engine:
+                data = self.compression_engine.compress(data, level=1)
+        elif tier == "ltm":
+            compression_level = 2
+            if self.compression_engine:
+                data = self.compression_engine.compress(data, level=2)
+
         # Create standardized memory entry
         return {
             "memory_id": memory_id,
@@ -203,11 +255,11 @@ class MemoryAgent:
             "metadata": {
                 "creation_time": timestamp,
                 "last_access_time": timestamp,
-                "compression_level": 0,
+                "compression_level": compression_level,
                 "importance_score": priority,
                 "retrieval_count": 0,
                 "memory_type": memory_type,
-                "current_tier": "stm",  # New memories always start in STM
+                "current_tier": tier,
             },
             "embeddings": embeddings,
         }
