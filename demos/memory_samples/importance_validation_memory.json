@@ -48,7 +48,7 @@
             "creation_time": 1686816000,
             "last_access_time": 1686816000,
             "compression_level": 0,
-            "importance": 0.95,
+            "importance_score": 0.95,
             "retrieval_count": 0,
             "memory_type": "generic",
             "current_tier": "stm"
@@ -82,7 +82,7 @@
             "creation_time": 1686902400,
             "last_access_time": 1686902400,
             "compression_level": 0,
-            "importance": 0.85,
+            "importance_score": 0.85,
             "retrieval_count": 0,
             "memory_type": "interaction",
             "current_tier": "stm"
@@ -114,7 +114,7 @@
             "creation_time": 1687075200,
             "last_access_time": 1687075200,
             "compression_level": 0,
-            "importance": 0.65,
+            "importance_score": 0.65,
             "retrieval_count": 0,
             "memory_type": "interaction",
             "current_tier": "stm"
@@ -143,7 +143,7 @@
             "creation_time": 1687161600,
             "last_access_time": 1687161600,
             "compression_level": 0,
-            "importance": 0.6,
+            "importance_score": 0.6,
             "retrieval_count": 0,
             "memory_type": "action",
             "current_tier": "stm"
@@ -171,7 +171,7 @@
             "creation_time": 1687248000,
             "last_access_time": 1687248000,
             "compression_level": 0,
-            "importance": 0.25,
+            "importance_score": 0.25,
             "retrieval_count": 0,
             "memory_type": "generic",
             "current_tier": "stm"
@@ -200,7 +200,7 @@
             "creation_time": 1685520000,
             "last_access_time": 1685606400,
             "compression_level": 1,
-            "importance": 0.8,
+            "importance_score": 0.8,
             "retrieval_count": 3,
             "memory_type": "action",
             "current_tier": "im"
@@ -230,7 +230,7 @@
             "creation_time": 1685865600,
             "last_access_time": 1685952000,
             "compression_level": 1,
-            "importance": 0.87,
+            "importance_score": 0.87,
             "retrieval_count": 4,
             "memory_type": "generic",
             "current_tier": "im"
@@ -259,7 +259,7 @@
             "creation_time": 1685606400,
             "last_access_time": 1685692800,
             "compression_level": 1,
-            "importance": 0.55,
+            "importance_score": 0.55,
             "retrieval_count": 2,
             "memory_type": "generic",
             "current_tier": "im"
@@ -288,7 +288,7 @@
             "creation_time": 1686038400,
             "last_access_time": 1686124800,
             "compression_level": 1,
-            "importance": 0.68,
+            "importance_score": 0.68,
             "retrieval_count": 3,
             "memory_type": "generic",
             "current_tier": "im"
@@ -317,7 +317,7 @@
             "creation_time": 1685692800,
             "last_access_time": 1685779200,
             "compression_level": 1,
-            "importance": 0.3,
+            "importance_score": 0.3,
             "retrieval_count": 1,
             "memory_type": "interaction",
             "current_tier": "im"
@@ -346,7 +346,7 @@
             "creation_time": 1686211200,
             "last_access_time": 1686297600,
             "compression_level": 1,
-            "importance": 0.35,
+            "importance_score": 0.35,
             "retrieval_count": 2,
             "memory_type": "generic",
             "current_tier": "im"
@@ -376,7 +376,7 @@
             "creation_time": 1680307200,
             "last_access_time": 1682899200,
             "compression_level": 2,
-            "importance": 0.98,
+            "importance_score": 0.98,
             "retrieval_count": 15,
             "memory_type": "generic",
             "current_tier": "ltm"
@@ -406,7 +406,7 @@
             "creation_time": 1680393600,
             "last_access_time": 1682985600,
             "compression_level": 2,
-            "importance": 0.9,
+            "importance_score": 0.9,
             "retrieval_count": 10,
             "memory_type": "generic",
             "current_tier": "ltm"
@@ -435,7 +435,7 @@
             "creation_time": 1680480000,
             "last_access_time": 1680566400,
             "compression_level": 2,
-            "importance": 0.7,
+            "importance_score": 0.7,
             "retrieval_count": 5,
             "memory_type": "generic",
             "current_tier": "ltm"
@@ -464,7 +464,7 @@
             "creation_time": 1680566400,
             "last_access_time": 1680652800,
             "compression_level": 2,
-            "importance": 0.4,
+            "importance_score": 0.4,
             "retrieval_count": 2,
             "memory_type": "generic",
             "current_tier": "ltm"
