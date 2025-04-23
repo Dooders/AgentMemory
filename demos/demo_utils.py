@@ -29,7 +29,9 @@ from memory.core import AgentMemorySystem
 
 # Path constants
 LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../memory.db")
+DB_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "memory.db")
+)
 MEMORY_SAMPLES_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "memory_samples"
 )
@@ -216,6 +218,7 @@ def create_memory_system(
     embedding_type: str = "text",  # "text" or "autoencoder"
     use_mock_redis: bool = True,  # Default to using mockredis
     memory_file: Optional[Union[str, PathLike]] = None,  # Path to a memory file to load
+    clear_db: bool = True,  # Whether to delete existing LTM database
 ) -> AgentMemorySystem:
     """Create and configure a memory system with customizable parameters.
 
@@ -236,10 +239,78 @@ def create_memory_system(
         memory_file: Optional path to a memory JSON file to load instead of creating new.
                      Can be a full path, a filename in the memory_samples directory,
                      or one of the preset sample types: "simple", "multi_agent", or "tiered"
+        clear_db: Whether to delete the existing LTM database file (default True)
 
     Returns:
         Configured AgentMemorySystem instance
     """
+    # Delete the existing LTM database file if it exists to ensure a clean start
+    if clear_db:
+        # Get absolute path and print it for debugging
+        absolute_db_path = os.path.abspath(DB_PATH)
+        print(f"Checking for database file at: {absolute_db_path}")
+
+        if os.path.exists(absolute_db_path):
+            print(f"Database file exists. Attempting to delete it.")
+            # Close any open connections
+            import sqlite3
+
+            try:
+                conn = sqlite3.connect(absolute_db_path)
+                conn.close()
+                print("Closed any existing database connections")
+            except Exception as e:
+                print(f"Note: Could not connect to database: {e}")
+
+            # On Windows, using a different approach for file deletion
+            if os.name == "nt":  # Windows
+                import subprocess
+
+                try:
+                    print("Using Windows-specific deletion method")
+                    # Force delete using del command
+                    subprocess.run(
+                        [
+                            "powershell",
+                            "-Command",
+                            f'Remove-Item -Path "{absolute_db_path}" -Force',
+                        ],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if not os.path.exists(absolute_db_path):
+                        print("Successfully deleted database file using Windows method")
+                    else:
+                        print(
+                            "Warning: File still exists after Windows deletion attempt"
+                        )
+                except subprocess.CalledProcessError as e:
+                    print(f"Windows deletion failed: {e.stderr}")
+                    # Fallback to regular method
+                    try:
+                        os.remove(absolute_db_path)
+                        print(
+                            "Successfully deleted database file using fallback method"
+                        )
+                    except Exception as e:
+                        print(f"Fallback deletion also failed: {e}")
+            else:
+                # Regular deletion for non-Windows systems
+                try:
+                    os.remove(absolute_db_path)
+                    print(f"Successfully deleted database file: {absolute_db_path}")
+                except Exception as e:
+                    print(f"Failed to delete database file: {e}")
+
+            # Verify deletion
+            if os.path.exists(absolute_db_path):
+                print("Warning: Database file still exists after deletion attempts")
+            else:
+                print("Confirmed: Database file has been successfully deleted")
+        else:
+            print(f"No existing database file found at: {absolute_db_path}")
+
     # If a memory file is provided, try to load from it
     if memory_file:
         # Handle preset sample types
@@ -257,7 +328,9 @@ def create_memory_system(
 
         print(f"Loading memory system from file: {memory_file}")
         if os.path.exists(memory_file):
-            memory_system = AgentMemorySystem.load_from_json(memory_file, use_mock_redis=use_mock_redis)
+            memory_system = AgentMemorySystem.load_from_json(
+                memory_file, use_mock_redis=use_mock_redis
+            )
             if memory_system:
                 print(f"Successfully loaded memory system from {memory_file}")
                 return memory_system
