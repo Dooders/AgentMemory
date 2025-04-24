@@ -451,14 +451,30 @@ class AttributeSearchStrategy(SearchStrategy):
                 memory_content = None
                 if isinstance(memory_copy.get("content"), str):
                     memory_content = memory_copy.get("content")
-                    logger.debug(f"Memory has string content: {memory_content[:50]}...")
+                    try:
+                        # Use safer string preview with try/except
+                        preview = memory_content[:50] if memory_content else ""
+                        logger.debug(f"Memory has string content: {preview}...")
+                    except Exception as e:
+                        logger.debug(
+                            f"Memory has string content but cannot preview: {type(memory_content)}"
+                        )
                 elif isinstance(
                     memory_copy.get("content"), dict
                 ) and "content" in memory_copy.get("content", {}):
                     memory_content = memory_copy.get("content", {}).get("content", "")
-                    logger.debug(f"Memory has dict content: {memory_content[:50]}...")
+                    try:
+                        # Use safer string preview with try/except
+                        preview = memory_content[:50] if memory_content else ""
+                        logger.debug(f"Memory has dict content: {preview}...")
+                    except Exception as e:
+                        logger.debug(
+                            f"Memory has dict content but cannot preview: {type(memory_content)}"
+                        )
                 else:
-                    logger.debug(f"Memory has no recognizable content structure")
+                    logger.debug(
+                        f"Memory has no recognizable content structure: {type(memory_copy.get('content', None))}"
+                    )
 
                 # Log metadata if available
                 if isinstance(
