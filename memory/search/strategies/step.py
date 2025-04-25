@@ -152,7 +152,7 @@ class StepBasedSearchStrategy(SearchStrategy):
             elif current_tier == "im":
                 tier_memories = self.im_store.get_all(agent_id)
             else:  # ltm
-                tier_memories = self.ltm_store.get_all()
+                tier_memories = self.ltm_store.get_all(agent_id)
 
             # Filter memories by step range and metadata
             filtered_memories = self._filter_memories(
