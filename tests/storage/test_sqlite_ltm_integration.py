@@ -363,8 +363,8 @@ class TestSQLiteLTMStoreIntegration:
             assert agent2_store.get(f"agent1_memory_{i}") is None
         
         # Retrieve all memories for each agent
-        agent1_memories = agent1_store.get_all()
-        agent2_memories = agent2_store.get_all()
+        agent1_memories = agent1_store.get_all(agent_id="agent1")
+        agent2_memories = agent2_store.get_all(agent_id="agent2")
         
         # Verify each agent only sees their own memories
         assert all(memory["agent_id"] == "agent1" for memory in agent1_memories)

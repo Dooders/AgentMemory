@@ -636,21 +636,24 @@ class MemoryAgent:
                     "avg_importance": self._calculate_tier_importance("ltm"),
                     "compression_ratio": self._calculate_compression_ratio("ltm"),
                 },
-            }
+            },
         }
 
         if not simplified:
-            stats.update({
-                "total_memories": (
-                    self.stm_store.count(self.agent_id)
-                    + self.im_store.count(self.agent_id)
-                    + self.ltm_store.count()
-                ),
-                "memory_types": self._get_memory_type_distribution(),
-                "access_patterns": self._get_access_patterns(),
-            })
+            stats.update(
+                {
+                    "total_memories": (
+                        self.stm_store.count(self.agent_id)
+                        + self.im_store.count(self.agent_id)
+                        + self.ltm_store.count()
+                    ),
+                    "memory_types": self._get_memory_type_distribution(),
+                    "access_patterns": self._get_access_patterns(),
+                }
+            )
 
         return stats
+
     def force_maintenance(self) -> bool:
         """Force memory tier transitions and cleanup operations.
 
@@ -832,10 +835,8 @@ class MemoryAgent:
     def _calculate_tier_importance(self, tier: str) -> float:
         """Calculate average importance score for a memory tier."""
         store = getattr(self, f"{tier}_store")
-        if tier in ["stm", "im"]:
-            memories = store.get_all(self.agent_id)
-        else:
-            memories = store.get_all()
+
+        memories = store.get_all(self.agent_id)
 
         if not memories:
             return 0.0
@@ -878,10 +879,8 @@ class MemoryAgent:
 
         for store_name in ["stm_store", "im_store", "ltm_store"]:
             store = getattr(self, store_name)
-            if store_name in ["stm_store", "im_store"]:
-                memories = store.get_all(self.agent_id)
-            else:
-                memories = store.get_all()
+
+            memories = store.get_all(self.agent_id)
 
             for memory in memories:
                 memory_type = memory["metadata"]["memory_type"]
@@ -901,10 +900,7 @@ class MemoryAgent:
         all_memories = []
         for store_name in ["stm_store", "im_store", "ltm_store"]:
             store = getattr(self, store_name)
-            if store_name in ["stm_store", "im_store"]:
-                all_memories.extend(store.get_all(self.agent_id))
-            else:
-                all_memories.extend(store.get_all())
+            all_memories.extend(store.get_all(self.agent_id))
 
         if not all_memories:
             return patterns

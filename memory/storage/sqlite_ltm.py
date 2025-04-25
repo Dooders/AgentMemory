@@ -1096,7 +1096,7 @@ class SQLiteLTMStore:
             logger.error("Unexpected error calculating memory size: %s", str(e))
             return 0
 
-    def get_all(self, limit: int = 1000) -> List[Dict[str, Any]]:
+    def get_all(self, agent_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
         """Get all memories for the agent.
 
         Args:
@@ -1106,77 +1106,46 @@ class SQLiteLTMStore:
             List of memory entries
         """
         try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
+            # Create a completely separate connection
+            conn = None
+            try:
+                # Extremely basic connection with minimal options
+                conn = sqlite3.connect(self.db_path)
+                conn.row_factory = sqlite3.Row
 
-                # Get all memory entries directly to avoid individual get() calls
+                # Use the most minimal query possible - just memory_id
+                cursor = conn.cursor()
                 cursor.execute(
-                    f"""
-                SELECT 
-                    m.memory_id, m.agent_id, m.step_number, m.timestamp, 
-                    m.content_json, m.metadata_json, m.memory_type, 
-                    m.importance_score, m.retrieval_count,
-                    m.created_at, m.last_accessed
-                FROM {self.memory_table} AS m
-                WHERE m.agent_id = ?
-                ORDER BY m.timestamp DESC
-                LIMIT ?
-                """,
-                    (self.agent_id, limit),
+                    f"SELECT memory_id FROM {self.memory_table} WHERE agent_id = ?",
+                    (agent_id,),
                 )
 
-                rows = cursor.fetchall()
+                memory_ids = [row["memory_id"] for row in cursor.fetchall()]
 
+                # Now get the memories one by one using the get method
                 results = []
-                for row in rows:
-                    # Convert row to dict and parse JSON fields
-                    memory_data = dict(row)
-
-                    # Handle explicitly to avoid any type mismatches
+                for memory_id in memory_ids:
                     try:
-                        content = json.loads(memory_data["content_json"])
-                        metadata = json.loads(memory_data["metadata_json"])
-
-                        # Ensure step_number is consistent (int or None, not mixed types)
-                        step_number = memory_data["step_number"]
-                        if step_number is not None:
-                            step_number = int(step_number)
-
-                        memory_entry = {
-                            "memory_id": memory_data["memory_id"],
-                            "agent_id": memory_data["agent_id"],
-                            "step_number": step_number,
-                            "timestamp": memory_data["timestamp"],
-                            "type": memory_data["memory_type"],
-                            "content": content,
-                            "metadata": metadata,
-                            "importance_score": (
-                                float(memory_data["importance_score"])
-                                if memory_data["importance_score"] is not None
-                                else 0.0
-                            ),
-                            "retrieval_count": (
-                                int(memory_data["retrieval_count"])
-                                if memory_data["retrieval_count"] is not None
-                                else 0
-                            ),
-                        }
-                        results.append(memory_entry)
+                        memory = self.get(memory_id)
+                        if memory:
+                            results.append(memory)
+                            # Stop retrieving if we hit the limit
+                            if len(results) >= limit:
+                                break
                     except Exception as e:
-                        logger.warning(f"Error parsing memory data: {e}")
-                        continue
+                        logger.warning(f"Error retrieving memory {memory_id}: {str(e)}")
 
                 return results
 
-        except (SQLiteTemporaryError, SQLitePermanentError) as e:
-            logger.warning(
-                "Failed to retrieve all memories for agent %s: %s",
-                self.agent_id,
-                str(e),
-            )
-            return []
+            except Exception as e:
+                logger.error(f"Database error in get_all: {str(e)}")
+                return []
+            finally:
+                if conn:
+                    conn.close()
+
         except Exception as e:
-            logger.error("Unexpected error retrieving all memories: %s", str(e))
+            logger.error(f"Unexpected error in get_all: {str(e)}")
             return []
 
     def delete(self, memory_id: str) -> bool:
