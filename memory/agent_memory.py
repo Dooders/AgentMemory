@@ -858,10 +858,7 @@ class MemoryAgent:
             return 0.0
 
         # Get original size from metadata
-        if tier in ["stm", "im"]:
-            memories = store.get_all(self.agent_id)
-        else:
-            memories = store.get_all()
+        memories = store.get_all(self.agent_id)
 
         if not memories:
             return 0.0
