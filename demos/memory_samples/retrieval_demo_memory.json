@@ -1,0 +1,412 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "retrieval_agent": {
+      "agent_id": "retrieval_agent",
+      "memories": [
+        {
+          "memory_id": "state_forest_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 1,
+          "timestamp": 1744852255,
+          "content": {
+            "position": {
+              "x": 45.2,
+              "y": 78.9,
+              "location": "forest"
+            },
+            "health": 85,
+            "energy": 90,
+            "inventory": ["sword", "potion", "map"],
+            "level": 1
+          },
+          "metadata": {
+            "creation_time": 1744852255,
+            "last_access_time": 1744852255,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "retrieval_count": 0,
+            "memory_type": "state",
+            "current_tier": "stm"
+          },
+          "type": "state",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "action_forest_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 2,
+          "timestamp": 1744852265,
+          "content": {
+            "type": "attack",
+            "target": "entity_3",
+            "success": true,
+            "location": "forest"
+          },
+          "metadata": {
+            "creation_time": 1744852265,
+            "last_access_time": 1744852265,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "state_mountain_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 5,
+          "timestamp": 1744852275,
+          "content": {
+            "position": {
+              "x": -32.4,
+              "y": 102.8,
+              "location": "mountain"
+            },
+            "health": 75,
+            "energy": 65,
+            "inventory": ["sword", "shield", "gem"],
+            "level": 2
+          },
+          "metadata": {
+            "creation_time": 1744852275,
+            "last_access_time": 1744852275,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 2,
+            "memory_type": "state",
+            "current_tier": "stm"
+          },
+          "type": "state",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "interaction_mountain_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 6,
+          "timestamp": 1744852285,
+          "content": {
+            "type": "encounter",
+            "entity": "npc_2",
+            "mood": "friendly",
+            "outcome": "information",
+            "location": "mountain"
+          },
+          "metadata": {
+            "creation_time": 1744852285,
+            "last_access_time": 1744852285,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 1,
+            "memory_type": "interaction",
+            "current_tier": "stm"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "state_village_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 10,
+          "timestamp": 1744852295,
+          "content": {
+            "position": {
+              "x": 12.7,
+              "y": -45.3,
+              "location": "village"
+            },
+            "health": 95,
+            "energy": 85,
+            "inventory": ["sword", "potion", "gem", "key"],
+            "level": 2
+          },
+          "metadata": {
+            "creation_time": 1744852295,
+            "last_access_time": 1744852295,
+            "compression_level": 0,
+            "importance_score": 0.75,
+            "retrieval_count": 3,
+            "memory_type": "state",
+            "current_tier": "im"
+          },
+          "type": "state",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "action_village_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 11,
+          "timestamp": 1744852305,
+          "content": {
+            "type": "interact",
+            "target": "entity_5",
+            "success": true,
+            "location": "village"
+          },
+          "metadata": {
+            "creation_time": 1744852305,
+            "last_access_time": 1744852305,
+            "compression_level": 0,
+            "importance_score": 0.65,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "im"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "interaction_village_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 12,
+          "timestamp": 1744852315,
+          "content": {
+            "type": "encounter",
+            "entity": "npc_4",
+            "mood": "neutral",
+            "outcome": "trade",
+            "location": "village"
+          },
+          "metadata": {
+            "creation_time": 1744852315,
+            "last_access_time": 1744852315,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "retrieval_count": 1,
+            "memory_type": "interaction",
+            "current_tier": "im"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "state_dungeon_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 15,
+          "timestamp": 1744852325,
+          "content": {
+            "position": {
+              "x": -85.1,
+              "y": -25.6,
+              "location": "dungeon"
+            },
+            "health": 65,
+            "energy": 55,
+            "inventory": ["sword", "shield", "potion", "key"],
+            "level": 3
+          },
+          "metadata": {
+            "creation_time": 1744852325,
+            "last_access_time": 1744852325,
+            "compression_level": 1,
+            "importance_score": 0.95,
+            "retrieval_count": 2,
+            "memory_type": "state",
+            "current_tier": "im"
+          },
+          "type": "state",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "action_dungeon_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 16,
+          "timestamp": 1744852335,
+          "content": {
+            "type": "attack",
+            "target": "entity_7",
+            "success": false,
+            "location": "dungeon"
+          },
+          "metadata": {
+            "creation_time": 1744852335,
+            "last_access_time": 1744852335,
+            "compression_level": 1,
+            "importance_score": 0.9,
+            "retrieval_count": 1,
+            "memory_type": "action",
+            "current_tier": "im"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "state_castle_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 20,
+          "timestamp": 1744852345,
+          "content": {
+            "position": {
+              "x": 95.3,
+              "y": 10.2,
+              "location": "castle"
+            },
+            "health": 90,
+            "energy": 80,
+            "inventory": ["sword", "shield", "potion", "gem", "key"],
+            "level": 4
+          },
+          "metadata": {
+            "creation_time": 1744852345,
+            "last_access_time": 1744852345,
+            "compression_level": 2,
+            "importance_score": 0.99,
+            "retrieval_count": 5,
+            "memory_type": "state",
+            "current_tier": "ltm"
+          },
+          "type": "state",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "interaction_castle_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 21,
+          "timestamp": 1744852355,
+          "content": {
+            "type": "encounter",
+            "entity": "npc_1",
+            "mood": "hostile",
+            "outcome": "combat",
+            "location": "castle"
+          },
+          "metadata": {
+            "creation_time": 1744852355,
+            "last_access_time": 1744852355,
+            "compression_level": 2,
+            "importance_score": 0.98,
+            "retrieval_count": 3,
+            "memory_type": "interaction",
+            "current_tier": "ltm"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "action_castle_1",
+          "agent_id": "retrieval_agent",
+          "step_number": 22,
+          "timestamp": 1744852365,
+          "content": {
+            "type": "attack",
+            "target": "entity_9",
+            "success": true,
+            "location": "castle"
+          },
+          "metadata": {
+            "creation_time": 1744852365,
+            "last_access_time": 1744852365,
+            "compression_level": 2,
+            "importance_score": 0.95,
+            "retrieval_count": 2,
+            "memory_type": "action",
+            "current_tier": "ltm"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "state_forest_2",
+          "agent_id": "retrieval_agent",
+          "step_number": 25,
+          "timestamp": 1744852375,
+          "content": {
+            "position": {
+              "x": 50.1,
+              "y": 70.3,
+              "location": "forest"
+            },
+            "health": 100,
+            "energy": 100,
+            "inventory": ["sword", "shield", "potion", "gem", "map"],
+            "level": 5
+          },
+          "metadata": {
+            "creation_time": 1744852375,
+            "last_access_time": 1744852375,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 1,
+            "memory_type": "state",
+            "current_tier": "stm"
+          },
+          "type": "state",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "interaction_forest_2",
+          "agent_id": "retrieval_agent",
+          "step_number": 26,
+          "timestamp": 1744852385,
+          "content": {
+            "type": "encounter",
+            "entity": "npc_3",
+            "mood": "friendly",
+            "outcome": "quest",
+            "location": "forest"
+          },
+          "metadata": {
+            "creation_time": 1744852385,
+            "last_access_time": 1744852385,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "action_forest_2",
+          "agent_id": "retrieval_agent",
+          "step_number": 27,
+          "timestamp": 1744852395,
+          "content": {
+            "type": "observe",
+            "target": "entity_2",
+            "success": true,
+            "location": "forest"
+          },
+          "metadata": {
+            "creation_time": 1744852395,
+            "last_access_time": 1744852395,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm"
+          },
+          "type": "action",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 

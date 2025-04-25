@@ -549,14 +549,12 @@ class SQLiteLTMStore:
             logger.error("Unexpected error storing batch of memories: %s", str(e))
             return False
 
-    def get(
-        self, memory_id: str, agent_id: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    def get(self, memory_id: str, agent_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a memory entry by its ID.
 
         Args:
             memory_id: ID of the memory to retrieve
-            agent_id: Optional agent ID to search for (defaults to self.agent_id)
+            agent_id: ID of the agent to search for
 
         Returns:
             Memory entry or None if not found
@@ -565,16 +563,13 @@ class SQLiteLTMStore:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
-                # Use provided agent_id or the default one
-                search_agent_id = agent_id if agent_id is not None else self.agent_id
-
                 # Get the memory entry with the specified agent_id
                 cursor.execute(
                     f"""
                 SELECT * FROM {self.memory_table}
                 WHERE memory_id = ? AND agent_id = ?
                 """,
-                    (memory_id, search_agent_id),
+                    (memory_id, agent_id),
                 )
 
                 row = cursor.fetchone()
@@ -690,6 +685,7 @@ class SQLiteLTMStore:
         self,
         start_time: Union[float, int, str],
         end_time: Union[float, int, str],
+        agent_id: str = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Retrieve memories within a time range.
@@ -697,12 +693,16 @@ class SQLiteLTMStore:
         Args:
             start_time: Start timestamp (inclusive)
             end_time: End timestamp (inclusive)
+            agent_id: ID of the agent to search for, defaults to self.agent_id
             limit: Maximum number of results
 
         Returns:
             List of memory entries
         """
         try:
+            # Use provided agent_id or fall back to self.agent_id
+            agent_id = agent_id if agent_id is not None else self.agent_id
+
             # Ensure timestamps are integers
             start_timestamp = start_time
             if isinstance(start_time, str):
@@ -741,7 +741,7 @@ class SQLiteLTMStore:
                 ORDER BY timestamp DESC
                 LIMIT ?
                 """,
-                    (self.agent_id, start_timestamp, end_timestamp, limit),
+                    (agent_id, start_timestamp, end_timestamp, limit),
                 )
 
                 rows = cursor.fetchall()
@@ -749,7 +749,7 @@ class SQLiteLTMStore:
                 # Retrieve full memory entries
                 results = []
                 for row in rows:
-                    memory = self.get(row["memory_id"])
+                    memory = self.get(row["memory_id"], agent_id)
                     if memory:
                         results.append(memory)
 
@@ -758,7 +758,7 @@ class SQLiteLTMStore:
         except (SQLiteTemporaryError, SQLitePermanentError) as e:
             logger.warning(
                 "Failed to retrieve memories by timerange for agent %s: %s",
-                self.agent_id,
+                agent_id,
                 str(e),
             )
             return []
@@ -769,11 +769,16 @@ class SQLiteLTMStore:
             return []
 
     def get_by_importance(
-        self, min_importance: float = 0.0, max_importance: float = 1.0, limit: int = 100
+        self,
+        agent_id: str,
+        min_importance: float = 0.0,
+        max_importance: float = 1.0,
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Retrieve memories by importance score.
 
         Args:
+            agent_id: ID of the agent to search for
             min_importance: Minimum importance score (inclusive)
             max_importance: Maximum importance score (inclusive)
             limit: Maximum number of results
@@ -793,7 +798,7 @@ class SQLiteLTMStore:
                 ORDER BY importance_score DESC
                 LIMIT ?
                 """,
-                    (self.agent_id, min_importance, max_importance, limit),
+                    (agent_id, min_importance, max_importance, limit),
                 )
 
                 rows = cursor.fetchall()
@@ -801,7 +806,7 @@ class SQLiteLTMStore:
                 # Retrieve full memory entries
                 results = []
                 for row in rows:
-                    memory = self.get(row["memory_id"])
+                    memory = self.get(row["memory_id"], agent_id)
                     if memory:
                         results.append(memory)
 
@@ -821,18 +826,25 @@ class SQLiteLTMStore:
             return []
 
     def get_most_similar(
-        self, query_vector: List[float], top_k: int = 10
+        self,
+        query_vector: List[float],
+        top_k: int = 10,
+        agent_id: str = None,
     ) -> List[Tuple[Dict[str, Any], float]]:
         """Retrieve memories most similar to the query vector.
 
         Args:
             query_vector: Query vector for similarity search
             top_k: Number of results to return
+            agent_id: ID of the agent to search for, defaults to self.agent_id
 
         Returns:
             List of tuples containing (memory_entry, similarity_score)
         """
         try:
+            # Use provided agent_id or fall back to self.agent_id
+            agent_id = agent_id if agent_id is not None else self.agent_id
+
             # Convert query vector to numpy array
             query_array = np.array(query_vector, dtype=np.float32)
 
@@ -847,7 +859,7 @@ class SQLiteLTMStore:
                 JOIN {self.memory_table} m ON e.memory_id = m.memory_id
                 WHERE m.agent_id = ?
                 """,
-                    (self.agent_id,),
+                    (agent_id,),
                 )
 
                 rows = cursor.fetchall()
@@ -875,7 +887,7 @@ class SQLiteLTMStore:
                 # Get top-k results
                 top_memories = []
                 for memory_id, similarity in similarities[:top_k]:
-                    memory = self.get(memory_id)
+                    memory = self.get(memory_id, agent_id)
                     if memory:
                         top_memories.append((memory, similarity))
 
@@ -884,7 +896,7 @@ class SQLiteLTMStore:
         except (SQLiteTemporaryError, SQLitePermanentError) as e:
             logger.warning(
                 "Failed to retrieve similar memories for agent %s: %s",
-                self.agent_id,
+                agent_id,
                 str(e),
             )
             return []
@@ -897,6 +909,7 @@ class SQLiteLTMStore:
         query_embedding: List[float],
         k: int = 5,
         memory_type: Optional[str] = None,
+        agent_id: str = None,
     ) -> List[Dict[str, Any]]:
         """Search for memories with similar embeddings.
 
@@ -904,13 +917,19 @@ class SQLiteLTMStore:
             query_embedding: The vector embedding to use for similarity search
             k: Number of results to return
             memory_type: Optional filter for specific memory types
+            agent_id: ID of the agent to search for, defaults to self.agent_id
 
         Returns:
             List of memory entries sorted by similarity score
         """
         try:
+            # Use provided agent_id or fall back to self.agent_id
+            agent_id = agent_id if agent_id is not None else self.agent_id
+
             # Get similar memories using the existing method
-            similar_memories = self.get_most_similar(query_embedding, top_k=k)
+            similar_memories = self.get_most_similar(
+                query_vector=query_embedding, top_k=k, agent_id=agent_id
+            )
 
             # Process results to match the expected format
             results = []
@@ -927,7 +946,9 @@ class SQLiteLTMStore:
             if memory_type and len(results) < k:
                 # We would need to get more results and filter them
                 additional_needed = k - len(results)
-                more_similar = self.get_most_similar(query_embedding, top_k=k + 20)
+                more_similar = self.get_most_similar(
+                    query_vector=query_embedding, top_k=k + 20, agent_id=agent_id
+                )
 
                 for memory, similarity in more_similar[k:]:
                     if memory.get("memory_type") == memory_type:
@@ -943,11 +964,15 @@ class SQLiteLTMStore:
             return []
 
     def search_by_attributes(
-        self, attributes: Dict[str, Any], memory_type: Optional[str] = None
+        self,
+        agent_id: str,
+        attributes: Dict[str, Any],
+        memory_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search for memories matching specific attributes.
 
         Args:
+            agent_id: ID of the agent to search for
             attributes: Dictionary of attribute keys and values to match
             memory_type: Optional filter for specific memory types
 
@@ -964,13 +989,15 @@ class SQLiteLTMStore:
                     SELECT memory_id FROM {self.memory_table}
                     WHERE agent_id = ? AND memory_type = ?
                     """,
-                        (self.agent_id, memory_type),
+                        (agent_id, memory_type),
                     )
                     rows = cursor.fetchall()
-                    candidates = [self.get(row["memory_id"]) for row in rows if row]
+                    candidates = [
+                        self.get(row["memory_id"], agent_id) for row in rows if row
+                    ]
                     candidates = [m for m in candidates if m]  # Filter out None values
             else:
-                candidates = self.get_all(limit=1000)
+                candidates = self.get_all(agent_id, limit=1000)
 
             # Filter by attributes
             results = []
@@ -1119,7 +1146,7 @@ class SQLiteLTMStore:
                 results = []
                 for memory_id in memory_ids:
                     try:
-                        memory = self.get(memory_id)
+                        memory = self.get(memory_id, agent_id)
                         if memory:
                             results.append(memory)
                     except Exception as e:
@@ -1138,16 +1165,20 @@ class SQLiteLTMStore:
             logger.error(f"Unexpected error in get_all: {str(e)}")
             return []
 
-    def delete(self, memory_id: str) -> bool:
+    def delete(self, memory_id: str, agent_id: str = None) -> bool:
         """Delete a memory entry.
 
         Args:
             memory_id: ID of the memory to delete
+            agent_id: ID of the agent to delete memory for, defaults to self.agent_id
 
         Returns:
             True if the memory was deleted, False otherwise
         """
         try:
+            # Use provided agent_id or fall back to self.agent_id
+            agent_id = agent_id if agent_id is not None else self.agent_id
+
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
@@ -1158,7 +1189,7 @@ class SQLiteLTMStore:
                 DELETE FROM {self.memory_table}
                 WHERE memory_id = ? AND agent_id = ?
                 """,
-                    (memory_id, self.agent_id),
+                    (memory_id, agent_id),
                 )
 
                 conn.commit()
@@ -1168,7 +1199,7 @@ class SQLiteLTMStore:
                     logger.debug(
                         "Deleted memory %s for agent %s from LTM",
                         memory_id,
-                        self.agent_id,
+                        agent_id,
                     )
 
                 return deleted
@@ -1177,7 +1208,7 @@ class SQLiteLTMStore:
             logger.warning(
                 "Failed to delete memory %s for agent %s: %s",
                 memory_id,
-                self.agent_id,
+                agent_id,
                 str(e),
             )
             return False
@@ -1263,11 +1294,16 @@ class SQLiteLTMStore:
             }
 
     def search_by_step_range(
-        self, start_step: int, end_step: int, memory_type: Optional[str] = None
+        self,
+        agent_id: str,
+        start_step: int,
+        end_step: int,
+        memory_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search for memories within a specific step range.
 
         Args:
+            agent_id: ID of the agent to search for
             start_step: Beginning of step range (inclusive)
             end_step: End of step range (inclusive)
             memory_type: Optional filter for specific memory types
@@ -1304,7 +1340,7 @@ class SQLiteLTMStore:
                 # Get full memory entries
                 results = []
                 for row in rows:
-                    memory = self.get(row["memory_id"])
+                    memory = self.get(row["memory_id"], agent_id)
                     if memory:
                         results.append(memory)
 

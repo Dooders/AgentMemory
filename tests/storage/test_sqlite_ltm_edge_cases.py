@@ -98,7 +98,7 @@ class TestSQLiteLTMStoreEdgeCases:
         assert success is True
         
         # Retrieval should work
-        retrieved = ltm_store.get("")
+        retrieved = ltm_store.get("", "test_agent")
         assert retrieved is not None
         assert retrieved["content"]["text"] == "Memory with empty ID"
 
@@ -128,11 +128,11 @@ class TestSQLiteLTMStoreEdgeCases:
         assert success is True
         
         # Verify retrieval works for both
-        tiny_retrieved = ltm_store.get("tiny_memory")
+        tiny_retrieved = ltm_store.get("tiny_memory", "test_agent")
         assert tiny_retrieved is not None
         assert tiny_retrieved["content"]["text"] == ""
         
-        large_retrieved = ltm_store.get("large_memory")
+        large_retrieved = ltm_store.get("large_memory", "test_agent")
         assert large_retrieved is not None
         assert len(large_retrieved["content"]["text"]) == len(large_text)
 
@@ -153,7 +153,7 @@ class TestSQLiteLTMStoreEdgeCases:
         success = ltm_store.store(special_chars)
         assert success is True
         
-        retrieved = ltm_store.get("special_chars")
+        retrieved = ltm_store.get("special_chars", "test_agent")
         assert retrieved is not None
         assert retrieved["content"]["text"] == special_chars["content"]["text"]
         assert retrieved["content"]["quotes"] == special_chars["content"]["quotes"]
@@ -184,7 +184,7 @@ class TestSQLiteLTMStoreEdgeCases:
         conn.close()
         
         # Retrieval should handle the error gracefully
-        retrieved = ltm_store.get("valid_memory")
+        retrieved = ltm_store.get("valid_memory", "test_agent")
         assert retrieved is None  # Should fail gracefully
 
     def test_corrupt_database_recovery(self, ltm_config):
@@ -235,8 +235,8 @@ class TestSQLiteLTMStoreEdgeCases:
         agent2_store.store(agent2_memory)
         
         # Verify each agent gets their own memory
-        retrieved1 = agent1_store.get(memory_id)
-        retrieved2 = agent2_store.get(memory_id)
+        retrieved1 = agent1_store.get(memory_id, "agent1")
+        retrieved2 = agent2_store.get(memory_id, "agent2")
         
         assert retrieved1["content"]["text"] == "Agent 1 memory"
         assert retrieved2["content"]["text"] == "Agent 2 memory"
@@ -264,7 +264,7 @@ class TestSQLiteLTMStoreEdgeCases:
         assert success is True
         
         # Retrieval should preserve nulls
-        retrieved = ltm_store.get("memory_with_nulls")
+        retrieved = ltm_store.get("memory_with_nulls", "test_agent")
         assert retrieved is not None
         assert retrieved["content"]["text"] is None
         assert retrieved["type"] is None
@@ -284,7 +284,7 @@ class TestSQLiteLTMStoreEdgeCases:
         assert success is True
         
         # Verify retrieval
-        retrieved = ltm_store.get("minimal_memory")
+        retrieved = ltm_store.get("minimal_memory", "test_agent")
         assert retrieved is not None
         assert retrieved["memory_id"] == "minimal_memory"
         assert "content" in retrieved
@@ -341,7 +341,7 @@ class TestSQLiteLTMStoreEdgeCases:
         assert success is True
         
         # Retrieve and verify
-        retrieved = ltm_store.get("binary_data_memory")
+        retrieved = ltm_store.get("binary_data_memory", "test_agent")
         assert retrieved is not None
         assert retrieved["content"]["binary"] == binary_b64
 
@@ -374,12 +374,12 @@ class TestSQLiteLTMStoreEdgeCases:
         
         # Test similarity search with zero vector
         # (This tests division by zero handling in cosine similarity)
-        similar_to_zero = ltm_store.get_most_similar([0.0, 0.0, 0.0, 0.0, 0.0])
+        similar_to_zero = ltm_store.get_most_similar([0.0, 0.0, 0.0, 0.0, 0.0], "test_agent")
         # Should not crash, though results may not be meaningful
         assert isinstance(similar_to_zero, list)
         
         # Verify large vector was stored correctly
-        retrieved = ltm_store.get("large_vector")
+        retrieved = ltm_store.get("large_vector", "test_agent")
         assert len(retrieved["embeddings"]["compressed_vector"]) == 1024
 
     def test_db_readonly_mode(self, ltm_config):
@@ -398,7 +398,7 @@ class TestSQLiteLTMStoreEdgeCases:
         try:
             # Read operations should still work
             readonly_store = SQLiteLTMStore(agent_id="test_agent", config=ltm_config)
-            retrieved = readonly_store.get("test_memory")
+            retrieved = readonly_store.get("test_memory", "test_agent")
             assert retrieved is not None
             
             # Write operations should fail gracefully
@@ -454,7 +454,7 @@ class TestSQLiteLTMStoreEdgeCases:
         
         # None of the memories should be stored
         for i in range(10):
-            assert test_store.get(f"batch_fail_{i}") is None
+            assert test_store.get(f"batch_fail_{i}", "test_agent") is None
 
     def test_unicode_memory_ids(self, ltm_store):
         """Test with Unicode characters in memory IDs."""
@@ -477,7 +477,7 @@ class TestSQLiteLTMStoreEdgeCases:
         
         # Retrieve all memories
         for memory_id in unicode_ids:
-            retrieved = ltm_store.get(memory_id)
+            retrieved = ltm_store.get(memory_id, "test_agent")
             assert retrieved is not None
             assert retrieved["memory_id"] == memory_id
 
@@ -508,6 +508,6 @@ class TestSQLiteLTMStoreEdgeCases:
         assert success is True
         
         # Retrieve should return the updated memory
-        retrieved = ltm_store.get("colliding_id")
+        retrieved = ltm_store.get("colliding_id", "test_agent")
         assert retrieved["content"]["text"] == "Updated memory"
         assert retrieved["metadata"]["version"] == 2 
