@@ -176,3 +176,5 @@ results/
 .vscode/*
 
 node_modules/
+
+*.db

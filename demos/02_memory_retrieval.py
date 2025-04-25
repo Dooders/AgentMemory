@@ -73,7 +73,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
     all_memories = []
     all_memories.extend(memory_agent.stm_store.get_all(agent_id))
     all_memories.extend(memory_agent.im_store.get_all(agent_id))
-    all_memories.extend(memory_agent.ltm_store.get_all())
+    all_memories.extend(memory_agent.ltm_store.get_all(agent_id))
 
     # Count by memory type
     memory_types = {"state": 0, "action": 0, "interaction": 0}

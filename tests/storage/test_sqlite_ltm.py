@@ -320,13 +320,13 @@ class TestSQLiteLTMStore:
         ltm_store.store_batch(sample_memories)
         
         # Get all memories
-        all_memories = ltm_store.get_all()
+        all_memories = ltm_store.get_all(agent_id="test_agent")
         
         # Should match the number of memories we stored
         assert len(all_memories) == len(sample_memories)
         
         # Test with limit
-        limited_memories = ltm_store.get_all(limit=2)
+        limited_memories = ltm_store.get_all(agent_id="test_agent", limit=2)
         assert len(limited_memories) == 2
 
     def test_delete(self, ltm_store, sample_memory):

@@ -149,7 +149,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
     all_memories = []
     all_memories.extend(memory_agent.stm_store.get_all(agent_id))
     all_memories.extend(memory_agent.im_store.get_all(agent_id))
-    all_memories.extend(memory_agent.ltm_store.get_all())
+    all_memories.extend(memory_agent.ltm_store.get_all(agent_id))
 
     # Count by memory type
     memory_types = {"state": 0, "action": 0, "interaction": 0}
@@ -234,7 +234,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
 
             # Also check LTM if still missing
             if step in missing_steps:
-                memories = memory_agent.ltm_store.get_all()
+                memories = memory_agent.ltm_store.get_all(agent_id)
                 for memory in memories:
                     step_number = memory.get("step_number")
                     if step_number == step:
@@ -432,7 +432,7 @@ def run_demo():
 
     # LTM example content
     log_print(logger, "\n----- LONG-TERM MEMORY (LTM) EXAMPLES -----")
-    ltm_memories = memory_agent.ltm_store.get_all()
+    ltm_memories = memory_agent.ltm_store.get_all(agent_id)
 
     if ltm_memories:
         for i, memory in enumerate(ltm_memories[:3]):  # Show up to 3 examples
@@ -499,7 +499,7 @@ def run_demo():
         for store_memories in [
             memory_agent.stm_store.get_all(agent_id),
             memory_agent.im_store.get_all(agent_id),
-            memory_agent.ltm_store.get_all(),
+            memory_agent.ltm_store.get_all(agent_id),
         ]:
             for memory in store_memories:
                 mem_step = memory.get("step_number")
@@ -569,7 +569,7 @@ def run_demo():
             # Directly check if we can find any memories with this timestamp across all three tiers
             stm_memories = memory_agent.stm_store.get_all(agent_id)
             im_memories = memory_agent.im_store.get_all(agent_id)
-            ltm_memories = memory_agent.ltm_store.get_all()
+            ltm_memories = memory_agent.ltm_store.get_all(agent_id)
             log_print(
                 logger, f"Searching for step {missing_step} manually in all stores..."
             )

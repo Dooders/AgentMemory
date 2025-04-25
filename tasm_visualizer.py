@@ -557,7 +557,7 @@ class TASMVisualizer:
 
         # Get LTM memories
         try:
-            ltm_memories = memory_agent.ltm_store.get_all(limit=1000)
+            ltm_memories = memory_agent.ltm_store.get_all(agent_id=agent_id)
             self.memory_contents["LTM"] = ltm_memories
             self.ltm_text.delete(1.0, tk.END)
             self.ltm_text.insert(tk.END, f"LTM Memories: {len(ltm_memories)}\n\n")
