@@ -791,7 +791,9 @@ class TestMemoryRetrieval:
         mock_im_store.search_by_attributes.assert_called_once_with(
             memory_agent.agent_id, attributes, None
         )
-        mock_ltm_store.search_by_attributes.assert_called_once_with(attributes, None)
+        mock_ltm_store.search_by_attributes.assert_called_once_with(
+            memory_agent.agent_id, attributes, None
+        )
 
     def test_search_by_embedding(
         self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
