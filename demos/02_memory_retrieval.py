@@ -1,4 +1,5 @@
 """
+#! This demo will be deprecated when the retrieval module is deprecated for the search module
 Demo 2: Memory Retrieval Capabilities
 
 This demo showcases the advanced memory retrieval methods of the AgentMemorySystem:
@@ -58,7 +59,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
     if total_memories == expected_total:
         log_print(
             logger,
-            f"[PASS] Total memory count ({total_memories}) matches expectation ({expected_total})"
+            f"[PASS] Total memory count ({total_memories}) matches expectation ({expected_total})",
         )
     else:
         logger.error(
@@ -95,7 +96,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
     if memory_types["state"] == expected_state:
         log_print(
             logger,
-            f"[PASS] State memory count ({memory_types['state']}) matches expectation ({expected_state})"
+            f"[PASS] State memory count ({memory_types['state']}) matches expectation ({expected_state})",
         )
     else:
         logger.warning(
@@ -106,7 +107,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
     if memory_types["action"] == expected_action:
         log_print(
             logger,
-            f"[PASS] Action memory count ({memory_types['action']}) matches expectation ({expected_action})"
+            f"[PASS] Action memory count ({memory_types['action']}) matches expectation ({expected_action})",
         )
     else:
         logger.warning(
@@ -117,7 +118,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
     if memory_types["interaction"] == expected_interaction:
         log_print(
             logger,
-            f"[PASS] Interaction memory count ({memory_types['interaction']}) matches expectation ({expected_interaction})"
+            f"[PASS] Interaction memory count ({memory_types['interaction']}) matches expectation ({expected_interaction})",
         )
     else:
         logger.warning(
@@ -127,13 +128,17 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
 
     # 3. Validate tier distribution based on actual data
     expected_stm = 7  # Actual count from logs
-    expected_im = 5   # Actual count from logs
+    expected_im = 5  # Actual count from logs
     expected_ltm = 3  # Actual count from logs
-    
-    if stm_count == expected_stm and im_count == expected_im and ltm_count == expected_ltm:
+
+    if (
+        stm_count == expected_stm
+        and im_count == expected_im
+        and ltm_count == expected_ltm
+    ):
         log_print(
             logger,
-            f"[PASS] Memory tier distribution matches expectations (STM: {stm_count}/{expected_stm}, IM: {im_count}/{expected_im}, LTM: {ltm_count}/{expected_ltm})"
+            f"[PASS] Memory tier distribution matches expectations (STM: {stm_count}/{expected_stm}, IM: {im_count}/{expected_im}, LTM: {ltm_count}/{expected_ltm})",
         )
     else:
         logger.warning(
@@ -144,16 +149,16 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
     # 4. Validate location distribution based on actual data
     locations = ["forest", "mountain", "village", "dungeon", "castle"]
     location_counts = {loc: 0 for loc in locations}
-    
+
     # Expected counts per location based on actual data from logs
     expected_location_counts = {
         "forest": 5,  # Actual count from logs
-        "mountain": 2, # From original data
+        "mountain": 2,  # From original data
         "village": 3,  # From original data
         "dungeon": 2,  # From original data
-        "castle": 3    # Actual count from logs
+        "castle": 3,  # Actual count from logs
     }
-    
+
     for memory in all_memories:
         content = memory.get("content", {})
         if isinstance(content, dict):
@@ -167,18 +172,17 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
                 location = content.get("location")
                 if location in location_counts:
                     location_counts[location] += 1
-    
+
     # Check if counts match expectations for each location
     location_mismatches = []
     for loc in locations:
         if location_counts[loc] != expected_location_counts[loc]:
-            location_mismatches.append(f"{loc}: {location_counts[loc]}/{expected_location_counts[loc]}")
-    
+            location_mismatches.append(
+                f"{loc}: {location_counts[loc]}/{expected_location_counts[loc]}"
+            )
+
     if not location_mismatches:
-        log_print(
-            logger,
-            f"[PASS] All location counts match expectations"
-        )
+        log_print(logger, f"[PASS] All location counts match expectations")
     else:
         logger.warning(
             f"[FAIL] Some location counts don't match expectations: {', '.join(location_mismatches)}"
@@ -196,18 +200,18 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
 
 def validate_retrieval_methods(logger, memory_system, agent_id):
     """Validate that all retrieval methods are working correctly.
-    
+
     Args:
         logger: Logger instance for reporting
         memory_system: Memory system instance
         agent_id: ID of the agent whose memory is being validated
-        
+
     Returns:
         bool: True if all validations pass, False otherwise
     """
     log_print(logger, "\nValidating Retrieval Methods...")
     all_validations_passed = True
-    
+
     # 1. Validate attribute-based retrieval
     log_print(logger, "Testing attribute-based retrieval...")
     # Based on actual results from logs
@@ -215,49 +219,71 @@ def validate_retrieval_methods(logger, memory_system, agent_id):
         agent_id, {"position.location": "forest"}
     )
     expected_forest_count = 7  # Actual count from logs
-    
+
     if len(forest_memories) == expected_forest_count:
-        log_print(logger, f"[PASS] Attribute-based retrieval found {len(forest_memories)} forest state memories as expected")
+        log_print(
+            logger,
+            f"[PASS] Attribute-based retrieval found {len(forest_memories)} forest state memories as expected",
+        )
     else:
-        logger.error(f"[FAIL] Attribute-based retrieval found {len(forest_memories)} forest state memories, expected {expected_forest_count}")
+        logger.error(
+            f"[FAIL] Attribute-based retrieval found {len(forest_memories)} forest state memories, expected {expected_forest_count}"
+        )
         all_validations_passed = False
-    
+
     # 2. Validate temporal retrieval
     log_print(logger, "Testing temporal retrieval...")
     # Based on actual results from logs
     time_range_memories = memory_system.retrieve_by_time_range(agent_id, 5, 10)
     expected_time_range_count = 7  # Actual count from logs
-    
+
     if len(time_range_memories) == expected_time_range_count:
-        log_print(logger, f"[PASS] Temporal retrieval found exactly {expected_time_range_count} memories between steps 5-10")
+        log_print(
+            logger,
+            f"[PASS] Temporal retrieval found exactly {expected_time_range_count} memories between steps 5-10",
+        )
     else:
-        logger.error(f"[FAIL] Temporal retrieval found {len(time_range_memories)} memories between steps 5-10, expected {expected_time_range_count}")
+        logger.error(
+            f"[FAIL] Temporal retrieval found {len(time_range_memories)} memories between steps 5-10, expected {expected_time_range_count}"
+        )
         all_validations_passed = False
-    
+
     # 3. Validate content-based search - check if available first
     log_print(logger, "Testing content-based search...")
     # Check if content-based search is available
     stats = memory_system.get_memory_statistics(agent_id)
-    has_content_search = not stats.get("warnings", {}).get("content_search_disabled", False)
-    
+    has_content_search = not stats.get("warnings", {}).get(
+        "content_search_disabled", False
+    )
+
     if has_content_search:
         try:
             # In the sample data, "sword" appears in many memories
             content_memories = memory_system.search_by_content(agent_id, "sword", k=5)
             expected_sword_count = 5  # Actual count from logs
-            
+
             if len(content_memories) == expected_sword_count:
-                log_print(logger, f"[PASS] Content-based search found {len(content_memories)} memories containing 'sword'")
+                log_print(
+                    logger,
+                    f"[PASS] Content-based search found {len(content_memories)} memories containing 'sword'",
+                )
             else:
-                logger.warning(f"[FAIL] Content-based search found {len(content_memories)} memories containing 'sword', expected {expected_sword_count}")
+                logger.warning(
+                    f"[FAIL] Content-based search found {len(content_memories)} memories containing 'sword', expected {expected_sword_count}"
+                )
                 all_validations_passed = False
         except AttributeError:
-            log_print(logger, "[INFO] Content-based search is not implemented in the current storage backend")
+            log_print(
+                logger,
+                "[INFO] Content-based search is not implemented in the current storage backend",
+            )
             log_print(logger, "Skipping content-based search validation")
     else:
-        log_print(logger, "[INFO] Content-based search is disabled (requires embeddings)")
+        log_print(
+            logger, "[INFO] Content-based search is disabled (requires embeddings)"
+        )
         log_print(logger, "Skipping content-based search validation")
-    
+
     # 4. Validate type-specific retrieval
     log_print(logger, "Testing type-specific retrieval...")
     # Based on actual results from logs
@@ -265,13 +291,18 @@ def validate_retrieval_methods(logger, memory_system, agent_id):
         agent_id, {"type": "attack"}, memory_type="action"
     )
     expected_attack_count = 5  # Actual count from logs
-    
+
     if len(action_memories) == expected_attack_count:
-        log_print(logger, f"[PASS] Type-specific retrieval found exactly {expected_attack_count} attack action memories")
+        log_print(
+            logger,
+            f"[PASS] Type-specific retrieval found exactly {expected_attack_count} attack action memories",
+        )
     else:
-        logger.error(f"[FAIL] Type-specific retrieval found {len(action_memories)} attack action memories, expected {expected_attack_count}")
+        logger.error(
+            f"[FAIL] Type-specific retrieval found {len(action_memories)} attack action memories, expected {expected_attack_count}"
+        )
         all_validations_passed = False
-    
+
     # 5. Validate village interaction retrieval
     log_print(logger, "Testing specific location interaction retrieval...")
     # Based on actual results from logs
@@ -279,19 +310,24 @@ def validate_retrieval_methods(logger, memory_system, agent_id):
         agent_id, {"location": "village"}, memory_type="interaction"
     )
     expected_village_interaction_count = 5  # Actual count from logs
-    
+
     if len(village_interactions) == expected_village_interaction_count:
-        log_print(logger, f"[PASS] Attribute retrieval found exactly {expected_village_interaction_count} village interaction memories")
+        log_print(
+            logger,
+            f"[PASS] Attribute retrieval found exactly {expected_village_interaction_count} village interaction memories",
+        )
     else:
-        logger.error(f"[FAIL] Attribute retrieval found {len(village_interactions)} village interaction memories, expected {expected_village_interaction_count}")
+        logger.error(
+            f"[FAIL] Attribute retrieval found {len(village_interactions)} village interaction memories, expected {expected_village_interaction_count}"
+        )
         all_validations_passed = False
-    
+
     # Summary
     if all_validations_passed:
         log_print(logger, "[PASS] All retrieval method validations passed!")
     else:
         logger.warning("[FAIL] Some retrieval method validations failed")
-    
+
     return all_validations_passed
 
 
@@ -313,7 +349,9 @@ def run_demo():
         memory_file="retrieval_demo_memory.json",  # Use our new memory sample file
         clear_db=True,  # Clear any existing database
     )
-    print("Memory system loaded from retrieval_demo_memory.json with embeddings enabled")
+    print(
+        "Memory system loaded from retrieval_demo_memory.json with embeddings enabled"
+    )
 
     # Use test agent
     agent_id = "retrieval_agent"
@@ -323,17 +361,27 @@ def run_demo():
     log_print(logger, "\nMemory Statistics:")
     for key, value in stats.items():
         log_print(logger, f"  {key}: {value}")
-    
+
     # Validate memory statistics
-    validation_passed = validate_memory_statistics(logger, stats, agent_id, memory_system)
-    
+    validation_passed = validate_memory_statistics(
+        logger, stats, agent_id, memory_system
+    )
+
     # Validate retrieval methods before running demos
-    retrieval_validation_passed = validate_retrieval_methods(logger, memory_system, agent_id)
-    
+    retrieval_validation_passed = validate_retrieval_methods(
+        logger, memory_system, agent_id
+    )
+
     if validation_passed and retrieval_validation_passed:
-        log_print(logger, "\n[PASS] All initial validations passed, proceeding with retrieval demos!")
+        log_print(
+            logger,
+            "\n[PASS] All initial validations passed, proceeding with retrieval demos!",
+        )
     else:
-        log_print(logger, "\n[WARNING] Some validations failed, but proceeding with retrieval demos anyway")
+        log_print(
+            logger,
+            "\n[WARNING] Some validations failed, but proceeding with retrieval demos anyway",
+        )
 
     # Helper function to check if similarity search is available
     def has_similarity_search():
@@ -413,7 +461,10 @@ def run_demo():
             content_memories, f"Memories matching '{content_query}'", logger
         )
     except AttributeError:
-        log_print(logger, "Content-based search is not implemented in the current storage backend")
+        log_print(
+            logger,
+            "Content-based search is not implemented in the current storage backend",
+        )
         log_print(logger, "Skipping content-based search demo")
         content_memories = []
 
@@ -771,8 +822,10 @@ def run_demo():
 
     # Final validation after all operations
     final_stats = memory_system.get_memory_statistics(agent_id)
-    final_validation_passed = validate_memory_statistics(logger, final_stats, agent_id, memory_system)
-    
+    final_validation_passed = validate_memory_statistics(
+        logger, final_stats, agent_id, memory_system
+    )
+
     if final_validation_passed:
         log_print(logger, "\n[PASS] Final memory validation successful!")
     else:
@@ -780,7 +833,7 @@ def run_demo():
 
     log_print(logger, "\nMemory retrieval demo completed!")
     log_print(logger, f"Log file saved at: logs/{demo_name}.log")
-    
+
     # Return validation status
     return final_validation_passed
 
@@ -788,9 +841,12 @@ def run_demo():
 if __name__ == "__main__":
     try:
         validation_result = run_demo()
-        print(f"Demo completed {'successfully' if validation_result else 'with validation warnings'}")
+        print(
+            f"Demo completed {'successfully' if validation_result else 'with validation warnings'}"
+        )
         # Exit with appropriate status code
         import sys
+
         sys.exit(0 if validation_result else 1)
     except Exception as e:
         import traceback
@@ -799,4 +855,5 @@ if __name__ == "__main__":
         traceback.print_exc()
         print("Demo failed with error")
         import sys
+
         sys.exit(1)

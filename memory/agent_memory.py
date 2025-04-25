@@ -595,7 +595,9 @@ class MemoryAgent:
         )
         results.extend(im_results)
 
-        ltm_results = self.ltm_store.search_by_attributes(attributes, memory_type)
+        ltm_results = self.ltm_store.search_by_attributes(
+            self.agent_id, attributes, memory_type
+        )
         results.extend(ltm_results)
 
         # Sort by recency (most recent first)
