@@ -71,7 +71,7 @@ class TestSQLiteLTMStoreIntegration:
         def store_and_retrieve(i):
             memory = create_memory(i)
             success = store.store(memory)
-            retrieved = store.get(memory["memory_id"])
+            retrieved = store.get(memory["memory_id"], agent_id)
             return success, retrieved is not None and retrieved["memory_id"] == memory["memory_id"]
         
         # Run concurrent operations
@@ -150,18 +150,18 @@ class TestSQLiteLTMStoreIntegration:
         
         # Test retrieval across different time ranges
         hour_memories = ltm_store.get_by_timerange(
-            base_time, base_time + 3600
+            base_time, base_time + 3600, "test_agent"
         )
         assert len(hour_memories) == 1
         assert hour_memories[0]["memory_id"] == "time_span_hour"
         
         day_memories = ltm_store.get_by_timerange(
-            base_time, base_time + 86400
+            base_time, base_time + 86400, "test_agent"
         )
         assert len(day_memories) == 2  # hour and day
         
         all_memories = ltm_store.get_by_timerange(
-            base_time, base_time + 2592000
+            base_time, base_time + 2592000, "test_agent"
         )
         assert len(all_memories) == len(time_spans)
 
@@ -203,7 +203,7 @@ class TestSQLiteLTMStoreIntegration:
         
         # Test similarity search with the original seed vectors
         for topic, seed in topic_seeds.items():
-            similar = ltm_store.get_most_similar(seed, top_k=5)
+            similar = ltm_store.get_most_similar(seed, top_k=5, agent_id="test_agent")
             
             # The top 3 results should be the variations of this topic
             topic_count = sum(1 for mem, _ in similar[:3] 
@@ -280,7 +280,7 @@ class TestSQLiteLTMStoreIntegration:
         
         # Verify we can retrieve each memory with its content intact
         for memory in memories:
-            retrieved = ltm_store.get(memory["memory_id"])
+            retrieved = ltm_store.get(memory["memory_id"], "test_agent")
             assert retrieved is not None
             assert retrieved["memory_id"] == memory["memory_id"]
             assert retrieved["content"] == memory["content"]
@@ -319,7 +319,7 @@ class TestSQLiteLTMStoreIntegration:
         
         # Verify we can retrieve valid entries
         for i in range(10):
-            retrieved = ltm_store.get(f"transaction_test_{i}")
+            retrieved = ltm_store.get(f"transaction_test_{i}", "test_agent")
             assert retrieved is not None
             assert retrieved["memory_id"] == f"transaction_test_{i}"
             
@@ -359,8 +359,8 @@ class TestSQLiteLTMStoreIntegration:
         
         # Verify agent1 cannot access agent2's memories
         for i in range(5):
-            assert agent1_store.get(f"agent2_memory_{i}") is None
-            assert agent2_store.get(f"agent1_memory_{i}") is None
+            assert agent1_store.get(f"agent2_memory_{i}", "agent1") is None
+            assert agent2_store.get(f"agent1_memory_{i}", "agent2") is None
         
         # Retrieve all memories for each agent
         agent1_memories = agent1_store.get_all(agent_id="agent1")
@@ -393,7 +393,7 @@ class TestSQLiteLTMStoreIntegration:
         assert success is True
         
         # Verify it exists
-        retrieved = ltm_store.get(memory_id)
+        retrieved = ltm_store.get(memory_id, "test_agent")
         assert retrieved is not None
         assert retrieved["content"]["text"] == "Original note content"
         assert retrieved["metadata"]["status"] == "draft"
@@ -410,7 +410,7 @@ class TestSQLiteLTMStoreIntegration:
         assert success is True
         
         # Verify update took effect
-        retrieved = ltm_store.get(memory_id)
+        retrieved = ltm_store.get(memory_id, "test_agent")
         assert retrieved["content"]["text"] == "Updated note content"
         assert retrieved["metadata"]["status"] == "reviewed"
         assert retrieved["metadata"]["importance_score"] == 0.7
@@ -425,14 +425,14 @@ class TestSQLiteLTMStoreIntegration:
         assert success is True
         
         # Verify embeddings are stored
-        retrieved = ltm_store.get(memory_id)
+        retrieved = ltm_store.get(memory_id, "test_agent")
         assert "embeddings" in retrieved
         assert "compressed_vector" in retrieved["embeddings"]
         
         # Stage 4: Delete
-        success = ltm_store.delete(memory_id)
+        success = ltm_store.delete(memory_id, "test_agent")
         assert success is True
         
         # Verify it's gone
-        retrieved = ltm_store.get(memory_id)
+        retrieved = ltm_store.get(memory_id, "test_agent")
         assert retrieved is None 
