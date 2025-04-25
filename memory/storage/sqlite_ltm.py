@@ -1106,44 +1106,34 @@ class SQLiteLTMStore:
             List of memory entries
         """
         try:
-            # Create a completely separate connection
-            conn = None
-            try:
-                # Extremely basic connection with minimal options
-                conn = sqlite3.connect(self.db_path)
-                conn.row_factory = sqlite3.Row
-
-                # Use the most minimal query possible - just memory_id
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f"SELECT memory_id FROM {self.memory_table} WHERE agent_id = ?",
-                    (agent_id,),
+                    f"SELECT memory_id FROM {self.memory_table} WHERE agent_id = ? LIMIT ?",
+                    (agent_id, limit),
                 )
 
                 memory_ids = [row["memory_id"] for row in cursor.fetchall()]
 
-                # Now get the memories one by one using the get method
+                # Get the memories one by one using the get method
                 results = []
                 for memory_id in memory_ids:
                     try:
                         memory = self.get(memory_id)
                         if memory:
                             results.append(memory)
-                            # Stop retrieving if we hit the limit
-                            if len(results) >= limit:
-                                break
                     except Exception as e:
                         logger.warning(f"Error retrieving memory {memory_id}: {str(e)}")
 
                 return results
 
-            except Exception as e:
-                logger.error(f"Database error in get_all: {str(e)}")
-                return []
-            finally:
-                if conn:
-                    conn.close()
-
+        except (SQLiteTemporaryError, SQLitePermanentError) as e:
+            logger.warning(
+                "Failed to retrieve all memories for agent %s: %s",
+                self.agent_id,
+                str(e),
+            )
+            return []
         except Exception as e:
             logger.error(f"Unexpected error in get_all: {str(e)}")
             return []
