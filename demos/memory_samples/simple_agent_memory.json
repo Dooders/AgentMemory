@@ -16,7 +16,10 @@
           "content": {
             "location": "home_office",
             "task": "writing_code",
-            "tools": ["laptop", "coffee"]
+            "tools": [
+              "laptop",
+              "coffee"
+            ]
           },
           "metadata": {
             "creation_time": 1744852255,
@@ -25,7 +28,8 @@
             "importance_score": 0.7,
             "retrieval_count": 0,
             "memory_type": "state",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "f08906f917e9236de6ffcadce68c5f34cb04965f239f389a24d3c40afc854a4a"
           },
           "type": "state",
           "embeddings": {}
@@ -48,7 +52,8 @@
             "importance_score": 0.8,
             "retrieval_count": 0,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "0fa8b49d104b746a5ab79a7a633eda1c8f0a8bd7a2e973153aa950790fae4428"
           },
           "type": "interaction",
           "embeddings": {}
@@ -70,7 +75,8 @@
             "importance_score": 0.9,
             "retrieval_count": 0,
             "memory_type": "action",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "e059d29b9f8d9c63c2aca5c1af50484acca925e86c784ab00b472480e3b18ae3"
           },
           "type": "action",
           "embeddings": {}

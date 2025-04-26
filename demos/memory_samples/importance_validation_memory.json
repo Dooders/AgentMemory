@@ -51,7 +51,8 @@
             "importance_score": 0.95,
             "retrieval_count": 0,
             "memory_type": "generic",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "319f9c037be95ae4dc07458da21598ff7b47ae13d08f82a3c313797384b6767a"
           },
           "type": "generic",
           "embeddings": {}
@@ -85,7 +86,8 @@
             "importance_score": 0.85,
             "retrieval_count": 0,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "90041b1b5cadc1bb90c28529d2544256dd97368aafceb974f35fb242a1c69269"
           },
           "type": "interaction",
           "embeddings": {}
@@ -117,7 +119,8 @@
             "importance_score": 0.65,
             "retrieval_count": 0,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "876fee01bc2619d329ed55b0f2759d7ecf5339797c19e2e8075f773bc9cb9b4d"
           },
           "type": "interaction",
           "embeddings": {}
@@ -146,7 +149,8 @@
             "importance_score": 0.6,
             "retrieval_count": 0,
             "memory_type": "action",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "7bfe771b5a0a4695620f2804649c508824ad84db0e18e7fd8e6bb681acc8260a"
           },
           "type": "action",
           "embeddings": {}
@@ -174,7 +178,8 @@
             "importance_score": 0.25,
             "retrieval_count": 0,
             "memory_type": "generic",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "ddfab123f24dfcf29703b4dafd985af5f9c044bfc28fcacd6624c3ce7001816b"
           },
           "type": "generic",
           "embeddings": {}
@@ -203,7 +208,8 @@
             "importance_score": 0.8,
             "retrieval_count": 3,
             "memory_type": "action",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "fcb1064d39b1a1b91b39fd34ec38a02e01634e7d02c277c46d1c0d09505d65be"
           },
           "type": "action",
           "embeddings": {}
@@ -233,7 +239,8 @@
             "importance_score": 0.87,
             "retrieval_count": 4,
             "memory_type": "generic",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "ad4f5ef4c9034624c4554aba72a259fe84712fdde43dd98fc9592f4265db278e"
           },
           "type": "generic",
           "embeddings": {}
@@ -262,7 +269,8 @@
             "importance_score": 0.55,
             "retrieval_count": 2,
             "memory_type": "generic",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "680b8f4fc00e1fec4f9e52db616a3dfdc84a01a3d927cb7ed96d7fb48f7edc3d"
           },
           "type": "generic",
           "embeddings": {}
@@ -291,7 +299,8 @@
             "importance_score": 0.68,
             "retrieval_count": 3,
             "memory_type": "generic",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "b37e10d66772a51ca03bd5af276e964e24ac11aef34ea2c066fe37b26e4b4e06"
           },
           "type": "generic",
           "embeddings": {}
@@ -320,7 +329,8 @@
             "importance_score": 0.3,
             "retrieval_count": 1,
             "memory_type": "interaction",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "2e658bac19ee9082ae6c71ca2847de58f1a1f294f7e2fbcba2fa3c7fddc54cc4"
           },
           "type": "interaction",
           "embeddings": {}
@@ -349,7 +359,8 @@
             "importance_score": 0.35,
             "retrieval_count": 2,
             "memory_type": "generic",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "8ae88e62d6cacb9be0a2fbef6efcaf7801017510fb4e20d05d07b14de8fdd267"
           },
           "type": "generic",
           "embeddings": {}
@@ -379,7 +390,8 @@
             "importance_score": 0.98,
             "retrieval_count": 15,
             "memory_type": "generic",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "f8dc98ec97fdf32711eed46322ae325f15fbd53fa5998c5f4640bf49e469d81c"
           },
           "type": "generic",
           "embeddings": {}
@@ -409,7 +421,8 @@
             "importance_score": 0.9,
             "retrieval_count": 10,
             "memory_type": "generic",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "68f7348745ae732fe013b7ed45d6c6f8f3f8caaf669ea43b04a349a17b432216"
           },
           "type": "generic",
           "embeddings": {}
@@ -438,7 +451,8 @@
             "importance_score": 0.7,
             "retrieval_count": 5,
             "memory_type": "generic",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "abd9577d127a2d63eb3c055b584503a73d90746aa6d8b2d941f83198a8c1506a"
           },
           "type": "generic",
           "embeddings": {}
@@ -467,7 +481,8 @@
             "importance_score": 0.4,
             "retrieval_count": 2,
             "memory_type": "generic",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "c2c86d3f7ef76ec4b9e54e48cb2160394b35693cc0a17f1cd93d4674942fb4da"
           },
           "type": "generic",
           "embeddings": {}

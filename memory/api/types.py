@@ -100,6 +100,7 @@ class MemoryMetadata(TypedDict, total=False):
         retrieval_count: Number of times this memory has been retrieved
         memory_type: Classification of the memory content (state/action/interaction)
         current_tier: Current memory tier where this entry is stored (stm/im/ltm)
+        checksum: Hash value to verify data integrity of the memory content
     """
 
     creation_time: float
@@ -109,6 +110,7 @@ class MemoryMetadata(TypedDict, total=False):
     retrieval_count: int
     memory_type: Literal["state", "action", "interaction"]
     current_tier: MemoryTier
+    checksum: str
 
 
 class MemoryEmbeddings(TypedDict, total=False):

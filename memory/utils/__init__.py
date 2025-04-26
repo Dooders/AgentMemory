@@ -4,6 +4,11 @@ This package provides various utility functions and classes used throughout
 the agent memory system for serialization, Redis operations, and error handling.
 """
 
+from memory.utils.checksums import (
+    add_checksum_to_memory,
+    generate_checksum,
+    validate_checksum,
+)
 from memory.utils.error_handling import (
     CircuitBreaker,
     CircuitOpenError,
@@ -17,8 +22,8 @@ from memory.utils.error_handling import (
     RecoveryQueue,
     RedisTimeoutError,
     RedisUnavailableError,
-    RetryPolicy,
     RetryableOperation,
+    RetryPolicy,
     SQLitePermanentError,
     SQLiteTemporaryError,
     STMError,
@@ -50,6 +55,10 @@ from memory.utils.serialization import (
 )
 
 __all__ = [
+    # Checksum utilities
+    "add_checksum_to_memory",
+    "generate_checksum",
+    "validate_checksum",
     # Serialization
     "MemorySerializer",
     "serialize_memory",

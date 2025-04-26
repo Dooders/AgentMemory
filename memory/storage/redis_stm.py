@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, TypedDict, Union
 import numpy as np
 
 from memory.config import RedisSTMConfig
+from memory.utils.checksums import generate_checksum, validate_checksum
 from memory.utils.error_handling import (
     Priority,
     RedisTimeoutError,
@@ -216,6 +217,15 @@ class RedisSTMStore:
         timestamp = memory_entry.get("timestamp", time.time())
 
         try:
+            # Add checksum to metadata if not already present
+            content = memory_entry.get("content", {})
+            metadata = memory_entry.get("metadata", {})
+            if content and "checksum" not in metadata:
+                if not isinstance(content, (dict, list)):
+                    content = {"value": content}
+                metadata["checksum"] = generate_checksum(content)
+                memory_entry["metadata"] = metadata
+
             # Store the full memory entry
             key = self._get_memory_key(agent_id, memory_id)
             self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
@@ -282,6 +292,22 @@ class RedisSTMStore:
                 return None
 
             memory_entry = json.loads(data)
+
+            # Validate checksum if present
+            metadata = memory_entry.get("metadata", {})
+            if "checksum" in metadata:
+                is_valid = validate_checksum(memory_entry)
+                if not is_valid:
+                    logger.warning(
+                        "Checksum validation failed for memory %s", memory_id
+                    )
+                    # Consider adding integrity flag to metadata
+                    metadata["integrity_verified"] = False
+                    memory_entry["metadata"] = metadata
+                else:
+                    metadata["integrity_verified"] = True
+                    memory_entry["metadata"] = metadata
+
             self._update_access_metadata(agent_id, memory_id, memory_entry)
             return memory_entry
 

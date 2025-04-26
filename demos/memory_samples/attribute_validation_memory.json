@@ -57,7 +57,8 @@
             "importance_score": 0.9,
             "retrieval_count": 0,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "0eb0f81d07276f08e05351a604d3c994564fedee3a93329e318186da517a3c56"
           },
           "type": "interaction",
           "embeddings": {}
@@ -88,7 +89,8 @@
             "importance_score": 0.7,
             "retrieval_count": 0,
             "memory_type": "action",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "e0f7deb6929a17f65f56e5b03e16067c8bb65649fd2745f842aca7af701c9cac"
           },
           "type": "action",
           "embeddings": {}
@@ -124,7 +126,8 @@
             "importance_score": 0.6,
             "retrieval_count": 0,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "f6ab36930459e74a52fdf21fb96a84241ccae3f6987365a21f9a17d84c5dae1e"
           },
           "type": "interaction",
           "embeddings": {}
@@ -154,7 +157,8 @@
             "importance_score": 0.95,
             "retrieval_count": 0,
             "memory_type": "generic",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "1e9e265e75c2ef678dfd0de0ab5c801f845daa48a90a48bb02ee85148ccc3470"
           },
           "type": "generic",
           "embeddings": {}
@@ -184,7 +188,8 @@
             "importance_score": 0.4,
             "retrieval_count": 0,
             "memory_type": "generic",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "496d09718bbc8ae669dffdd782ed5b849fdbb1a57e3f7d07e61807b10e650092"
           },
           "type": "generic",
           "embeddings": {}
@@ -220,7 +225,8 @@
             "importance_score": 0.85,
             "retrieval_count": 3,
             "memory_type": "interaction",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "ffa0ee60ebaec5574358a02d1857823e948519244e366757235bf755c888a87f"
           },
           "type": "interaction",
           "embeddings": {}
@@ -251,7 +257,8 @@
             "importance_score": 0.8,
             "retrieval_count": 5,
             "memory_type": "action",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "1d23b6683acd8c3863cb2f2010fe3df2c3e69a2d94c7c4757a291d4872066cfd"
           },
           "type": "action",
           "embeddings": {}
@@ -281,7 +288,8 @@
             "importance_score": 0.7,
             "retrieval_count": 2,
             "memory_type": "generic",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "169c452e368fd62e3c0cf5ce7731769ed46ab6ae73e5048e0c3a7caaa66fba46"
           },
           "type": "generic",
           "embeddings": {}
@@ -319,7 +327,8 @@
             "importance_score": 0.9,
             "retrieval_count": 8,
             "memory_type": "interaction",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "9214ebc2d11877665b32771bd3c080414d9519b435ec3f6c19cc5f337bb0ba90"
           },
           "type": "interaction",
           "embeddings": {}
@@ -351,7 +360,8 @@
             "importance_score": 0.85,
             "retrieval_count": 10,
             "memory_type": "action",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "f3c73b06d6399ed30ea9d9ad7c711a86dd58154809cc05497f8955425ec6dc67"
           },
           "type": "action",
           "embeddings": {}
@@ -388,7 +398,8 @@
             "importance_score": 0.9,
             "retrieval_count": 7,
             "memory_type": "interaction",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "ad2e7c963751beb1ebc1c9b84ecb09ec3ccdef14f276cd14bbebad12d0f9b0df"
           },
           "type": "interaction",
           "embeddings": {}

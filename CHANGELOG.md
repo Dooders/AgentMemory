@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.1] - 2025-04-25
+
+### Added
+- Added checksum functionality to memory metadata:
+  - New `checksum` field in `MemoryMetadata` for data integrity verification
+  - Added utility functions in `memory/utils/checksums.py` for generating and validating checksums
+  - Implemented automatic checksum generation when storing memories
+  - Added checksum validation when retrieving memories
+  - Added integrity verification flags in memory metadata
+
+### Improved
+- Enhanced data integrity through checksum verification across all memory tiers
+- Added support for different hashing algorithms in checksum generation
+- Implemented comprehensive test suite for checksum functionality
+
 ## [0.1.0] - 2025-04-05
 
 ### Refactoring

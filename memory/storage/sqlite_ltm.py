@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from memory.config import SQLiteLTMConfig
+from memory.utils.checksums import generate_checksum, validate_checksum
 from memory.utils.error_handling import SQLitePermanentError, SQLiteTemporaryError
 
 logger = logging.getLogger(__name__)
@@ -299,6 +300,11 @@ class SQLiteLTMStore:
 
             # Get current_tier from metadata or default to 'ltm'
             current_tier = metadata.get("current_tier", "ltm")
+
+            # Add checksum to metadata if not already present
+            content = memory_entry.get("content", {})
+            if content and "checksum" not in metadata:
+                metadata["checksum"] = generate_checksum(content)
 
             # Prepare content and metadata as JSON
             content_json = json.dumps(memory_entry.get("content", {}))
@@ -601,6 +607,20 @@ class SQLiteLTMStore:
                     memory_entry["metadata"]["current_tier"] = memory_data.get(
                         "current_tier", "ltm"
                     )
+
+                # Validate checksum if present
+                if "checksum" in metadata:
+                    is_valid = validate_checksum(memory_entry)
+                    if not is_valid:
+                        logger.warning(
+                            "Checksum validation failed for memory %s", memory_id
+                        )
+                        # Add integrity flag to metadata
+                        metadata["integrity_verified"] = False
+                        memory_entry["metadata"] = metadata
+                    else:
+                        metadata["integrity_verified"] = True
+                        memory_entry["metadata"] = metadata
 
                 # Get vector embeddings if available
                 cursor.execute(
