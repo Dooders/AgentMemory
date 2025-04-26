@@ -76,12 +76,13 @@ def validate_checksum(memory_entry: Dict[str, Any], strict: bool = False) -> boo
         content = memory_entry.get("content", {})
 
     # Use same algorithm as stored checksum if detectable
-    algorithm = "sha256"  # Default
-    if stored_checksum and len(stored_checksum) == 64:
-        algorithm = "sha256"
-    elif stored_checksum and len(stored_checksum) == 128:
-        algorithm = "sha512"
-
+    algorithm = metadata.get("algorithm", "sha256")  # Default to sha256 if not specified
+    if not algorithm and stored_checksum:
+        # Fallback to length-based inference for backward compatibility
+        if len(stored_checksum) == 64:
+            algorithm = "sha256"
+        elif len(stored_checksum) == 128:
+            algorithm = "sha512"
     computed_checksum = generate_checksum(content, algorithm)
 
     # Compare checksums
