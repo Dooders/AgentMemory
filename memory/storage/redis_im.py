@@ -25,6 +25,7 @@ import redis
 from memory.config import RedisIMConfig
 from memory.storage.redis_client import ResilientRedisClient
 from memory.storage.redis_factory import RedisFactory
+from memory.utils.checksums import generate_checksum, validate_checksum
 from memory.utils.error_handling import (
     Priority,
     RedisTimeoutError,
@@ -335,8 +336,12 @@ class RedisIMStore:
             else:
                 hash_values["content"] = str(content)
 
-            # Store metadata as JSON
+            # Generate checksum for content if not already in metadata
             metadata = memory_entry.get("metadata", {})
+            if "checksum" not in metadata and isinstance(content, (dict, list)):
+                metadata["checksum"] = generate_checksum(content)
+
+            # Store metadata as JSON
             hash_values["metadata"] = json.dumps(metadata)
 
             # Store specific metadata fields directly for easier access
@@ -344,6 +349,8 @@ class RedisIMStore:
             hash_values["importance_score"] = str(metadata.get("importance_score", 0.0))
             hash_values["retrieval_count"] = str(metadata.get("retrieval_count", 0))
             hash_values["creation_time"] = str(metadata.get("creation_time", timestamp))
+            if "checksum" in metadata:
+                hash_values["checksum"] = metadata["checksum"]
 
             # Store embedding as JSON if it exists
             embedding = memory_entry.get("embedding")
@@ -493,6 +500,21 @@ class RedisIMStore:
 
             # Convert hash data back to memory entry dict
             memory_entry = self._hash_to_memory_entry(hash_data)
+
+            # Validate checksum if present
+            metadata = memory_entry.get("metadata", {})
+            if "checksum" in metadata:
+                is_valid = validate_checksum(memory_entry)
+                if not is_valid:
+                    logger.warning(
+                        "Checksum validation failed for memory %s", memory_id
+                    )
+                    # Add integrity flag to metadata
+                    metadata["integrity_verified"] = False
+                    memory_entry["metadata"] = metadata
+                else:
+                    metadata["integrity_verified"] = True
+                    memory_entry["metadata"] = metadata
 
             # Update access metadata
             self._update_access_metadata(agent_id, memory_id, memory_entry)
@@ -1895,98 +1917,110 @@ class RedisIMStore:
                     f"Redis step range search failed, falling back to Python implementation: {e}"
                 )
                 # Fall back to optimized Python implementation
-        
+
         # Even without vector search capabilities, we can use Redis sorted sets or SCAN with pattern matching
         try:
             # Create a timeline key if using a sorted set approach
             timeline_key = self._get_timeline_key(agent_id)
-            
+
             # Check if we have a sorted set timeline index
             if self.redis.exists(timeline_key):
                 # Use Redis ZRANGEBYSCORE to get memory IDs in the step range
                 memory_ids = self.redis.zrangebyscore(
-                    timeline_key, 
-                    min=start_step, 
-                    max=end_step
+                    timeline_key, min=start_step, max=end_step
                 )
-                
+
                 results = []
                 for memory_id in memory_ids:
                     if isinstance(memory_id, bytes):
                         memory_id = memory_id.decode("utf-8")
-                    
+
                     # Get the memory data
                     memory_key = self._get_memory_key(agent_id, memory_id)
                     memory_data = self.redis.get(memory_key)
-                    
+
                     if memory_data:
                         try:
                             memory = json.loads(memory_data)
                             # Apply memory type filter if needed
-                            if memory_type is None or memory.get("memory_type") == memory_type:
+                            if (
+                                memory_type is None
+                                or memory.get("memory_type") == memory_type
+                            ):
                                 # Update access metadata and add to results
-                                self._update_access_metadata(agent_id, memory_id, memory)
+                                self._update_access_metadata(
+                                    agent_id, memory_id, memory
+                                )
                                 results.append(memory)
                         except json.JSONDecodeError:
-                            logger.warning(f"Failed to parse memory data for ID {memory_id}")
-                
+                            logger.warning(
+                                f"Failed to parse memory data for ID {memory_id}"
+                            )
+
                 return results
-            
+
             # If no timeline index exists, use SCAN with pattern matching and step filtering
             pattern = f"{self._key_prefix}:{agent_id}:memory:*"
             cursor = 0
             results = []
-            
+
             while True:
                 cursor, keys = self.redis.scan(cursor=cursor, match=pattern, count=100)
-                
+
                 if not keys:
                     if cursor == 0:
                         break
                     continue
-                
+
                 # Get memory data for each key using pipeline for efficiency
                 pipe = self.redis.pipeline()
                 for key in keys:
                     if isinstance(key, bytes):
                         key = key.decode("utf-8")
                     pipe.get(key)
-                
+
                 memory_data_list = pipe.execute()
-                
+
                 # Process memory data
                 for i, memory_data in enumerate(memory_data_list):
                     if not memory_data:
                         continue
-                    
+
                     try:
                         memory = json.loads(memory_data)
                         step = memory.get("step_number")
-                        
+
                         # Filter by step range
                         if step is not None and start_step <= step <= end_step:
                             # Apply memory type filter if needed
-                            if memory_type is None or memory.get("memory_type") == memory_type:
+                            if (
+                                memory_type is None
+                                or memory.get("memory_type") == memory_type
+                            ):
                                 # Extract memory ID from key
                                 key = keys[i]
                                 if isinstance(key, bytes):
                                     key = key.decode("utf-8")
                                 memory_id = key.split(":")[-1]
-                                
+
                                 # Update access metadata and add to results
-                                self._update_access_metadata(agent_id, memory_id, memory)
+                                self._update_access_metadata(
+                                    agent_id, memory_id, memory
+                                )
                                 results.append(memory)
                     except json.JSONDecodeError:
                         continue
-                
+
                 if cursor == 0:
                     break
-            
+
             return results
-            
+
         except Exception as e:
             # If Redis operations fail, fall back to retrieving all and filtering
-            logger.warning(f"Optimized step range search failed, using full fallback: {e}")
+            logger.warning(
+                f"Optimized step range search failed, using full fallback: {e}"
+            )
             memories = self.get_all(agent_id)
 
             # Filter by step range

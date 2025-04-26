@@ -15,7 +15,11 @@
           "timestamp": 1744852300,
           "content": {
             "role": "ai_assistant",
-            "capabilities": ["code_writing", "debugging", "explanation"]
+            "capabilities": [
+              "code_writing",
+              "debugging",
+              "explanation"
+            ]
           },
           "metadata": {
             "creation_time": 1744852300,
@@ -24,7 +28,8 @@
             "importance_score": 0.9,
             "retrieval_count": 0,
             "memory_type": "state",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "cd32c26539c4ff05bbb9890ce0f1223c8da8de753b69e2f1b882f4dd6221929c"
           },
           "type": "state",
           "embeddings": {}
@@ -47,7 +52,8 @@
             "importance_score": 0.8,
             "retrieval_count": 1,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "2e96eaa0f1a4c3a53a81b79ea0b858f0df97564d18591d087046827e5aaf1753"
           },
           "type": "interaction",
           "embeddings": {}
@@ -65,7 +71,10 @@
           "content": {
             "role": "research_agent",
             "specialty": "algorithm_optimization",
-            "resources": ["academic_papers", "code_libraries"]
+            "resources": [
+              "academic_papers",
+              "code_libraries"
+            ]
           },
           "metadata": {
             "creation_time": 1744852320,
@@ -74,7 +83,8 @@
             "importance_score": 0.7,
             "retrieval_count": 0,
             "memory_type": "state",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "2adfc8369f327781bd06aff74feebe17e025598174df82f5a39b4d834a7105aa"
           },
           "type": "state",
           "embeddings": {}
@@ -87,7 +97,10 @@
           "content": {
             "action_type": "research",
             "query": "sorting_algorithm_optimization",
-            "results": ["quicksort_variants", "parallel_sorting"]
+            "results": [
+              "quicksort_variants",
+              "parallel_sorting"
+            ]
           },
           "metadata": {
             "creation_time": 1744852330,
@@ -96,7 +109,8 @@
             "importance_score": 0.9,
             "retrieval_count": 0,
             "memory_type": "action",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "b2a82bbe59cc0c5a4ff2b257edfebf6f7717f89030ef6070f7e299a4e67528c6"
           },
           "type": "action",
           "embeddings": {}
@@ -104,4 +118,4 @@
       ]
     }
   }
-} 
+}

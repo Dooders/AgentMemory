@@ -40,7 +40,11 @@
             },
             "health": 85,
             "energy": 90,
-            "inventory": ["sword", "potion", "map"],
+            "inventory": [
+              "sword",
+              "potion",
+              "map"
+            ],
             "level": 1
           },
           "metadata": {
@@ -50,7 +54,8 @@
             "importance_score": 0.8,
             "retrieval_count": 0,
             "memory_type": "state",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "32d58893c1e88ab72dc783e1d42c2fdf0b898ea47588306bdadb94138c6ca438"
           },
           "type": "state",
           "embeddings": {}
@@ -73,7 +78,8 @@
             "importance_score": 0.7,
             "retrieval_count": 0,
             "memory_type": "action",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "099ff0d5f5e5f993d40222837b96b719681757a3a92c4eccfbed97f0674f7e9b"
           },
           "type": "action",
           "embeddings": {}
@@ -91,7 +97,11 @@
             },
             "health": 75,
             "energy": 65,
-            "inventory": ["sword", "shield", "gem"],
+            "inventory": [
+              "sword",
+              "shield",
+              "gem"
+            ],
             "level": 2
           },
           "metadata": {
@@ -101,7 +111,8 @@
             "importance_score": 0.85,
             "retrieval_count": 2,
             "memory_type": "state",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "65203a5016774d347d68a98bdf90427882152da68b30cfa3666da6867a74c185"
           },
           "type": "state",
           "embeddings": {}
@@ -125,7 +136,8 @@
             "importance_score": 0.9,
             "retrieval_count": 1,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "6bece8550b92538b488ad88e3844387f6fa2735c248bf27e7f58a2002f84943b"
           },
           "type": "interaction",
           "embeddings": {}
@@ -143,7 +155,12 @@
             },
             "health": 95,
             "energy": 85,
-            "inventory": ["sword", "potion", "gem", "key"],
+            "inventory": [
+              "sword",
+              "potion",
+              "gem",
+              "key"
+            ],
             "level": 2
           },
           "metadata": {
@@ -153,7 +170,8 @@
             "importance_score": 0.75,
             "retrieval_count": 3,
             "memory_type": "state",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "1207a8b50d634499520ab256d868633fcbed7952856c1ab18467b073ae252463"
           },
           "type": "state",
           "embeddings": {}
@@ -176,7 +194,8 @@
             "importance_score": 0.65,
             "retrieval_count": 0,
             "memory_type": "action",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "321b35c213c7467b90c72c8992f540b1db22897a5a88ec3262017e582767353f"
           },
           "type": "action",
           "embeddings": {}
@@ -200,7 +219,8 @@
             "importance_score": 0.8,
             "retrieval_count": 1,
             "memory_type": "interaction",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "79f19a12744bfcb17838b52986da6dd8d01018cacc00ce52d86a02b985e2c62b"
           },
           "type": "interaction",
           "embeddings": {}
@@ -218,7 +238,12 @@
             },
             "health": 65,
             "energy": 55,
-            "inventory": ["sword", "shield", "potion", "key"],
+            "inventory": [
+              "sword",
+              "shield",
+              "potion",
+              "key"
+            ],
             "level": 3
           },
           "metadata": {
@@ -228,7 +253,8 @@
             "importance_score": 0.95,
             "retrieval_count": 2,
             "memory_type": "state",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "ac2af592aafe7ce3a4ecd9a1da63539ec1f6daa59f224cf2532cbafbafe2ee3a"
           },
           "type": "state",
           "embeddings": {}
@@ -251,7 +277,8 @@
             "importance_score": 0.9,
             "retrieval_count": 1,
             "memory_type": "action",
-            "current_tier": "im"
+            "current_tier": "im",
+            "checksum": "1bfb2930a6f666e90d0ab089d5a830046d73235bffadf58ca7675bc201d0920d"
           },
           "type": "action",
           "embeddings": {}
@@ -269,7 +296,13 @@
             },
             "health": 90,
             "energy": 80,
-            "inventory": ["sword", "shield", "potion", "gem", "key"],
+            "inventory": [
+              "sword",
+              "shield",
+              "potion",
+              "gem",
+              "key"
+            ],
             "level": 4
           },
           "metadata": {
@@ -279,7 +312,8 @@
             "importance_score": 0.99,
             "retrieval_count": 5,
             "memory_type": "state",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "09713303e74d6312689602113d9a9bd6060b689b1736825e5d9252e6621c0048"
           },
           "type": "state",
           "embeddings": {}
@@ -303,7 +337,8 @@
             "importance_score": 0.98,
             "retrieval_count": 3,
             "memory_type": "interaction",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "22c1d959cefdd2247e7e78087b4df31a3c222666ffce4c1735eec3095a7a3cac"
           },
           "type": "interaction",
           "embeddings": {}
@@ -326,7 +361,8 @@
             "importance_score": 0.95,
             "retrieval_count": 2,
             "memory_type": "action",
-            "current_tier": "ltm"
+            "current_tier": "ltm",
+            "checksum": "15f234a52a480576ba34e1f0fd4c98c5d32d167be93b1fc9bee5cab11e1af69c"
           },
           "type": "action",
           "embeddings": {}
@@ -344,7 +380,13 @@
             },
             "health": 100,
             "energy": 100,
-            "inventory": ["sword", "shield", "potion", "gem", "map"],
+            "inventory": [
+              "sword",
+              "shield",
+              "potion",
+              "gem",
+              "map"
+            ],
             "level": 5
           },
           "metadata": {
@@ -354,7 +396,8 @@
             "importance_score": 0.85,
             "retrieval_count": 1,
             "memory_type": "state",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "5e8f97891d286ffca32b3dd3a20cdbec55dbed65193d1761ad9083ef624eba25"
           },
           "type": "state",
           "embeddings": {}
@@ -378,7 +421,8 @@
             "importance_score": 0.9,
             "retrieval_count": 0,
             "memory_type": "interaction",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "21fa9a10fcba0ddb05d81ea3afaedc3a2af8b966e32113ae9f9f4bdc4d1c5a14"
           },
           "type": "interaction",
           "embeddings": {}
@@ -401,7 +445,8 @@
             "importance_score": 0.7,
             "retrieval_count": 0,
             "memory_type": "action",
-            "current_tier": "stm"
+            "current_tier": "stm",
+            "checksum": "3efd9b816b127b1fe4a89eaded9ea74405550df04dfe916328cb1c55d7a165eb"
           },
           "type": "action",
           "embeddings": {}
@@ -409,4 +454,4 @@
       ]
     }
   }
-} 
+}
