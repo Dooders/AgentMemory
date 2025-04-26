@@ -8,7 +8,10 @@ import json
 import pickle
 import base64
 import unittest
+import os
+import tempfile
 from typing import Dict, Any, List
+from unittest.mock import patch, MagicMock, mock_open
 
 import pytest
 
@@ -20,6 +23,8 @@ from memory.utils.serialization import (
     from_json,
     serialize_memory,
     deserialize_memory,
+    load_memory_system_from_json,
+    save_memory_system_to_json,
 )
 
 
@@ -197,6 +202,272 @@ def test_to_json_from_json():
     deserialized = from_json(json_str)
     assert deserialized["name"] == obj["name"]
     assert deserialized["time"] == obj["time"]
+
+
+class TestMemorySystemSerialization(unittest.TestCase):
+    """Test the memory system serialization functions."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        # Create a temporary directory for test files
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.test_filepath = os.path.join(self.temp_dir.name, "memory_system.json")
+
+        # Create plain objects instead of magic mocks to avoid circular reference issues
+        self.config_dict = {
+            "agent_ids": ["agent_1", "agent_2"],
+            "embedding_dimensions": 384,
+            "stm_capacity": 100,
+            "im_capacity": 1000
+        }
+        
+        # Sample memory data
+        self.stm_memories = [
+            {
+                "memory_id": "mem_stm_1",
+                "agent_id": "agent_1",
+                "content": {"text": "STM test memory"},
+                "type": "state",
+                "metadata": {
+                    "creation_time": int(datetime.datetime.now().timestamp()),
+                    "importance_score": 0.9,
+                    "memory_type": "state",
+                    "current_tier": "stm"
+                },
+                "step_number": 1,
+                "timestamp": int(datetime.datetime.now().timestamp()),
+                "embeddings": {"text": [0.1, 0.2, 0.3]}
+            }
+        ]
+        
+        self.im_memories = [
+            {
+                "memory_id": "mem_im_1",
+                "agent_id": "agent_1",
+                "content": {"text": "IM test memory"},
+                "type": "interaction",
+                "metadata": {
+                    "creation_time": int(datetime.datetime.now().timestamp()),
+                    "importance_score": 0.7,
+                    "memory_type": "interaction",
+                    "current_tier": "im"
+                },
+                "step_number": 2,
+                "timestamp": int(datetime.datetime.now().timestamp()),
+                "embeddings": {"text": [0.4, 0.5, 0.6]}
+            }
+        ]
+        
+        self.ltm_memories = [
+            {
+                "memory_id": "mem_ltm_1",
+                "agent_id": "agent_1",
+                "content": {"text": "LTM test memory"},
+                "type": "action",
+                "metadata": {
+                    "creation_time": int(datetime.datetime.now().timestamp()),
+                    "importance_score": 0.5,
+                    "memory_type": "action",
+                    "current_tier": "ltm"
+                },
+                "step_number": 3,
+                "timestamp": int(datetime.datetime.now().timestamp()),
+                "embeddings": {"text": [0.7, 0.8, 0.9]}
+            }
+        ]
+
+    def tearDown(self):
+        """Clean up temporary files after tests."""
+        self.temp_dir.cleanup()
+
+    @patch('memory.schema.validate_memory_system_json')
+    def test_save_memory_system_to_json(self, mock_validate):
+        """Test saving a memory system to a JSON file."""
+        # Set the validator to return True
+        mock_validate.return_value = True
+        
+        # Create mocks with proper configuration to avoid circular references
+        mock_stm_store = MagicMock()
+        mock_stm_store.get_all.return_value = self.stm_memories
+        
+        mock_im_store = MagicMock()
+        mock_im_store.get_all.return_value = self.im_memories
+        
+        mock_ltm_store = MagicMock()
+        mock_ltm_store.get_all.return_value = self.ltm_memories
+        
+        # Create a mock agent that uses the store mocks
+        mock_agent = MagicMock()
+        mock_agent.agent_id = "agent_1"
+        mock_agent.stm_store = mock_stm_store
+        mock_agent.im_store = mock_im_store
+        mock_agent.ltm_store = mock_ltm_store
+        
+        # Create a plain object for config to avoid MagicMock issues
+        class Config:
+            pass
+        
+        config = Config()
+        for key, value in self.config_dict.items():
+            setattr(config, key, value)
+        
+        # Create the memory system mock with manually set attributes
+        mock_memory_system = MagicMock()
+        mock_memory_system.config = config
+        mock_memory_system.agents = {"agent_1": mock_agent}
+        
+        # Call the function
+        with patch('builtins.open', mock_open()) as m:
+            result = save_memory_system_to_json(mock_memory_system, self.test_filepath)
+        
+        # Check the result
+        self.assertTrue(result)
+        
+        # Verify the validation was called
+        mock_validate.assert_called_once()
+        
+        # Verify file was opened for writing
+        m.assert_called_once_with(self.test_filepath, 'w', encoding='utf-8')
+        
+        # Verify all stores were queried
+        mock_stm_store.get_all.assert_called_once_with("agent_1")
+        mock_im_store.get_all.assert_called_once_with("agent_1")
+        mock_ltm_store.get_all.assert_called_once_with("agent_1")
+
+    @patch('memory.schema.validate_memory_system_json')
+    def test_save_memory_system_validation_failure(self, mock_validate):
+        """Test saving with schema validation failure."""
+        # Set the validator to return False
+        mock_validate.return_value = False
+        
+        # Create a minimal mock system for this test
+        # Use a simple class instead of MagicMock to avoid circular reference issues
+        class SimpleConfig:
+            pass
+        
+        config = SimpleConfig()
+        
+        mock_memory_system = MagicMock()
+        mock_memory_system.config = config
+        mock_memory_system.agents = {}
+        
+        # Call the function
+        result = save_memory_system_to_json(mock_memory_system, self.test_filepath)
+        
+        # Check the result
+        self.assertFalse(result)
+        
+        # Verify the validation was called
+        mock_validate.assert_called_once()
+
+    @patch('memory.schema.validate_memory_system_json')
+    @patch('memory.core.AgentMemorySystem')
+    @patch('memory.config.MemoryConfig')
+    @patch('memory.config.RedisSTMConfig')
+    @patch('memory.config.RedisIMConfig')
+    @patch('memory.config.SQLiteLTMConfig')
+    def test_load_memory_system_from_json(self, mock_sqlite_config, mock_redis_im_config,
+                                         mock_redis_stm_config, mock_memory_config, 
+                                         mock_memory_system_class, mock_validate):
+        """Test loading a memory system from a JSON file."""
+        # Create test data
+        test_data = {
+            "config": {
+                "agent_ids": ["agent_1"],
+                "embedding_dimensions": 384
+            },
+            "agents": {
+                "agent_1": {
+                    "agent_id": "agent_1",
+                    "memories": [
+                        {
+                            "memory_id": "mem_1",
+                            "agent_id": "agent_1",
+                            "type": "state",
+                            "content": {"text": "Test state memory"},
+                            "metadata": {
+                                "memory_type": "state",
+                                "importance_score": 0.8,
+                                "creation_time": int(datetime.datetime.now().timestamp()),
+                                "current_tier": "stm"
+                            },
+                            "step_number": 1
+                        },
+                        {
+                            "memory_id": "mem_2",
+                            "agent_id": "agent_1",
+                            "type": "interaction",
+                            "content": {"text": "Test interaction memory"},
+                            "metadata": {
+                                "memory_type": "interaction",
+                                "importance_score": 0.6,
+                                "creation_time": int(datetime.datetime.now().timestamp()),
+                                "current_tier": "im"
+                            },
+                            "step_number": 2
+                        }
+                    ]
+                }
+            }
+        }
+        
+        # Set the validator to return True
+        mock_validate.return_value = True
+        
+        # Create a mock memory agent
+        mock_memory_agent = MagicMock()
+        
+        # Configure the mock memory system to return the mock agent
+        mock_memory_system = MagicMock()
+        mock_memory_system.get_memory_agent.return_value = mock_memory_agent
+        mock_memory_system_class.return_value = mock_memory_system
+        
+        # Mock configurations
+        mock_memory_config.return_value = MagicMock()
+        mock_redis_stm_config.return_value = MagicMock()
+        mock_redis_im_config.return_value = MagicMock()
+        mock_sqlite_config.return_value = MagicMock()
+        
+        # Call the function
+        with patch('builtins.open', mock_open(read_data=json.dumps(test_data))):
+            result = load_memory_system_from_json(self.test_filepath)
+        
+        # Check the result
+        self.assertIsNotNone(result)
+        self.assertEqual(result, mock_memory_system)
+        
+        # Verify the validation was called
+        mock_validate.assert_called_once()
+        
+        # Verify memory agent was created and memories were added
+        mock_memory_system.get_memory_agent.assert_called_once_with("agent_1")
+        self.assertEqual(mock_memory_agent.store_state.call_count, 1)
+        self.assertEqual(mock_memory_agent.store_interaction.call_count, 1)
+
+    @patch('memory.schema.validate_memory_system_json')
+    def test_load_memory_system_validation_failure(self, mock_validate):
+        """Test loading with schema validation failure."""
+        # Set the validator to return False
+        mock_validate.return_value = False
+        
+        # Call the function
+        with patch('builtins.open', mock_open(read_data='{}')):
+            result = load_memory_system_from_json(self.test_filepath)
+        
+        # Check the result
+        self.assertIsNone(result)
+        
+        # Verify the validation was called
+        mock_validate.assert_called_once()
+
+    def test_load_memory_system_file_not_found(self):
+        """Test loading from a non-existent file."""
+        # Call the function with a non-existent file
+        non_existent_file = os.path.join(self.temp_dir.name, "does_not_exist.json")
+        result = load_memory_system_from_json(non_existent_file)
+        
+        # Check the result
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
