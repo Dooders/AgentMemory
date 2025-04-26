@@ -338,7 +338,9 @@ class RedisIMStore:
 
             # Generate checksum for content if not already in metadata
             metadata = memory_entry.get("metadata", {})
-            if "checksum" not in metadata and isinstance(content, (dict, list)):
+            if "checksum" not in metadata:
+                if not isinstance(content, (dict, list)):
+                    content = str(content)  # Convert non-dict/non-list content to string
                 metadata["checksum"] = generate_checksum(content)
 
             # Store metadata as JSON
