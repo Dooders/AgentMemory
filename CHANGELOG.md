@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.2] - 2025-04-27
+
+### Fixed
+- Fixed metadata filtering issue in memory retrieval:
+  - Corrected the `_matches_metadata_filters` method to properly evaluate metadata fields
+  - Improved handling of importance score filtering with proper normalization
+  - Added debug logging for metadata filter evaluation process
+  - Fixed validation tests to use correct metadata fields in test memories
+  - Enhanced metadata comparison logic to handle missing fields gracefully
+- Fixed ImportanceStrategy implementation:
+  - Resolved issue with importance value parsing from different memory formats
+  - Fixed importance comparison logic for non-normalized importance values
+  - Corrected sorting behavior to properly prioritize memories with higher importance
+  - Added proper handling for memory objects with 'id' field vs 'memory_id' field
+  - Fixed query handling for different query formats (direct value vs. dictionary)
+
+### Improved
+- Enhanced debug output in validation scripts for better troubleshooting
+- Improved error handling for missing metadata during filtering operations
+
 ## [0.1.1] - 2025-04-25
 
 ### Added
