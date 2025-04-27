@@ -158,10 +158,12 @@ jobs:
             echo "Developer critique could not be generated for this PR." > developer_critique.md
           fi
           
-          # Save the output to GitHub step output
-          echo "developer_critique<<EOF" >> $GITHUB_OUTPUT
-          cat developer_critique.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Save the output to GitHub step output using a more reliable approach
+          {
+            echo "developer_critique<<EOFDEV"
+            cat developer_critique.md
+            echo "EOFDEV"
+          } >> $GITHUB_OUTPUT
 
       - name: Generate visual changelog
         env:
