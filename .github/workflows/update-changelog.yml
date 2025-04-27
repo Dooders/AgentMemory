@@ -96,22 +96,25 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_NAME: ${{ github.repository }}
         run: |
-          # Attempt embedding-based approach
-          EMBEDDINGS=$(cat changelog_embeddings.json || echo "{}")
+          # Load embedding data for context
+          EMBEDDINGS_DATA=$(cat changelog_embeddings.json || echo "{}")
+          
+          # Extract content samples for context
+          CONTEXT=""
+          if [ -f changelog_embeddings.json ]; then
+            CONTEXT=$(python -c "import json; data = json.loads(open('changelog_embeddings.json').read()); print('\n'.join([f'--- {k} ---\n{v[:1000]}...' for k, v in data.get('content_samples', {}).items()]))")
+          fi
           
           # Create a temporary payload file for the API call
-          cat > payload.json << 'EOF'
+          cat > payload.json << EOF
           {
             "model": "gpt-4o",
             "messages": [
               {"role": "system", "content": "You are a changelog generator that creates detailed, structured entries for pull requests. Generate a concise changelog entry in markdown format for the PR."},
-              {"role": "user", "content": "Generate a changelog entry for PR #${{ github.event.pull_request.number }} with title: \"${{ github.event.pull_request.title }}\". The PR description is: \"${{ github.event.pull_request.body }}\". Use the context embeddings to understand the codebase and create an appropriate entry."}
-            ],
-            "context_embeddings": 
+              {"role": "user", "content": "Generate a changelog entry for PR #${{ github.event.pull_request.number }} with title: \"${{ github.event.pull_request.title }}\". The PR description is: \"${{ github.event.pull_request.body }}\". Here is additional context about the codebase:\n\n${CONTEXT}"}
+            ]
+          }
           EOF
-          
-          # Append the embeddings JSON content to the payload
-          cat changelog_embeddings.json >> payload.json
           
           # Make the API call
           curl -s -X POST https://api.openai.com/v1/chat/completions \
@@ -120,15 +123,15 @@ jobs:
             --data-binary @payload.json | \
             jq -r '.choices[0].message.content' > pr_changelog_entry.md
           
-          # Check if embedding-based output is valid
+          # Check if output is valid
           if [ ! -s pr_changelog_entry.md ]; then
-            echo "Embedding approach failed, falling back to traditional method..."
+            echo "API call failed, falling back to traditional method..."
             python scripts/generate_changelog_entry.py > pr_changelog_entry.md
           fi
           
           # Validate fallback output
           if [ ! -s pr_changelog_entry.md ]; then
-            echo "Error: Both embedding and fallback methods failed to generate a changelog entry."
+            echo "Error: Both methods failed to generate a changelog entry."
             exit 1
           fi
           
