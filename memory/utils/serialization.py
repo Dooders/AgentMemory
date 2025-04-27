@@ -304,9 +304,15 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
     import logging
     import os
     import traceback
-    from memory.schema import validate_memory_system_json
-    from memory.config import MemoryConfig, RedisIMConfig, RedisSTMConfig, SQLiteLTMConfig
+
+    from memory.config import (
+        MemoryConfig,
+        RedisIMConfig,
+        RedisSTMConfig,
+        SQLiteLTMConfig,
+    )
     from memory.core import AgentMemorySystem
+    from memory.schema import validate_memory_system_json
 
     logger = logging.getLogger(__name__)
 
@@ -372,13 +378,12 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                     metadata_type = memory["metadata"].get("memory_type")
                     if metadata_type in ["state", "interaction", "action"]:
                         memory_type = metadata_type
-                        logger.debug(
-                            f"Using memory_type from metadata: {memory_type}"
-                        )
+                        logger.debug(f"Using memory_type from metadata: {memory_type}")
 
                 content = memory.get("content", {})
                 step_number = memory.get("step_number", 0)
                 priority = memory.get("metadata", {}).get("importance_score", 1.0)
+                tier = memory.get("metadata", {}).get("current_tier", "stm")
 
                 # Log memory being loaded for debugging
                 logger.debug(
@@ -387,36 +392,20 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                 logger.debug(f"Memory content keys: {list(content.keys())}")
                 logger.debug(f"Memory step: {step_number}, priority: {priority}")
 
-                # Store according to memory type
-                if memory_type == "state":
-                    memory_agent.store_state(
-                        content,
-                        step_number,
-                        priority,
-                        memory.get("metadata", {}).get("current_tier", "stm"),
-                    )
-                elif memory_type == "interaction":
-                    memory_agent.store_interaction(
-                        content,
-                        step_number,
-                        priority,
-                        memory.get("metadata", {}).get("current_tier", "stm"),
-                    )
-                elif memory_type == "action":
-                    memory_agent.store_action(
-                        content,
-                        step_number,
-                        priority,
-                        memory.get("metadata", {}).get("current_tier", "stm"),
-                    )
+                # Instead of creating a new memory entry that would generate a new memory_id,
+                # directly store the complete memory object with its original memory_id
+
+                # Determine which store to use based on tier
+                if tier == "stm":
+                    memory_agent.stm_store.store(agent_id, memory)
+                elif tier == "im":
+                    memory_agent.im_store.store(agent_id, memory)
+                elif tier == "ltm":
+                    memory_agent.ltm_store.store(memory)
                 else:
-                    # For generic types, use store_state as fallback
-                    memory_agent.store_state(
-                        content,
-                        step_number,
-                        priority,
-                        memory.get("metadata", {}).get("current_tier", "stm"),
-                    )
+                    # Default to STM if tier is unknown
+                    logger.warning(f"Unknown tier '{tier}', storing in STM")
+                    memory_agent.stm_store.store(agent_id, memory)
 
         logger.info(f"Memory system loaded from {filepath}")
         return memory_system
@@ -441,8 +430,9 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
     import logging
     import os
     import time
-    import uuid
     import traceback
+    import uuid
+
     from memory.schema import validate_memory_system_json
 
     logger = logging.getLogger(__name__)
@@ -452,10 +442,7 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
         config_dict = {}
         for key, value in memory_system.config.__dict__.items():
             # Skip complex objects that aren't JSON serializable
-            if (
-                isinstance(value, (str, int, float, bool, list, dict))
-                or value is None
-            ):
+            if isinstance(value, (str, int, float, bool, list, dict)) or value is None:
                 config_dict[key] = value
 
         # Create the data structure to save
@@ -474,9 +461,7 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
                     f"Retrieved {len(stm_memories)} STM memories for agent {agent_id}"
                 )
             except Exception as e:
-                logger.warning(
-                    f"Could not get STM memories for agent {agent_id}: {e}"
-                )
+                logger.warning(f"Could not get STM memories for agent {agent_id}: {e}")
 
             try:
                 im_memories = agent.im_store.get_all(agent_id)
@@ -484,9 +469,7 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
                     f"Retrieved {len(im_memories)} IM memories for agent {agent_id}"
                 )
             except Exception as e:
-                logger.warning(
-                    f"Could not get IM memories for agent {agent_id}: {e}"
-                )
+                logger.warning(f"Could not get IM memories for agent {agent_id}: {e}")
 
             try:
                 ltm_memories = agent.ltm_store.get_all(agent_id)
@@ -494,9 +477,7 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
                     f"Retrieved {len(ltm_memories)} LTM memories for agent {agent_id}"
                 )
             except Exception as e:
-                logger.warning(
-                    f"Could not get LTM memories for agent {agent_id}: {e}"
-                )
+                logger.warning(f"Could not get LTM memories for agent {agent_id}: {e}")
 
             # Combine all memories
             all_memories = stm_memories + im_memories + ltm_memories
@@ -587,9 +568,7 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
 
                 clean_memories.append(clean_memory)
 
-            logger.info(
-                f"Prepared {len(clean_memories)} memories for agent {agent_id}"
-            )
+            logger.info(f"Prepared {len(clean_memories)} memories for agent {agent_id}")
             data["agents"][agent_id] = {
                 "agent_id": agent_id,
                 "memories": clean_memories,
@@ -599,9 +578,7 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
         logger.info(f"Data keys: {list(data.keys())}")
         logger.info(f"Number of agents: {len(data.get('agents', {}))}")
         for a_id, a_data in data.get("agents", {}).items():
-            logger.info(
-                f"Agent {a_id} has {len(a_data.get('memories', []))} memories"
-            )
+            logger.info(f"Agent {a_id} has {len(a_data.get('memories', []))} memories")
 
         # Validate against schema
         logger.info("Validating against schema...")

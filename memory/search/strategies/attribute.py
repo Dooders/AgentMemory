@@ -33,6 +33,7 @@ class AttributeSearchStrategy(SearchStrategy):
         im_store: RedisIMStore,
         ltm_store: SQLiteLTMStore,
         scoring_method: str = "length_ratio",
+        skip_validation: bool = False,
     ):
         """Initialize the attribute search strategy.
 
@@ -46,11 +47,13 @@ class AttributeSearchStrategy(SearchStrategy):
                 - "term_frequency": Score based on term frequency
                 - "bm25": Score based on BM25 ranking algorithm
                 - "binary": Simple binary scoring (1.0 for match, 0.0 for no match)
+            skip_validation: Whether to skip checksum validation when retrieving memories
         """
         self.stm_store = stm_store
         self.im_store = im_store
         self.ltm_store = ltm_store
         self.scoring_method = scoring_method
+        self.skip_validation = skip_validation
         # Initialize pattern cache dictionary: (pattern_str, is_case_sensitive) -> compiled_pattern
         self._pattern_cache = {}
 
@@ -143,6 +146,7 @@ class AttributeSearchStrategy(SearchStrategy):
         case_sensitive: bool = False,
         use_regex: bool = False,
         scoring_method: Optional[str] = None,
+        skip_validation: Optional[bool] = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """Search for memories based on content and metadata attributes.
@@ -165,6 +169,7 @@ class AttributeSearchStrategy(SearchStrategy):
                 - "term_frequency": Score based on term frequency
                 - "bm25": Score based on BM25 ranking algorithm
                 - "binary": Simple binary scoring (1.0 for match, 0.0 for no match)
+            skip_validation: Whether to skip checksum validation (override instance default)
             **kwargs: Additional parameters (ignored)
 
         Returns:
@@ -172,6 +177,9 @@ class AttributeSearchStrategy(SearchStrategy):
         """
         # Initialize results
         results = []
+
+        # Determine whether to skip validation
+        should_skip_validation = self.skip_validation if skip_validation is None else skip_validation
 
         # Handle empty query case
         if (isinstance(query, str) and not query) or (
@@ -209,10 +217,11 @@ class AttributeSearchStrategy(SearchStrategy):
             # Get all memories for the agent in this tier
             tier_memories = []
             if current_tier == "stm":
-                tier_memories = self.stm_store.get_all(agent_id)
+                tier_memories = self.stm_store.get_all(agent_id, skip_validation=should_skip_validation)
             elif current_tier == "im":
-                tier_memories = self.im_store.get_all(agent_id)
+                tier_memories = self.im_store.get_all(agent_id, skip_validation=should_skip_validation)
             else:  # ltm
+                # No skip_validation parameter for LTM store (it doesn't do checksum validation)
                 tier_memories = self.ltm_store.get_all(agent_id)
 
             # Filter memories by query conditions and metadata

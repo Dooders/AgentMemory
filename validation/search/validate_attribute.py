@@ -7,12 +7,12 @@ of attribute-based searching to verify the strategy works correctly.
 
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 # Add the project root to the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from demos.demo_utils import (
+from validation.demo_utils import (
     create_memory_system,
     log_print,
     pretty_print_memories,
@@ -23,6 +23,30 @@ from memory.search.strategies.attribute import AttributeSearchStrategy
 # Constants
 AGENT_ID = "test-agent-attribute-search"
 MEMORY_SAMPLE = "attribute_validation_memory.json"
+
+# Dictionary mapping memory IDs to their checksums for easier reference
+MEMORY_CHECKSUMS = {
+    "meeting-123456-1": "0eb0f81d07276f08e05351a604d3c994564fedee3a93329e318186da517a3c56",
+    "meeting-123456-3": "f6ab36930459e74a52fdf21fb96a84241ccae3f6987365a21f9a17d84c5dae1e",
+    "meeting-123456-6": "ffa0ee60ebaec5574358a02d1857823e948519244e366757235bf755c888a87f",
+    "meeting-123456-9": "9214ebc2d11877665b32771bd3c080414d9519b435ec3f6c19cc5f337bb0ba90",
+    "meeting-123456-11": "ad2e7c963751beb1ebc1c9b84ecb09ec3ccdef14f276cd14bbebad12d0f9b0df",
+    "task-123456-2": "e0f7deb6929a17f65f56e5b03e16067c8bb65649fd2745f842aca7af701c9cac",
+    "task-123456-7": "1d23b6683acd8c3863cb2f2010fe3df2c3e69a2d94c7c4757a291d4872066cfd",
+    "task-123456-10": "f3c73b06d6399ed30ea9d9ad7c711a86dd58154809cc05497f8955425ec6dc67",
+    "note-123456-4": "1e9e265e75c2ef678dfd0de0ab5c801f845daa48a90a48bb02ee85148ccc3470",
+    "note-123456-8": "169c452e368fd62e3c0cf5ce7731769ed46ab6ae73e5048e0c3a7caaa66fba46",
+    "contact-123456-5": "496d09718bbc8ae669dffdd782ed5b849fdbb1a57e3f7d07e61807b10e650092",
+}
+
+
+def get_checksums_for_memory_ids(memory_ids: List[str]) -> Set[str]:
+    """Helper function to get checksums from memory IDs."""
+    return {
+        MEMORY_CHECKSUMS[memory_id]
+        for memory_id in memory_ids
+        if memory_id in MEMORY_CHECKSUMS
+    }
 
 
 def run_test(
@@ -39,7 +63,9 @@ def run_test(
     case_sensitive: bool = False,
     use_regex: bool = False,
     scoring_method: str = None,
-) -> List[Dict[str, Any]]:
+    expected_checksums: Set[str] = None,
+    expected_memory_ids: List[str] = None,
+) -> Dict[str, Any]:
     """Run a test case and return the results."""
     log_print(logger, f"\n=== Test: {test_name} ===")
 
@@ -68,6 +94,14 @@ def run_test(
     if scoring_method:
         log_print(logger, f"Scoring Method: {scoring_method}")
 
+    # If expected_memory_ids is provided, convert to checksums
+    if expected_memory_ids and not expected_checksums:
+        expected_checksums = get_checksums_for_memory_ids(expected_memory_ids)
+        log_print(
+            logger,
+            f"Expecting {len(expected_checksums)} memories from specified memory IDs",
+        )
+
     results = search_strategy.search(
         query=query,
         agent_id=agent_id,
@@ -93,7 +127,40 @@ def run_test(
             memory_id = result.get("memory_id", result.get("id", f"Result {idx+1}"))
             log_print(logger, f"  {memory_id}: {score:.4f}")
 
-    return results
+    # Track test status
+    test_passed = True
+    
+    # Validate against expected checksums if provided
+    if expected_checksums:
+        result_checksums = {
+            result.get("metadata", {}).get("checksum", "") for result in results
+        }
+        missing_checksums = expected_checksums - result_checksums
+        unexpected_checksums = result_checksums - expected_checksums
+
+        log_print(logger, f"\nValidation Results:")
+        if not missing_checksums and not unexpected_checksums:
+            log_print(logger, "All expected memories found. No unexpected memories.")
+        else:
+            if missing_checksums:
+                log_print(logger, f"Missing expected memories: {missing_checksums}")
+                test_passed = False
+            if unexpected_checksums:
+                log_print(logger, f"Found unexpected memories: {unexpected_checksums}")
+                test_passed = False
+
+        log_print(
+            logger,
+            f"Expected: {len(expected_checksums)}, Found: {len(result_checksums)}, "
+            f"Missing: {len(missing_checksums)}, Unexpected: {len(unexpected_checksums)}",
+        )
+
+    return {
+        "results": results, 
+        "test_name": test_name,
+        "passed": test_passed,
+        "has_validation": expected_checksums is not None
+    }
 
 
 def validate_attribute_search():
@@ -120,180 +187,236 @@ def validate_attribute_search():
     log_print(logger, f"Testing search strategy: {search_strategy.name()}")
     log_print(logger, f"Description: {search_strategy.description()}")
 
+    # Track test results
+    test_results = []
 
     # Test 1: Basic content search
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Basic Content Search",
         "meeting",
         AGENT_ID,
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-3",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test 2: Case sensitive search
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Case Sensitive Search",
         "Meeting",
         AGENT_ID,
         case_sensitive=True,
-    )
+    ))
 
     # Test 3: Search by metadata type
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Search by Metadata Type",
         {"metadata": {"type": "meeting"}},
         AGENT_ID,
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-3",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test 4: Search with match_all
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Search with Match All",
         {"content": "meeting", "metadata": {"type": "meeting", "importance": "high"}},
         AGENT_ID,
         match_all=True,
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test 5: Search specific memory tier
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Search in STM Tier Only",
         "meeting",
         AGENT_ID,
         tier="stm",
-    )
+        expected_memory_ids=["meeting-123456-1", "meeting-123456-3"],
+    ))
 
     # Test 6: Search with regex
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Regex Search",
         "secur.*patch",
         AGENT_ID,
         use_regex=True,
-    )
+        expected_memory_ids=["note-123456-4"],
+    ))
 
     # Test 7: Search with metadata filter
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Search with Metadata Filter",
         "meeting",
         AGENT_ID,
         metadata_filter={"content.metadata.importance": "high"},
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test 8: Search in specific content fields
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Search in Specific Content Fields",
         "project",
         AGENT_ID,
         content_fields=["content.content"],
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "contact-123456-5",
+        ],
+    ))
 
     # Test 9: Search in specific metadata fields
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Search in Specific Metadata Fields",
         "project",
         AGENT_ID,
         metadata_fields=["content.metadata.tags"],
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "contact-123456-5",
+        ],
+    ))
 
     # Test 10: Search with complex query and filters
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Complex Search",
         {"content": "security", "metadata": {"importance": "high"}},
         AGENT_ID,
         metadata_filter={"content.metadata.source": "email"},
         match_all=True,
-    )
+        expected_memory_ids=["note-123456-4"],
+    ))
 
     # Test 11: Empty query handling - string
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Empty String Query",
         "",
         AGENT_ID,
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 12: Empty query handling - dict
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Empty Dict Query",
         {},
         AGENT_ID,
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 13: Numeric value search
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Numeric Value Search",
         42,
         AGENT_ID,
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 14: Boolean value search
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Boolean Value Search",
         {"metadata": {"completed": True}},
         AGENT_ID,
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 15: Type conversion - searching string with numeric
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Type Conversion - String Field with Numeric",
         123,
         AGENT_ID,
         content_fields=["content.content"],
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 16: Invalid regex pattern handling
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Invalid Regex Pattern",
         "[unclosed-bracket",
         AGENT_ID,
         use_regex=True,
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 17: Array field partial matching
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Array Field Partial Matching",
         "dev",
         AGENT_ID,
         metadata_fields=["content.metadata.tags"],
-    )
+        expected_memory_ids=[
+            "meeting-123456-3",
+            "task-123456-10",
+        ],
+    ))
 
     # Test 18: Special characters in search
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Special Characters in Search",
         "meeting+notes",
         AGENT_ID,
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 19: Multi-tier search
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Multi-Tier Search",
         "important",
         AGENT_ID,
         # No tier specified means searching all tiers
-    )
+        expected_memory_ids=[],
+    ))
 
     # Test 20: Large result set limiting
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Large Result Set Limiting",
         "a",  # Common letter to match many memories
         AGENT_ID,
         limit=3,  # Only show top 3 results
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "task-123456-2",
+            "meeting-123456-3",
+        ],
+    ))
 
     # ===== New tests for scoring methods =====
     log_print(logger, "\n=== SCORING METHOD COMPARISON TESTS ===")
@@ -303,41 +426,69 @@ def validate_attribute_search():
     log_print(logger, f"\nComparing scoring methods for query: '{test_query}'")
 
     # Try each scoring method and collect results
-    length_ratio_results = run_test(
+    test_results.append(run_test(
         search_strategy,
         "Default Length Ratio Scoring",
         test_query,
         AGENT_ID,
         limit=5,
         scoring_method="length_ratio",
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-3",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
-    term_freq_results = run_test(
+    test_results.append(run_test(
         search_strategy,
         "Term Frequency Scoring",
         test_query,
         AGENT_ID,
         limit=5,
         scoring_method="term_frequency",
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-3",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
-    bm25_results = run_test(
+    test_results.append(run_test(
         search_strategy,
         "BM25 Scoring",
         test_query,
         AGENT_ID,
         limit=5,
         scoring_method="bm25",
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-3",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
-    binary_results = run_test(
+    test_results.append(run_test(
         search_strategy,
         "Binary Scoring",
         test_query,
         AGENT_ID,
         limit=5,
         scoring_method="binary",
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "meeting-123456-3",
+            "meeting-123456-6",
+            "meeting-123456-9",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test 22: Testing scoring on a document with repeated terms
     test_with_repetition_query = "security"  # Look for security-related memories
@@ -347,33 +498,48 @@ def validate_attribute_search():
     )
 
     # Test with default length ratio scoring
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Default Scoring with Term Repetition",
         test_with_repetition_query,
         AGENT_ID,
         limit=5,
-    )
+        expected_memory_ids=[
+            "note-123456-4",
+            "note-123456-8",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test with term frequency scoring - should favor documents with more occurrences
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Term Frequency with Term Repetition",
         test_with_repetition_query,
         AGENT_ID,
         limit=5,
         scoring_method="term_frequency",
-    )
+        expected_memory_ids=[
+            "note-123456-4",
+            "note-123456-8",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test with BM25 scoring - balances term frequency and document length
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "BM25 with Term Repetition",
         test_with_repetition_query,
         AGENT_ID,
         limit=5,
         scoring_method="bm25",
-    )
+        expected_memory_ids=[
+            "note-123456-4",
+            "note-123456-8",
+            "meeting-123456-11",
+        ],
+    ))
 
     # Test 23: Testing with a specialized search strategy for each method
     log_print(
@@ -397,21 +563,29 @@ def validate_attribute_search():
     )
 
     # Run test with specialized strategies
-    run_test(
+    test_results.append(run_test(
         term_freq_strategy,
         "Using Term Frequency Strategy Instance",
         "project",
         AGENT_ID,
         limit=5,
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "contact-123456-5",
+        ],
+    ))
 
-    run_test(
+    test_results.append(run_test(
         bm25_strategy,
         "Using BM25 Strategy Instance",
         "project",
         AGENT_ID,
         limit=5,
-    )
+        expected_memory_ids=[
+            "meeting-123456-1",
+            "contact-123456-5",
+        ],
+    ))
 
     # Test 24: Testing with a long document vs short document comparison
     # Change from "detailed" (no matches) to "authentication system" (appears in memories of different lengths)
@@ -422,32 +596,47 @@ def validate_attribute_search():
     )
 
     # Compare each scoring method
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Length Ratio for Long Documents",
         long_doc_query,
         AGENT_ID,
         limit=5,
         scoring_method="length_ratio",
-    )
+        expected_memory_ids=[
+            "meeting-123456-3",
+            "task-123456-7",
+            "task-123456-10",
+        ],
+    ))
 
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Term Frequency for Long Documents",
         long_doc_query,
         AGENT_ID,
         limit=5,
         scoring_method="term_frequency",
-    )
+        expected_memory_ids=[
+            "meeting-123456-3",
+            "task-123456-7",
+            "task-123456-10",
+        ],
+    ))
 
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "BM25 for Long Documents",
         long_doc_query,
         AGENT_ID,
         limit=5,
         scoring_method="bm25",
-    )
+        expected_memory_ids=[
+            "meeting-123456-3",
+            "task-123456-7",
+            "task-123456-10",
+        ],
+    ))
 
     # Test 25: Testing with a query that matches varying document length and context
     varying_length_query = "documentation"
@@ -456,32 +645,74 @@ def validate_attribute_search():
         f"\nComparing scoring methods for documents of varying lengths: '{varying_length_query}'",
     )
 
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Length Ratio for Documentation Query",
         varying_length_query,
         AGENT_ID,
         limit=5,
         scoring_method="length_ratio",
-    )
+        expected_memory_ids=[
+            "task-123456-2",
+            "task-123456-7",
+        ],
+    ))
 
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "Term Frequency for Documentation Query",
         varying_length_query,
         AGENT_ID,
         limit=5,
         scoring_method="term_frequency",
-    )
+        expected_memory_ids=[
+            "task-123456-2",
+            "task-123456-7",
+        ],
+    ))
 
-    run_test(
+    test_results.append(run_test(
         search_strategy,
         "BM25 for Documentation Query",
         varying_length_query,
         AGENT_ID,
         limit=5,
         scoring_method="bm25",
-    )
+        expected_memory_ids=[
+            "task-123456-2",
+            "task-123456-7",
+        ],
+    ))
+    
+    # Display validation summary
+    log_print(logger, "\n\n=== VALIDATION SUMMARY ===")
+    log_print(logger, "-" * 80)
+    log_print(logger, "| {:<40} | {:<20} | {:<20} |".format("Test Name", "Status", "Validation Status"))
+    log_print(logger, "-" * 80)
+    
+    for result in test_results:
+        status = "PASS" if result["passed"] else "FAIL"
+        validation_status = status if result["has_validation"] else "N/A"
+        log_print(logger, "| {:<40} | {:<20} | {:<20} |".format(
+            result["test_name"][:40], 
+            status, 
+            validation_status
+        ))
+    
+    log_print(logger, "-" * 80)
+    
+    # Calculate overall statistics
+    validated_tests = [t for t in test_results if t["has_validation"]]
+    passed_tests = [t for t in validated_tests if t["passed"]]
+    
+    if validated_tests:
+        success_rate = len(passed_tests) / len(validated_tests) * 100
+        log_print(logger, f"\nValidated Tests: {len(validated_tests)}")
+        log_print(logger, f"Passed Tests: {len(passed_tests)}")
+        log_print(logger, f"Failed Tests: {len(validated_tests) - len(passed_tests)}")
+        log_print(logger, f"Success Rate: {success_rate:.2f}%")
+    else:
+        log_print(logger, "\nNo tests with validation criteria were run.")
 
 
 if __name__ == "__main__":

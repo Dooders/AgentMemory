@@ -555,29 +555,30 @@ class SQLiteLTMStore:
             logger.error("Unexpected error storing batch of memories: %s", str(e))
             return False
 
-    def get(self, memory_id: str, agent_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve a memory entry by its ID.
+    def get(self, memory_id: str, agent_id: str, skip_validation: bool = False) -> Optional[Dict[str, Any]]:
+        """Retrieve a memory by ID.
 
         Args:
             memory_id: ID of the memory to retrieve
-            agent_id: ID of the agent to search for
+            agent_id: Agent ID filter (optional, defaults to the class agent_id)
+            skip_validation: Whether to skip checksum validation
 
         Returns:
-            Memory entry or None if not found
+            Memory entry if found, None otherwise
         """
+        if agent_id is None:
+            agent_id = self.agent_id
+
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-
-                # Get the memory entry with the specified agent_id
                 cursor.execute(
                     f"""
-                SELECT * FROM {self.memory_table}
-                WHERE memory_id = ? AND agent_id = ?
-                """,
+                    SELECT * FROM {self.memory_table}
+                    WHERE memory_id = ? AND agent_id = ?
+                    """,
                     (memory_id, agent_id),
                 )
-
                 row = cursor.fetchone()
 
                 if not row:
@@ -608,20 +609,6 @@ class SQLiteLTMStore:
                         "current_tier", "ltm"
                     )
 
-                # Validate checksum if present
-                if "checksum" in metadata:
-                    is_valid = validate_checksum(memory_entry)
-                    if not is_valid:
-                        logger.warning(
-                            "Checksum validation failed for memory %s", memory_id
-                        )
-                        # Add integrity flag to metadata
-                        metadata["integrity_verified"] = False
-                        memory_entry["metadata"] = metadata
-                    else:
-                        metadata["integrity_verified"] = True
-                        memory_entry["metadata"] = metadata
-
                 # Get vector embeddings if available
                 cursor.execute(
                     f"""
@@ -639,6 +626,23 @@ class SQLiteLTMStore:
                     vector = np.frombuffer(vector_blob, dtype=np.float32).tolist()
 
                     memory_entry["embeddings"] = {"compressed_vector": vector}
+
+                # Validate checksum if present and validation not skipped
+                if "checksum" in metadata and not skip_validation:
+                    is_valid = validate_checksum(memory_entry)
+                    if not is_valid:
+                        logger.warning(
+                            "Checksum validation failed for memory %s", memory_id
+                        )
+                        metadata["integrity_verified"] = False
+                        memory_entry["metadata"] = metadata
+                    else:
+                        metadata["integrity_verified"] = True
+                        memory_entry["metadata"] = metadata
+                elif "checksum" in metadata and skip_validation:
+                    # Mark as not verified when skipping validation
+                    metadata["integrity_verified"] = None  # None means "not checked"
+                    memory_entry["metadata"] = metadata
 
                 # Update access metadata
                 self._update_access_metadata(memory_id)
@@ -707,6 +711,7 @@ class SQLiteLTMStore:
         end_time: Union[float, int, str],
         agent_id: str = None,
         limit: int = 100,
+        skip_validation: bool = False,
     ) -> List[Dict[str, Any]]:
         """Retrieve memories within a time range.
 
@@ -715,6 +720,7 @@ class SQLiteLTMStore:
             end_time: End timestamp (inclusive)
             agent_id: ID of the agent to search for, defaults to self.agent_id
             limit: Maximum number of results
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries
@@ -769,7 +775,7 @@ class SQLiteLTMStore:
                 # Retrieve full memory entries
                 results = []
                 for row in rows:
-                    memory = self.get(row["memory_id"], agent_id)
+                    memory = self.get(row["memory_id"], agent_id, skip_validation=skip_validation)
                     if memory:
                         results.append(memory)
 
@@ -794,6 +800,7 @@ class SQLiteLTMStore:
         min_importance: float = 0.0,
         max_importance: float = 1.0,
         limit: int = 100,
+        skip_validation: bool = False,
     ) -> List[Dict[str, Any]]:
         """Retrieve memories by importance score.
 
@@ -802,6 +809,7 @@ class SQLiteLTMStore:
             min_importance: Minimum importance score (inclusive)
             max_importance: Maximum importance score (inclusive)
             limit: Maximum number of results
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries
@@ -826,7 +834,7 @@ class SQLiteLTMStore:
                 # Retrieve full memory entries
                 results = []
                 for row in rows:
-                    memory = self.get(row["memory_id"], agent_id)
+                    memory = self.get(row["memory_id"], agent_id, skip_validation=skip_validation)
                     if memory:
                         results.append(memory)
 
@@ -850,6 +858,7 @@ class SQLiteLTMStore:
         query_vector: List[float],
         top_k: int = 10,
         agent_id: str = None,
+        skip_validation: bool = False,
     ) -> List[Tuple[Dict[str, Any], float]]:
         """Retrieve memories most similar to the query vector.
 
@@ -857,6 +866,7 @@ class SQLiteLTMStore:
             query_vector: Query vector for similarity search
             top_k: Number of results to return
             agent_id: ID of the agent to search for, defaults to self.agent_id
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of tuples containing (memory_entry, similarity_score)
@@ -907,7 +917,7 @@ class SQLiteLTMStore:
                 # Get top-k results
                 top_memories = []
                 for memory_id, similarity in similarities[:top_k]:
-                    memory = self.get(memory_id, agent_id)
+                    memory = self.get(memory_id, agent_id, skip_validation=skip_validation)
                     if memory:
                         top_memories.append((memory, similarity))
 
@@ -930,6 +940,7 @@ class SQLiteLTMStore:
         k: int = 5,
         memory_type: Optional[str] = None,
         agent_id: str = None,
+        skip_validation: bool = False,
     ) -> List[Dict[str, Any]]:
         """Search for memories with similar embeddings.
 
@@ -938,6 +949,7 @@ class SQLiteLTMStore:
             k: Number of results to return
             memory_type: Optional filter for specific memory types
             agent_id: ID of the agent to search for, defaults to self.agent_id
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries sorted by similarity score
@@ -948,7 +960,10 @@ class SQLiteLTMStore:
 
             # Get similar memories using the existing method
             similar_memories = self.get_most_similar(
-                query_vector=query_embedding, top_k=k, agent_id=agent_id
+                query_vector=query_embedding, 
+                top_k=k, 
+                agent_id=agent_id,
+                skip_validation=skip_validation
             )
 
             # Process results to match the expected format
@@ -967,7 +982,10 @@ class SQLiteLTMStore:
                 # We would need to get more results and filter them
                 additional_needed = k - len(results)
                 more_similar = self.get_most_similar(
-                    query_vector=query_embedding, top_k=k + 20, agent_id=agent_id
+                    query_vector=query_embedding, 
+                    top_k=k + 20, 
+                    agent_id=agent_id,
+                    skip_validation=skip_validation
                 )
 
                 for memory, similarity in more_similar[k:]:
@@ -1143,15 +1161,20 @@ class SQLiteLTMStore:
             logger.error("Unexpected error calculating memory size: %s", str(e))
             return 0
 
-    def get_all(self, agent_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    def get_all(self, agent_id: str = None, limit: int = 1000, skip_validation: bool = False) -> List[Dict[str, Any]]:
         """Get all memories for the agent.
 
         Args:
+            agent_id: ID of the agent to retrieve memories for, defaults to self.agent_id
             limit: Maximum number of results
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries
         """
+        # Use provided agent_id or fall back to self.agent_id
+        agent_id = agent_id if agent_id is not None else self.agent_id
+
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -1166,7 +1189,7 @@ class SQLiteLTMStore:
                 results = []
                 for memory_id in memory_ids:
                     try:
-                        memory = self.get(memory_id, agent_id)
+                        memory = self.get(memory_id, agent_id, skip_validation=skip_validation)
                         if memory:
                             results.append(memory)
                     except Exception as e:
@@ -1319,6 +1342,7 @@ class SQLiteLTMStore:
         start_step: int,
         end_step: int,
         memory_type: Optional[str] = None,
+        skip_validation: bool = False,
     ) -> List[Dict[str, Any]]:
         """Search for memories within a specific step range.
 
@@ -1327,6 +1351,7 @@ class SQLiteLTMStore:
             start_step: Beginning of step range (inclusive)
             end_step: End of step range (inclusive)
             memory_type: Optional filter for specific memory types
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries with step numbers in the range
@@ -1335,32 +1360,28 @@ class SQLiteLTMStore:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
-                # Construct query based on whether memory_type is specified
-                if memory_type:
-                    cursor.execute(
-                        f"""
-                    SELECT memory_id FROM {self.memory_table}
-                    WHERE agent_id = ? AND step_number BETWEEN ? AND ? AND memory_type = ?
-                    ORDER BY step_number
-                    """,
-                        (self.agent_id, start_step, end_step, memory_type),
-                    )
-                else:
-                    cursor.execute(
-                        f"""
-                    SELECT memory_id FROM {self.memory_table}
-                    WHERE agent_id = ? AND step_number BETWEEN ? AND ?
-                    ORDER BY step_number
-                    """,
-                        (self.agent_id, start_step, end_step),
-                    )
+                # Build query with optional memory_type filter
+                query = f"""
+                SELECT memory_id FROM {self.memory_table}
+                WHERE agent_id = ? AND step_number BETWEEN ? AND ?
+                """
 
+                params = [agent_id, start_step, end_step]
+
+                if memory_type:
+                    query += " AND memory_type = ?"
+                    params.append(memory_type)
+
+                query += " ORDER BY step_number ASC"
+
+                # Execute query
+                cursor.execute(query, params)
                 rows = cursor.fetchall()
 
-                # Get full memory entries
+                # Retrieve full memory entries
                 results = []
                 for row in rows:
-                    memory = self.get(row["memory_id"], agent_id)
+                    memory = self.get(row["memory_id"], agent_id, skip_validation=skip_validation)
                     if memory:
                         results.append(memory)
 
