@@ -40,8 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install openai markdown matplotlib numpy tiktoken
+          pip install -r workflow-requirements.txt
 
       - name: Get PR diff information
         id: get_pr_diff
