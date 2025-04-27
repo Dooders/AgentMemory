@@ -2,7 +2,26 @@
   "config": {
     "logging_level": "INFO",
     "cleanup_interval": 100,
-    "enable_memory_hooks": false
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
   },
   "agents": {
     "demo_agent": {

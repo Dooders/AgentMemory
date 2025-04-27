@@ -273,12 +273,13 @@ class RedisSTMStore:
             )
             return False
 
-    def get(self, agent_id: str, memory_id: str) -> Optional[MemoryEntry]:
+    def get(self, agent_id: str, memory_id: str, skip_validation: bool = False) -> Optional[MemoryEntry]:
         """Retrieve a memory entry by ID.
 
         Args:
             agent_id: ID of the agent
             memory_id: ID of the memory to retrieve
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             Memory entry or None if not found
@@ -293,9 +294,9 @@ class RedisSTMStore:
 
             memory_entry = json.loads(data)
 
-            # Validate checksum if present
+            # Validate checksum if present and validation not skipped
             metadata = memory_entry.get("metadata", {})
-            if "checksum" in metadata:
+            if "checksum" in metadata and not skip_validation:
                 is_valid = validate_checksum(memory_entry)
                 if not is_valid:
                     logger.warning(
@@ -307,6 +308,10 @@ class RedisSTMStore:
                 else:
                     metadata["integrity_verified"] = True
                     memory_entry["metadata"] = metadata
+            elif "checksum" in metadata and skip_validation:
+                # Mark as not verified when skipping validation
+                metadata["integrity_verified"] = None  # None means "not checked"
+                memory_entry["metadata"] = metadata
 
             self._update_access_metadata(agent_id, memory_id, memory_entry)
             return memory_entry
@@ -373,7 +378,7 @@ class RedisSTMStore:
             )
 
     def get_by_timerange(
-        self, agent_id: str, start_time: float, end_time: float, limit: int = 100
+        self, agent_id: str, start_time: float, end_time: float, limit: int = 100, skip_validation: bool = False
     ) -> List[MemoryEntry]:
         """Retrieve memories within a time range.
 
@@ -382,6 +387,7 @@ class RedisSTMStore:
             start_time: Start timestamp (inclusive)
             end_time: End timestamp (inclusive)
             limit: Maximum number of results
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries
@@ -394,7 +400,7 @@ class RedisSTMStore:
 
             results = []
             for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
+                memory = self.get(agent_id, memory_id, skip_validation=skip_validation)
                 if memory:
                     results.append(memory)
 
@@ -419,6 +425,7 @@ class RedisSTMStore:
         min_importance: float = 0.0,
         max_importance: float = 1.0,
         limit: int = 100,
+        skip_validation: bool = False,
     ) -> List[MemoryEntry]:
         """Retrieve memories by importance score.
 
@@ -427,6 +434,7 @@ class RedisSTMStore:
             min_importance: Minimum importance score (inclusive)
             max_importance: Maximum importance score (inclusive)
             limit: Maximum number of results
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries
@@ -451,7 +459,7 @@ class RedisSTMStore:
 
             results = []
             for memory_id in memory_ids:
-                memory = self.get(agent_id, memory_id)
+                memory = self.get(agent_id, memory_id, skip_validation=skip_validation)
                 if memory:
                     results.append(memory)
 
@@ -633,12 +641,13 @@ class RedisSTMStore:
             logger.error("Error calculating memory size: %s", e)
             return 0
 
-    def get_all(self, agent_id: str, limit: int = 1000) -> List[MemoryEntry]:
+    def get_all(self, agent_id: str, limit: int = 1000, skip_validation: bool = False) -> List[MemoryEntry]:
         """Get all memories for an agent.
 
         Args:
             agent_id: ID of the agent
             limit: Maximum number of memories to return
+            skip_validation: Whether to skip checksum validation
 
         Returns:
             List of memory entries
@@ -657,7 +666,7 @@ class RedisSTMStore:
                 if isinstance(memory_id, bytes):
                     memory_id = memory_id.decode("utf-8")
 
-                memory = self.get(agent_id, memory_id)
+                memory = self.get(agent_id, memory_id, skip_validation=skip_validation)
                 if memory:
                     results.append(memory)
 

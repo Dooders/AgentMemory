@@ -480,12 +480,13 @@ class RedisIMStore:
             )
             return False
 
-    def get(self, agent_id: str, memory_id: str) -> Optional[MemoryEntry]:
+    def get(self, agent_id: str, memory_id: str, skip_validation: bool = False) -> Optional[MemoryEntry]:
         """Retrieve a memory entry by ID.
 
         Args:
             agent_id: ID of the agent
             memory_id: ID of the memory to retrieve
+            skip_validation: If True, skip checksum validation
 
         Returns:
             Memory entry if found, None otherwise
@@ -503,9 +504,9 @@ class RedisIMStore:
             # Convert hash data back to memory entry dict
             memory_entry = self._hash_to_memory_entry(hash_data)
 
-            # Validate checksum if present
+            # Validate checksum if present and validation not skipped
             metadata = memory_entry.get("metadata", {})
-            if "checksum" in metadata:
+            if "checksum" in metadata and not skip_validation:
                 is_valid = validate_checksum(memory_entry)
                 if not is_valid:
                     logger.warning(
@@ -517,6 +518,10 @@ class RedisIMStore:
                 else:
                     metadata["integrity_verified"] = True
                     memory_entry["metadata"] = metadata
+            elif "checksum" in metadata and skip_validation:
+                # Mark as not verified when skipping validation
+                metadata["integrity_verified"] = None  # None means "not checked"
+                memory_entry["metadata"] = metadata
 
             # Update access metadata
             self._update_access_metadata(agent_id, memory_id, memory_entry)
@@ -611,7 +616,7 @@ class RedisIMStore:
         return memory_entry
 
     def get_by_timerange(
-        self, agent_id: str, start_time: float, end_time: float, limit: int = 100
+        self, agent_id: str, start_time: float, end_time: float, limit: int = 100, skip_validation: bool = False
     ) -> List[MemoryEntry]:
         """Retrieve memories within a time range.
 
@@ -620,6 +625,7 @@ class RedisIMStore:
             start_time: Start of time range (Unix timestamp)
             end_time: End of time range (Unix timestamp)
             limit: Maximum number of memories to return
+            skip_validation: If True, skip checksum validation
 
         Returns:
             List of memory entries within the time range
@@ -654,6 +660,23 @@ class RedisIMStore:
             for i, hash_data in enumerate(results):
                 if hash_data:
                     memory_entry = self._hash_to_memory_entry(hash_data)
+                    
+                    # Handle validation if needed
+                    metadata = memory_entry.get("metadata", {})
+                    if "checksum" in metadata and not skip_validation:
+                        is_valid = validate_checksum(memory_entry)
+                        if not is_valid:
+                            logger.warning(
+                                "Checksum validation failed for memory %s", memory_keys[i]
+                            )
+                            metadata["integrity_verified"] = False
+                        else:
+                            metadata["integrity_verified"] = True
+                        memory_entry["metadata"] = metadata
+                    elif "checksum" in metadata and skip_validation:
+                        metadata["integrity_verified"] = None  # Not checked
+                        memory_entry["metadata"] = metadata
+                        
                     self._update_access_metadata(agent_id, memory_keys[i], memory_entry)
                     memories.append(memory_entry)
 
@@ -690,6 +713,7 @@ class RedisIMStore:
         min_importance: float = 0.0,
         max_importance: float = 1.0,
         limit: int = 100,
+        skip_validation: bool = False,
     ) -> List[MemoryEntry]:
         """Retrieve memories by importance score range.
 
@@ -698,6 +722,7 @@ class RedisIMStore:
             min_importance: Minimum importance score (0.0-1.0)
             max_importance: Maximum importance score (0.0-1.0)
             limit: Maximum number of memories to return
+            skip_validation: If True, skip checksum validation
 
         Returns:
             List of memory entries within the importance range
@@ -736,6 +761,23 @@ class RedisIMStore:
             for i, hash_data in enumerate(results):
                 if hash_data:
                     memory_entry = self._hash_to_memory_entry(hash_data)
+                    
+                    # Handle validation if needed
+                    metadata = memory_entry.get("metadata", {})
+                    if "checksum" in metadata and not skip_validation:
+                        is_valid = validate_checksum(memory_entry)
+                        if not is_valid:
+                            logger.warning(
+                                "Checksum validation failed for memory %s", memory_keys[i]
+                            )
+                            metadata["integrity_verified"] = False
+                        else:
+                            metadata["integrity_verified"] = True
+                        memory_entry["metadata"] = metadata
+                    elif "checksum" in metadata and skip_validation:
+                        metadata["integrity_verified"] = None  # Not checked
+                        memory_entry["metadata"] = metadata
+                    
                     self._update_access_metadata(agent_id, memory_keys[i], memory_entry)
                     memories.append(memory_entry)
 
@@ -1299,12 +1341,13 @@ class RedisIMStore:
             logger.exception("Error retrieving memory size for agent %s", agent_id)
             return 0
 
-    def get_all(self, agent_id: str, limit: int = 1000) -> List[MemoryEntry]:
+    def get_all(self, agent_id: str, limit: int = 1000, skip_validation: bool = False) -> List[MemoryEntry]:
         """Get all memories for an agent.
 
         Args:
             agent_id: ID of the agent
             limit: Maximum number of memories to return
+            skip_validation: If True, skip checksum validation
 
         Returns:
             List of memory entries
@@ -1339,6 +1382,23 @@ class RedisIMStore:
             for i, hash_data in enumerate(results):
                 if hash_data:
                     memory_entry = self._hash_to_memory_entry(hash_data)
+                    
+                    # Handle validation if needed
+                    metadata = memory_entry.get("metadata", {})
+                    if "checksum" in metadata and not skip_validation:
+                        is_valid = validate_checksum(memory_entry)
+                        if not is_valid:
+                            logger.warning(
+                                "Checksum validation failed for memory %s", memory_keys[i]
+                            )
+                            metadata["integrity_verified"] = False
+                        else:
+                            metadata["integrity_verified"] = True
+                        memory_entry["metadata"] = metadata
+                    elif "checksum" in metadata and skip_validation:
+                        metadata["integrity_verified"] = None  # Not checked
+                        memory_entry["metadata"] = metadata
+                    
                     self._update_access_metadata(agent_id, memory_keys[i], memory_entry)
                     memories.append(memory_entry)
 
