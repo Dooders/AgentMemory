@@ -35,7 +35,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -48,16 +48,16 @@ jobs:
           # Get the base and head commits for the PR
           PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          
+
           # Get commits in this PR
           git log --pretty=format:"%h - %s (%an)" $PR_BASE_SHA..$PR_HEAD_SHA > pr_commits.txt
-          
+
           # Get files changed in this PR
           git diff --name-status $PR_BASE_SHA..$PR_HEAD_SHA > pr_files_changed.txt
-          
+
           # Get detailed diff of changed files (for context)
           git diff --stat $PR_BASE_SHA..$PR_HEAD_SHA > pr_diff_stats.txt
-          
+
           # Output for debugging
           echo "PR diff between: $PR_BASE_SHA and $PR_HEAD_SHA"
 
@@ -81,7 +81,7 @@ jobs:
         run: |
           # Generate embeddings for all context files to reduce token usage
           python scripts/create_changelog_embeddings.py
-          
+
           # Store embedding statistics for monitoring
           echo "Embedding stats:"
           python -c "import json; from pathlib import Path; data = json.loads(Path('changelog_embeddings.json').read_text()); print(f'Total files embedded: {len(data[\"embeddings\"])}'); total_tokens = sum(data['token_counts'].values()); print(f'Total tokens in original files: {total_tokens}')"
@@ -97,13 +97,13 @@ jobs:
         run: |
           # Load embedding data for context
           EMBEDDINGS_DATA=$(cat changelog_embeddings.json || echo "{}")
-          
+
           # Extract content samples for context
           CONTEXT=""
           if [ -f changelog_embeddings.json ]; then
             CONTEXT=$(python -c "import json; data = json.loads(open('changelog_embeddings.json').read()); print('\n'.join([f'--- {k} ---\n{v[:1000]}...' for k, v in data.get('content_samples', {}).items()]))")
           fi
-          
+
           # Validate the OpenAI API key
           if [ -z "$OPENAI_API_KEY" ]; then
             echo "Warning: OPENAI_API_KEY is not set or empty"
@@ -171,7 +171,7 @@ jobs:
               python scripts/generate_changelog_entry.py > pr_changelog_entry.md
             fi
           fi
-          
+
           # Validate the generated content
           if [ ! -s pr_changelog_entry.md ]; then
             echo "Warning: Generated changelog is empty."
@@ -184,11 +184,11 @@ jobs:
             - Note: This is an automatically generated fallback entry.
             EOF
           fi
-          
+
           # Debug output
           echo "Generated changelog content:"
           cat pr_changelog_entry.md
-          
+
           # Save the output to GitHub step output
           echo "changelog_entry<<EOF" >> $GITHUB_OUTPUT
           cat pr_changelog_entry.md >> $GITHUB_OUTPUT
@@ -205,13 +205,13 @@ jobs:
         run: |
           # Generate a developer critique of the PR changes
           python scripts/generate_developer_critique.py
-          
+
           # Validate the output
           if [ ! -s developer_critique.md ]; then
             echo "Warning: Developer critique generation failed. Creating a placeholder."
             echo "Developer critique could not be generated for this PR." > developer_critique.md
           fi
-          
+
           # Save the output to GitHub step output using a more reliable approach
           {
             echo "developer_critique<<EOFDEV"
@@ -231,10 +231,10 @@ jobs:
       - name: Create or update PR changelog file
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          
+
           # Create the PR comment and save to a file
           cat pr_changelog_entry.md > "PR_${PR_NUMBER}_CHANGELOG.md"
-          
+
           # Prepare comment with links to assets
           echo "## Changelog Preview for this PR:" > pr_comment.txt
           echo "" >> pr_comment.txt
@@ -254,7 +254,7 @@ jobs:
           echo "This will be automatically added to CHANGELOG.md when merged." >> pr_comment.txt
           echo "" >> pr_comment.txt
           echo "💡 *Generated using vector embeddings for efficient token usage*" >> pr_comment.txt
-          
+
           # Add a comment to the PR with the changelog preview
           gh pr comment $PR_NUMBER --body-file pr_comment.txt
         env:
@@ -311,7 +311,7 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add CHANGELOG.md
-          
+
           # Also add release assets if available
           if [ -f RELEASE_NOTES.md ]; then
             git add RELEASE_NOTES.md
@@ -319,7 +319,7 @@ jobs:
           if [ -f changelog_visual.html ]; then
             git add changelog_visual.html
           fi
-          
+
           git commit -m "Update CHANGELOG.md with changes from PR #${{ github.event.pull_request.number }}"
           git push
         env:
