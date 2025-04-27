@@ -25,3 +25,12 @@ sqlite3-plus
 # Testing dependencies
 pytest
 pytest-asyncio 
+
+matplotlib
+numpy
+tiktoken
+openai
+
+# Additional needed dependencies
+redis[hiredis]
+markdown
