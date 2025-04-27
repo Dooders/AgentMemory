@@ -21,7 +21,7 @@ from memory.schema import (
 )
 
 # Path to the memory samples directory
-SAMPLES_DIR = Path("demos/memory_samples")
+SAMPLES_DIR = Path("validation/memory_samples")
 
 # Sample files to test
 SIMPLE_AGENT_SAMPLE = SAMPLES_DIR / "simple_agent_memory.json"

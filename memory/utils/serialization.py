@@ -5,6 +5,7 @@ entries and related data structures for storage and transmission.
 """
 
 import base64
+import copy
 import datetime
 import json
 import logging
@@ -380,6 +381,12 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                         memory_type = metadata_type
                         logger.debug(f"Using memory_type from metadata: {memory_type}")
 
+                # Ensure both type fields match for consistency during loading
+                memory["type"] = memory_type
+                if "metadata" in memory:
+                    memory["metadata"]["memory_type"] = memory_type
+                    logger.debug(f"Synchronized memory type fields to {memory_type}")
+
                 content = memory.get("content", {})
                 step_number = memory.get("step_number", 0)
                 priority = memory.get("metadata", {}).get("importance_score", 1.0)
@@ -391,21 +398,30 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                 )
                 logger.debug(f"Memory content keys: {list(content.keys())}")
                 logger.debug(f"Memory step: {step_number}, priority: {priority}")
+                logger.debug(f"Memory ID: {memory.get('memory_id', 'unknown')}")
+                logger.debug(f"Memory metadata: {memory.get('metadata', {})}")
 
                 # Instead of creating a new memory entry that would generate a new memory_id,
                 # directly store the complete memory object with its original memory_id
 
+                # Create a deep copy to avoid reference issues
+                memory_copy = copy.deepcopy(memory)
+
                 # Determine which store to use based on tier
                 if tier == "stm":
-                    memory_agent.stm_store.store(agent_id, memory)
+                    logger.debug(f"Storing memory in STM store with type {memory_type}")
+                    memory_agent.stm_store.store(agent_id, memory_copy)
                 elif tier == "im":
-                    memory_agent.im_store.store(agent_id, memory)
+                    logger.debug(f"Storing memory in IM store with type {memory_type}")
+                    memory_agent.im_store.store(agent_id, memory_copy)
                 elif tier == "ltm":
-                    memory_agent.ltm_store.store(memory)
+                    logger.debug(f"Storing memory in LTM store with type {memory_type}")
+                    memory_agent.ltm_store.store(memory_copy)
                 else:
                     # Default to STM if tier is unknown
                     logger.warning(f"Unknown tier '{tier}', storing in STM")
-                    memory_agent.stm_store.store(agent_id, memory)
+                    logger.debug(f"Storing memory in STM store with type {memory_type}")
+                    memory_agent.stm_store.store(agent_id, memory_copy)
 
         logger.info(f"Memory system loaded from {filepath}")
         return memory_system
@@ -523,6 +539,17 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
 
                 # Ensure the memory type is set correctly and consistently
                 memory_type = memory.get("type", "generic")
+
+                # If type is generic, try to get it from metadata
+                if memory_type == "generic" and "metadata" in memory:
+                    metadata_type = memory.get("metadata", {}).get("memory_type")
+                    if metadata_type in ["state", "interaction", "action"]:
+                        memory_type = metadata_type
+                        logger.debug(
+                            f"Using memory_type from metadata: {metadata_type} for memory {i}"
+                        )
+
+                # Always ensure both top-level type and metadata.memory_type are consistent
                 clean_memory["type"] = memory_type
                 logger.debug(f"Set memory type to {memory_type} for memory {i}")
 
@@ -549,6 +576,9 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
 
                 # Ensure memory_type in metadata matches the top-level type
                 metadata["memory_type"] = memory_type
+                logger.debug(
+                    f"Set metadata.memory_type to {memory_type} for memory {i}"
+                )
 
                 if "step_number" not in clean_memory:
                     clean_memory["step_number"] = 0
