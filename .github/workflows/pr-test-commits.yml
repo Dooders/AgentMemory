@@ -1,0 +1,127 @@
+name: Test All PR Commits
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+
+      - name: Get PR commits
+        id: get_pr_commits
+        run: |
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          
+          # Get list of commit SHAs in this PR
+          echo "COMMIT_LIST<<EOF" >> $GITHUB_ENV
+          git log --pretty=format:"%H" $PR_BASE_SHA..$PR_HEAD_SHA >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          echo "Testing commits between base: $PR_BASE_SHA and head: $PR_HEAD_SHA"
+
+      - name: Test each commit
+        run: |
+          # Save current head to return to later
+          CURRENT_HEAD=$(git rev-parse HEAD)
+          
+          # Create directory for test results
+          mkdir -p test-results
+          
+          # Process each commit
+          EXIT_CODE=0
+          IFS=$'\n'
+          for COMMIT_SHA in $COMMIT_LIST; do
+            echo "::group::Testing commit $COMMIT_SHA"
+            COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s" $COMMIT_SHA)
+            echo "Testing commit: $COMMIT_SHA - $COMMIT_MESSAGE"
+            
+            # Checkout this specific commit
+            git checkout $COMMIT_SHA
+            
+            # Run tests and save results to a file
+            RESULT_FILE="test-results/test-result-$COMMIT_SHA.txt"
+            if python -m pytest tests/ -v --cov=. --cov-report=xml:test-results/coverage-$COMMIT_SHA.xml > $RESULT_FILE 2>&1; then
+              echo "✅ Tests PASSED for commit $COMMIT_SHA"
+              COMMIT_STATUS="✅ PASSED"
+            else
+              echo "❌ Tests FAILED for commit $COMMIT_SHA"
+              COMMIT_STATUS="❌ FAILED"
+              EXIT_CODE=1
+            fi
+            
+            # Extract summary stats
+            SUMMARY=$(grep -A 5 "===.*collected" $RESULT_FILE | tr '\n' ' ')
+            
+            # Add to summary
+            echo "$COMMIT_SHA - $COMMIT_STATUS - $COMMIT_MESSAGE - $SUMMARY" >> test-results/summary.txt
+            echo "::endgroup::"
+          done
+          
+          # Return to the head of the PR
+          git checkout $CURRENT_HEAD
+          
+          # Display summary
+          echo "==== Test Results Summary ===="
+          cat test-results/summary.txt
+          
+          # Exit with accumulated status
+          exit $EXIT_CODE
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results/
+          
+      - name: Post results comment
+        if: always()
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          # Create the comment content
+          {
+            echo "## 🧪 Test Results for Each Commit"
+            echo ""
+            echo "| Commit | Status | Message | Summary |"
+            echo "| ------ | ------ | ------- | ------- |"
+            
+            while IFS= read -r line; do
+              SHA=$(echo "$line" | cut -d' ' -f1)
+              STATUS=$(echo "$line" | cut -d' ' -f3)
+              MESSAGE=$(echo "$line" | cut -d' ' -f5-)
+              SUMMARY=$(echo "$line" | grep -o "collected.*" || echo "")
+              
+              SHORT_SHA="${SHA:0:7}"
+              
+              echo "| [\`$SHORT_SHA\`](https://github.com/${{ github.repository }}/commit/$SHA) | $STATUS | $MESSAGE | $SUMMARY |"
+            done < test-results/summary.txt
+            
+            echo ""
+            echo "For detailed test logs, see the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})."
+          } > pr_test_comment.txt
+          
+          # Post comment to PR
+          gh pr comment $PR_NUMBER --body-file pr_test_comment.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
