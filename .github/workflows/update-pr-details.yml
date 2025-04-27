@@ -1,0 +1,177 @@
+name: Update PR Details
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - main
+
+jobs:
+  update-pr-details:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    # Add a key to ensure this runs before other PR workflows
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai
+
+      - name: Generate improved PR title and description
+        id: generate_pr_details
+        env:
+          OPENAI_API_KEY: ${{ vars.OPENAI_API_KEY || secrets.OPENAI_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          cat > update_pr_details.py << 'EOF'
+          import os
+          import json
+          import openai
+
+          # Get PR details from environment
+          pr_title = os.environ.get("PR_TITLE", "")
+          pr_body = os.environ.get("PR_BODY", "")
+          pr_number = os.environ.get("PR_NUMBER", "")
+          repo_name = os.environ.get("REPO_NAME", "")
+
+          # Set up OpenAI API
+          openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+
+          def generate_improved_pr_details():
+              # Create system prompt
+              system_prompt = """You are an expert software developer helping to improve pull request details.
+              Analyze the PR title and description, then suggest improvements to make them more clear,
+              descriptive, and useful for reviewers. Keep the original intent but enhance clarity and details.
+              
+              For the title:
+              - Make it concise but descriptive
+              - Include type of change (fix, feature, refactor, etc.) if not present
+              - Avoid being overly generic
+              
+              For the description:
+              - Add a clear summary of what the PR does if missing
+              - Ensure it explains WHY the changes are needed, not just WHAT was changed
+              - Format with markdown to improve readability
+              - Add sections for "Changes", "Testing" and "Impact" if missing
+              
+              Don't add fake details - only enhance what's provided.
+              Return both the improved title and description.
+              """
+              
+              try:
+                  # Call OpenAI API
+                  client = openai.OpenAI(api_key=openai.api_key)
+                  response = client.chat.completions.create(
+                      model="gpt-4o",
+                      messages=[
+                          {"role": "system", "content": system_prompt},
+                          {"role": "user", "content": f"PR #{pr_number} in {repo_name}\nTitle: {pr_title}\n\nDescription:\n{pr_body}\n\nPlease provide an improved title and description for this PR."}
+                      ]
+                  )
+                  
+                  # Parse response
+                  content = response.choices[0].message.content
+                  
+                  # Extract title and description
+                  improved_details = {}
+                  if "# Title" in content or "## Title" in content:
+                      # Response is formatted with headers
+                      sections = content.split("# Description" if "# Description" in content else "## Description")
+                      title_section = sections[0]
+                      title_lines = title_section.split("\n")
+                      for line in title_lines:
+                          if line.startswith("# Title") or line.startswith("## Title"):
+                              continue
+                          if line.strip():
+                              improved_details["title"] = line.strip()
+                              break
+                      
+                      if len(sections) > 1:
+                          improved_details["body"] = sections[1].strip()
+                  else:
+                      # Try to parse without explicit headers
+                      lines = content.split("\n")
+                      improved_details["title"] = lines[0].replace("Title:", "").strip()
+                      
+                      body_lines = []
+                      started_body = False
+                      for line in lines[1:]:
+                          if ("description" in line.lower() or "body" in line.lower()) and ":" in line:
+                              started_body = True
+                              continue
+                          if started_body:
+                              body_lines.append(line)
+                      
+                      if body_lines:
+                          improved_details["body"] = "\n".join(body_lines).strip()
+                      else:
+                          # Just use everything after title
+                          improved_details["body"] = "\n".join(lines[1:]).strip()
+                  
+                  # Fallbacks if parsing fails
+                  if "title" not in improved_details or not improved_details["title"]:
+                      improved_details["title"] = pr_title
+                  
+                  if "body" not in improved_details or not improved_details["body"]:
+                      improved_details["body"] = pr_body
+                  
+                  # Add a note about AI enhancement
+                  if improved_details["body"]:
+                      improved_details["body"] += "\n\n---\n*This PR description was enhanced by AI to improve clarity.*"
+                  
+                  return improved_details
+              
+              except Exception as e:
+                  print(f"Error generating improved PR details: {e}")
+                  return {"title": pr_title, "body": pr_body}
+
+          # Generate improved details
+          improved_details = generate_improved_pr_details()
+
+          # Output for GitHub Actions
+          with open("improved_pr_details.json", "w") as f:
+              json.dump(improved_details, f)
+
+          # Create outputs for GitHub Actions
+          with open(os.environ.get("GITHUB_OUTPUT", ""), "a") as f:
+              f.write(f"title<<EOF\n{improved_details.get('title', pr_title)}\nEOF\n")
+              f.write(f"body<<EOF\n{improved_details.get('body', pr_body)}\nEOF\n")
+          
+          print(f"Generated improved title: {improved_details.get('title', pr_title)}")
+          print(f"Generated improved description (preview): {improved_details.get('body', pr_body)[:200]}...")
+          EOF
+          
+          python update_pr_details.py
+
+      - name: Update PR title and description
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          # Load improved details
+          IMPROVED_TITLE=$(cat improved_pr_details.json | jq -r '.title')
+          IMPROVED_BODY=$(cat improved_pr_details.json | jq -r '.body')
+          
+          # Update PR using GitHub CLI
+          gh pr edit $PR_NUMBER --title "$IMPROVED_TITLE" --body "$IMPROVED_BODY"
+          
+          # Add a delay to ensure this completes before other workflows start
+          sleep 5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

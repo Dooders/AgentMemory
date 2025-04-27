@@ -7,8 +7,25 @@ on:
       - main
 
 jobs:
+  check-pr-type:
+    runs-on: ubuntu-latest
+    outputs:
+      is_new_pr: ${{ github.event.action == 'opened' }}
+    steps:
+      - name: Check if new PR
+        id: check_new_pr
+        run: |
+          if [ "${{ github.event.action }}" = "opened" ]; then
+            echo "This is a new PR"
+            echo "is_new_pr=true" >> $GITHUB_OUTPUT
+          else
+            echo "This is not a new PR"
+            echo "is_new_pr=false" >> $GITHUB_OUTPUT
+          fi
+
   generate-pr-changelog:
     runs-on: ubuntu-latest
+    needs: check-pr-type
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -120,6 +137,29 @@ jobs:
           cat pr_changelog_entry.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Generate developer critique
+        id: generate_developer_critique
+        env:
+          OPENAI_API_KEY: ${{ vars.OPENAI_API_KEY || secrets.OPENAI_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          # Generate a developer critique of the PR changes
+          python scripts/generate_developer_critique.py
+          
+          # Validate the output
+          if [ ! -s developer_critique.md ]; then
+            echo "Warning: Developer critique generation failed. Creating a placeholder."
+            echo "Developer critique could not be generated for this PR." > developer_critique.md
+          fi
+          
+          # Save the output to GitHub step output
+          echo "developer_critique<<EOF" >> $GITHUB_OUTPUT
+          cat developer_critique.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Generate visual changelog
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -141,6 +181,14 @@ jobs:
           echo "" >> pr_comment.txt
           cat pr_changelog_entry.md >> pr_comment.txt
           echo "" >> pr_comment.txt
+          echo "### Developer Critique:" >> pr_comment.txt
+          echo "<details>" >> pr_comment.txt
+          echo "<summary>Click to expand developer review</summary>" >> pr_comment.txt
+          echo "" >> pr_comment.txt
+          cat developer_critique.md >> pr_comment.txt
+          echo "" >> pr_comment.txt
+          echo "</details>" >> pr_comment.txt
+          echo "" >> pr_comment.txt
           echo "### Additional resources:" >> pr_comment.txt
           echo "- [Release Notes](RELEASE_NOTES.md)" >> pr_comment.txt
           echo "" >> pr_comment.txt
@@ -159,6 +207,7 @@ jobs:
           name: changelog-assets
           path: |
             pr_changelog_entry.md
+            developer_critique.md
             RELEASE_NOTES.md
             changelog_visual.html
             impact_analysis.txt

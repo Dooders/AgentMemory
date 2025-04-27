@@ -379,4 +379,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()
+    
+    # Validate generated changelog entry
+    if not os.path.exists('pr_changelog_entry.md') or os.stat('pr_changelog_entry.md').st_size == 0:
+        print("Error: Failed to generate a valid changelog entry.")
+        sys.exit(1) 
