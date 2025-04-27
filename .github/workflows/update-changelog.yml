@@ -113,7 +113,7 @@ jobs:
             echo "OpenAI API key is set, proceeding with API call"
             
             # Create a temporary payload file for the API call
-            cat > payload.json << 'EOF'
+            cat > payload.json <<-EOF
             {
               "model": "gpt-4o",
               "messages": [
@@ -170,7 +170,7 @@ jobs:
           if [ ! -s pr_changelog_entry.md ]; then
             echo "Warning: Generated changelog is empty."
             echo "Creating a basic changelog entry as fallback..."
-            cat > pr_changelog_entry.md << 'EOF'
+            cat > pr_changelog_entry.md <<-EOF
             ## [0.0.1] - $(date +%Y-%m-%d)
             
             ### Changes
