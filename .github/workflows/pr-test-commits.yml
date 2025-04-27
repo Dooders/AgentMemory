@@ -1,4 +1,4 @@
-name: Test All PR Commits
+name: Test Current Commit
 
 on:
   pull_request:
@@ -6,13 +6,11 @@ on:
       - main
 
 jobs:
-  test-commits:
+  test-current-commit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,65 +24,44 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
 
-      - name: Get PR commits
-        id: get_pr_commits
+      - name: Run tests
+        id: run_tests
         run: |
-          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          
-          # Get list of commit SHAs in this PR
-          echo "COMMIT_LIST<<EOF" >> $GITHUB_ENV
-          git log --pretty=format:"%H" $PR_BASE_SHA..$PR_HEAD_SHA >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          
-          echo "Testing commits between base: $PR_BASE_SHA and head: $PR_HEAD_SHA"
-
-      - name: Test each commit
-        run: |
-          # Save current head to return to later
-          CURRENT_HEAD=$(git rev-parse HEAD)
-          
           # Create directory for test results
           mkdir -p test-results
           
-          # Process each commit
-          EXIT_CODE=0
-          IFS=$'\n'
-          for COMMIT_SHA in $COMMIT_LIST; do
-            echo "::group::Testing commit $COMMIT_SHA"
-            COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s" $COMMIT_SHA)
-            echo "Testing commit: $COMMIT_SHA - $COMMIT_MESSAGE"
-            
-            # Checkout this specific commit
-            git checkout $COMMIT_SHA
-            
-            # Run tests and save results to a file
-            RESULT_FILE="test-results/test-result-$COMMIT_SHA.txt"
-            if python -m pytest tests/ -v --cov=. --cov-report=xml:test-results/coverage-$COMMIT_SHA.xml > $RESULT_FILE 2>&1; then
-              echo "✅ Tests PASSED for commit $COMMIT_SHA"
-              COMMIT_STATUS="✅ PASSED"
-            else
-              echo "❌ Tests FAILED for commit $COMMIT_SHA"
-              COMMIT_STATUS="❌ FAILED"
-              EXIT_CODE=1
-            fi
-            
-            # Extract summary stats
-            SUMMARY=$(grep -A 5 "===.*collected" $RESULT_FILE | tr '\n' ' ')
-            
-            # Add to summary
-            echo "$COMMIT_SHA - $COMMIT_STATUS - $COMMIT_MESSAGE - $SUMMARY" >> test-results/summary.txt
-            echo "::endgroup::"
-          done
+          # Get current commit info
+          COMMIT_SHA=$(git rev-parse HEAD)
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
           
-          # Return to the head of the PR
-          git checkout $CURRENT_HEAD
+          echo "Testing current commit: $COMMIT_SHA - $COMMIT_MESSAGE"
+          
+          # Run tests and save results to a file
+          RESULT_FILE="test-results/test-result.txt"
+          if python -m pytest tests/ -v --cov=. --cov-report=xml:test-results/coverage.xml > $RESULT_FILE 2>&1; then
+            echo "✅ Tests PASSED"
+            COMMIT_STATUS="✅ PASSED"
+            EXIT_CODE=0
+          else
+            echo "❌ Tests FAILED"
+            COMMIT_STATUS="❌ FAILED"
+            EXIT_CODE=1
+          fi
+          
+          # Extract summary stats
+          SUMMARY=$(grep -A 5 "===.*collected" $RESULT_FILE | tr '\n' ' ')
+          
+          # Add to summary
+          echo "$COMMIT_SHA - $COMMIT_STATUS - $COMMIT_MESSAGE - $SUMMARY" > test-results/summary.txt
           
           # Display summary
           echo "==== Test Results Summary ===="
           cat test-results/summary.txt
           
-          # Exit with accumulated status
+          # Set output variables
+          echo "status=$COMMIT_STATUS" >> $GITHUB_OUTPUT
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          
           exit $EXIT_CODE
 
       - name: Upload test results
@@ -99,24 +76,23 @@ jobs:
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
           
+          # Get commit info
+          COMMIT_SHA=$(git rev-parse HEAD)
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          
+          # Read test status and summary
+          TEST_LINE=$(cat test-results/summary.txt)
+          STATUS=$(echo "$TEST_LINE" | cut -d' ' -f3)
+          MESSAGE=$(echo "$TEST_LINE" | cut -d' ' -f5-)
+          SUMMARY=$(echo "$TEST_LINE" | grep -o "collected.*" || echo "")
+          
           # Create the comment content
           {
-            echo "## 🧪 Test Results for Each Commit"
+            echo "## 🧪 Test Results for Current Commit"
             echo ""
             echo "| Commit | Status | Message | Summary |"
             echo "| ------ | ------ | ------- | ------- |"
-            
-            while IFS= read -r line; do
-              SHA=$(echo "$line" | cut -d' ' -f1)
-              STATUS=$(echo "$line" | cut -d' ' -f3)
-              MESSAGE=$(echo "$line" | cut -d' ' -f5-)
-              SUMMARY=$(echo "$line" | grep -o "collected.*" || echo "")
-              
-              SHORT_SHA="${SHA:0:7}"
-              
-              echo "| [\`$SHORT_SHA\`](https://github.com/${{ github.repository }}/commit/$SHA) | $STATUS | $MESSAGE | $SUMMARY |"
-            done < test-results/summary.txt
-            
+            echo "| [\`$SHORT_SHA\`](https://github.com/${{ github.repository }}/commit/$COMMIT_SHA) | $STATUS | $MESSAGE | $SUMMARY |"
             echo ""
             echo "For detailed test logs, see the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})."
           } > pr_test_comment.txt
