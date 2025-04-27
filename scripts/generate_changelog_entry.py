@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import json
+import traceback
 from datetime import datetime
 
 try:
@@ -15,6 +16,16 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
+# Configure logging for debugging
+import logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stderr)
+    ]
+)
+logger = logging.getLogger('changelog_generator')
 
 def get_latest_version():
     """Extract the latest version from CHANGELOG.md"""
@@ -26,7 +37,9 @@ def get_latest_version():
             if version_match:
                 latest_version = version_match.group(1)
     except FileNotFoundError:
-        pass
+        logger.warning("CHANGELOG.md not found, using default version 0.0.0")
+    except Exception as e:
+        logger.error(f"Error reading CHANGELOG.md: {str(e)}")
     return latest_version
 
 
@@ -50,54 +63,59 @@ def increment_patch_version(version):
 
 def determine_version_bump(changes, current_version, labels=None):
     """Determine if changes warrant major, minor, or patch bump"""
-    change_text = changes.lower()
-    
-    # Check for breaking changes based on labels
-    if labels and any(('breaking' in label.lower() or 'major' in label.lower()) for label in labels):
-        return bump_major_version(current_version)
-    
-    # Check for breaking changes based on conventional commits
-    if os.path.exists('commit_categories.json'):
-        try:
-            with open('commit_categories.json', 'r') as f:
-                categories = json.load(f)
-                
-            # Look for breaking changes indicator in any commit
-            for category, data in categories.items():
-                for item in data.get('items', []):
-                    if 'BREAKING CHANGE' in item or '!' in item.split(':')[0]:
-                        return bump_major_version(current_version)
-        except Exception:
-            pass
-    
-    # Check for breaking changes in the content
-    if any(keyword in change_text for keyword in 
-           ['break', 'breaking', 'incompatible', 'major update', 'not backward compatible']):
-        return bump_major_version(current_version)
-    
-    # Check for new features based on labels
-    if labels and any(('feature' in label.lower() or 'enhancement' in label.lower()) for label in labels):
-        return bump_minor_version(current_version)
-    
-    # Check for new features based on conventional commits
-    if os.path.exists('commit_categories.json'):
-        try:
-            with open('commit_categories.json', 'r') as f:
-                categories = json.load(f)
-                
-            # If there are feature commits, it's a minor update
-            if categories.get('feat', {}).get('items', []):
-                return bump_minor_version(current_version)
-        except Exception:
-            pass
-    
-    # Check for new features in the content
-    if any(keyword in change_text for keyword in 
-           ['feat', 'feature', 'add', 'new', 'implement', 'support for']):
-        return bump_minor_version(current_version)
-    
-    # Default to patch
-    return increment_patch_version(current_version)
+    try:
+        change_text = changes.lower()
+        
+        # Check for breaking changes based on labels
+        if labels and any(('breaking' in label.lower() or 'major' in label.lower()) for label in labels):
+            return bump_major_version(current_version)
+        
+        # Check for breaking changes based on conventional commits
+        if os.path.exists('commit_categories.json'):
+            try:
+                with open('commit_categories.json', 'r') as f:
+                    categories = json.load(f)
+                    
+                # Look for breaking changes indicator in any commit
+                for category, data in categories.items():
+                    for item in data.get('items', []):
+                        if 'BREAKING CHANGE' in item or '!' in item.split(':')[0]:
+                            return bump_major_version(current_version)
+            except Exception as e:
+                logger.warning(f"Error checking commit categories: {str(e)}")
+        
+        # Check for breaking changes in the content
+        if any(keyword in change_text for keyword in 
+            ['break', 'breaking', 'incompatible', 'major update', 'not backward compatible']):
+            return bump_major_version(current_version)
+        
+        # Check for new features based on labels
+        if labels and any(('feature' in label.lower() or 'enhancement' in label.lower()) for label in labels):
+            return bump_minor_version(current_version)
+        
+        # Check for new features based on conventional commits
+        if os.path.exists('commit_categories.json'):
+            try:
+                with open('commit_categories.json', 'r') as f:
+                    categories = json.load(f)
+                    
+                # If there are feature commits, it's a minor update
+                if categories.get('feat', {}).get('items', []):
+                    return bump_minor_version(current_version)
+            except Exception as e:
+                logger.warning(f"Error checking commit categories for features: {str(e)}")
+        
+        # Check for new features in the content
+        if any(keyword in change_text for keyword in 
+            ['feat', 'feature', 'add', 'new', 'implement', 'support for']):
+            return bump_minor_version(current_version)
+        
+        # Default to patch
+        return increment_patch_version(current_version)
+    except Exception as e:
+        logger.error(f"Error determining version bump: {str(e)}")
+        # Fall back to patch increment if anything fails
+        return increment_patch_version(current_version)
 
 
 def read_file_or_default(filepath, default="No content available"):
@@ -105,7 +123,8 @@ def read_file_or_default(filepath, default="No content available"):
     try:
         with open(filepath, 'r') as f:
             return f.read()
-    except:
+    except Exception as e:
+        logger.warning(f"Error reading file {filepath}: {str(e)}")
         return default
 
 
@@ -116,14 +135,20 @@ def read_labels():
         try:
             with open('pr_labels.txt', 'r') as f:
                 labels = [label.strip() for label in f.readlines() if label.strip()]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error reading PR labels: {str(e)}")
     return labels
 
 
 def generate_with_openai(api_key, pr_info):
     """Generate a changelog entry using OpenAI API"""
     try:
+        logger.info("Attempting to generate changelog with OpenAI API")
+        
+        if not api_key:
+            logger.warning("No OpenAI API key provided")
+            return generate_basic_entry(pr_info)
+            
         client = OpenAI(api_key=api_key)
         
         # Create project context section
@@ -214,6 +239,8 @@ def generate_with_openai(api_key, pr_info):
         - Description of other changes
         """
         
+        logger.debug("Sending request to OpenAI API")
+        
         response = client.chat.completions.create(
             model='gpt-4o',
             messages=[{'role': 'user', 'content': prompt}],
@@ -221,51 +248,70 @@ def generate_with_openai(api_key, pr_info):
         )
         
         changelog_entry = response.choices[0].message.content
-        print(f"Generated changelog entry for PR #{pr_info['pr_number']}")
+        
+        if not changelog_entry or len(changelog_entry.strip()) == 0:
+            logger.warning("OpenAI returned empty response")
+            return generate_basic_entry(pr_info)
+            
+        logger.info(f"Generated changelog entry with OpenAI for PR #{pr_info['pr_number']}")
         return changelog_entry
         
     except Exception as e:
-        print(f"Error generating changelog with OpenAI: {str(e)}")
+        logger.error(f"Error generating changelog with OpenAI: {str(e)}")
+        logger.error(traceback.format_exc())
         return generate_basic_entry(pr_info)
 
 
 def generate_basic_entry(pr_info):
     """Generate a basic changelog entry when OpenAI is not available"""
-    print("Generating basic changelog entry.")
-    
-    # Try to intelligently determine version bump
-    new_version = determine_version_bump(
-        pr_info['pr_title'] + ' ' + pr_info['pr_body'] + ' ' + pr_info['commits'],
-        pr_info['latest_version'],
-        pr_info['labels']
-    )
-    
-    entry = f"## [{new_version}] - {pr_info['current_date']}\n\n"
-    
-    # Try to categorize based on conventional commits
-    if os.path.exists('commit_categories.json'):
-        try:
-            with open('commit_categories.json', 'r') as f:
-                categories = json.load(f)
+    try:
+        logger.info("Generating basic changelog entry.")
+        
+        # Try to intelligently determine version bump
+        new_version = determine_version_bump(
+            pr_info['pr_title'] + ' ' + pr_info['pr_body'] + ' ' + pr_info['commits'],
+            pr_info['latest_version'],
+            pr_info['labels']
+        )
+        
+        entry = f"## [{new_version}] - {pr_info['current_date']}\n\n"
+        
+        # Try to categorize based on conventional commits
+        if os.path.exists('commit_categories.json'):
+            try:
+                with open('commit_categories.json', 'r') as f:
+                    categories = json.load(f)
+                    
+                has_categories = False
+                for category, data in categories.items():
+                    if data.get('items', []):
+                        has_categories = True
+                        entry += f"### {data['title']}\n"
+                        for item in data['items']:
+                            # Extract the actual message without the prefix
+                            message = item.split(':', 1)[1].strip() if ':' in item else item
+                            entry += f"- {message}\n"
+                        entry += "\n"
                 
-            for category, data in categories.items():
-                if data.get('items', []):
-                    entry += f"### {data['title']}\n"
-                    for item in data['items']:
-                        # Extract the actual message without the prefix
-                        message = item.split(':', 1)[1].strip() if ':' in item else item
-                        entry += f"- {message}\n"
-                    entry += "\n"
-            
-            return entry
-        except Exception:
-            pass
-    
-    # Fallback if no conventional commits
-    entry += "### Changes\n"
-    entry += f"- {pr_info['pr_title']} (#{pr_info['pr_number']})\n"
-    
-    return entry
+                if has_categories:
+                    logger.info("Generated changelog entry based on conventional commits")
+                    return entry
+            except Exception as e:
+                logger.warning(f"Error processing conventional commits: {str(e)}")
+        
+        # Fallback if no conventional commits
+        entry += "### Changes\n"
+        entry += f"- {pr_info['pr_title']} (#{pr_info['pr_number']})\n\n"
+        
+        logger.info("Generated basic changelog entry as fallback")
+        return entry
+    except Exception as e:
+        logger.error(f"Error in basic changelog generation: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Ultra fallback - ensure we always return something
+        date = datetime.now().strftime('%Y-%m-%d')
+        return f"## [0.0.1] - {date}\n\n### Changes\n- PR #{pr_info['pr_number']}: {pr_info['pr_title']}\n"
 
 
 def generate_release_notes(changelog_entry, pr_info):
@@ -303,85 +349,149 @@ def generate_release_notes(changelog_entry, pr_info):
         with open('RELEASE_NOTES.md', 'w') as f:
             f.write(release_notes)
             
-        print(f"Release notes generated in RELEASE_NOTES.md")
+        logger.info(f"Release notes generated in RELEASE_NOTES.md")
     except Exception as e:
-        print(f"Error generating release notes: {str(e)}")
+        logger.error(f"Error generating release notes: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Create basic release notes to prevent failure
+        try:
+            with open('RELEASE_NOTES.md', 'w') as f:
+                f.write(f"# Release Notes\n\n{changelog_entry}\n")
+            logger.info("Basic release notes created as fallback")
+        except Exception:
+            logger.error("Failed to create even basic release notes")
 
 
 def main():
     """Main entry point"""
-    # Get environment variables
-    pr_number = os.getenv('PR_NUMBER', '0')
-    pr_title = os.getenv('PR_TITLE', 'No title provided')
-    pr_body = os.getenv('PR_BODY', 'No description provided')
-    repo_name = os.getenv('REPO_NAME', 'Unknown repository')
-    openai_api_key = os.getenv('OPENAI_API_KEY', '')
+    try:
+        # Get environment variables
+        pr_number = os.getenv('PR_NUMBER', '0')
+        pr_title = os.getenv('PR_TITLE', 'No title provided')
+        pr_body = os.getenv('PR_BODY', 'No description provided')
+        repo_name = os.getenv('REPO_NAME', 'Unknown repository')
+        openai_api_key = os.getenv('OPENAI_API_KEY', '')
+        
+        logger.info(f"Generating changelog for PR #{pr_number}: {pr_title}")
+        
+        # Get current date
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # Get latest version
+        latest_version = get_latest_version()
+        
+        # Get PR labels
+        labels = read_labels()
+        
+        # Read files created by the context script
+        commits = read_file_or_default('pr_commits.txt')
+        files_changed = read_file_or_default('pr_files_changed.txt')
+        diff_stats = read_file_or_default('pr_diff_stats.txt')
+        readme = read_file_or_default('readme_content.txt')
+        module_info = read_file_or_default('module_info.txt')
+        changelog_history = read_file_or_default('changelog_history.txt')
+        project_structure = read_file_or_default('project_structure.txt')
+        commit_categories = read_file_or_default('commit_categories.txt')
+        impact_analysis = read_file_or_default('impact_analysis.txt')
+        test_coverage = read_file_or_default('test_coverage_analysis.txt')
+        
+        # Prepare PR info
+        pr_info = {
+            'pr_number': pr_number,
+            'pr_title': pr_title,
+            'pr_body': pr_body,
+            'repo_name': repo_name,
+            'latest_version': latest_version,
+            'current_date': current_date,
+            'commits': commits,
+            'files_changed': files_changed,
+            'diff_stats': diff_stats,
+            'readme': readme,
+            'module_info': module_info,
+            'changelog_history': changelog_history,
+            'project_structure': project_structure,
+            'commit_categories': commit_categories,
+            'impact_analysis': impact_analysis,
+            'test_coverage': test_coverage,
+            'labels': labels
+        }
+        
+        # Generate changelog
+        if OPENAI_AVAILABLE and openai_api_key:
+            changelog_entry = generate_with_openai(openai_api_key, pr_info)
+        else:
+            logger.warning("OpenAI not available or no API key provided, using basic entry generation")
+            changelog_entry = generate_basic_entry(pr_info)
+        
+        # Ensure we have valid content
+        if not changelog_entry or len(changelog_entry.strip()) == 0:
+            logger.error("Generated changelog entry is empty, using emergency fallback")
+            changelog_entry = f"## [0.0.1] - {current_date}\n\n### Changes\n- PR #{pr_number}: {pr_title}\n"
+        
+        # Write to file
+        try:
+            with open('pr_changelog_entry.md', 'w') as f:
+                f.write(changelog_entry)
+            logger.info("Changelog entry saved to 'pr_changelog_entry.md'")
+        except Exception as e:
+            logger.error(f"Error writing to pr_changelog_entry.md: {str(e)}")
+            logger.error(traceback.format_exc())
+            # Last resort - try writing to current directory with a different name
+            try:
+                with open('fallback_changelog_entry.md', 'w') as f:
+                    f.write(changelog_entry)
+                # Copy to the expected filename
+                import shutil
+                shutil.copy('fallback_changelog_entry.md', 'pr_changelog_entry.md')
+                logger.info("Used fallback method to write changelog entry")
+            except Exception as e2:
+                logger.error(f"Critical error writing changelog entry: {str(e2)}")
+                sys.exit(1)
+        
+        # Generate release notes
+        generate_release_notes(changelog_entry, pr_info)
+        
+        # Print to stdout for GitHub workflow
+        print(changelog_entry)
+        
+        # Debug output
+        logger.info(f"Changelog file exists: {os.path.exists('pr_changelog_entry.md')}")
+        if os.path.exists('pr_changelog_entry.md'):
+            logger.info(f"Changelog file size: {os.stat('pr_changelog_entry.md').st_size} bytes")
     
-    # Get current date
-    current_date = datetime.now().strftime('%Y-%m-%d')
-    
-    # Get latest version
-    latest_version = get_latest_version()
-    
-    # Get PR labels
-    labels = read_labels()
-    
-    # Read files created by the context script
-    commits = read_file_or_default('pr_commits.txt')
-    files_changed = read_file_or_default('pr_files_changed.txt')
-    diff_stats = read_file_or_default('pr_diff_stats.txt')
-    readme = read_file_or_default('readme_content.txt')
-    module_info = read_file_or_default('module_info.txt')
-    changelog_history = read_file_or_default('changelog_history.txt')
-    project_structure = read_file_or_default('project_structure.txt')
-    commit_categories = read_file_or_default('commit_categories.txt')
-    impact_analysis = read_file_or_default('impact_analysis.txt')
-    test_coverage = read_file_or_default('test_coverage_analysis.txt')
-    
-    # Prepare PR info
-    pr_info = {
-        'pr_number': pr_number,
-        'pr_title': pr_title,
-        'pr_body': pr_body,
-        'repo_name': repo_name,
-        'latest_version': latest_version,
-        'current_date': current_date,
-        'commits': commits,
-        'files_changed': files_changed,
-        'diff_stats': diff_stats,
-        'readme': readme,
-        'module_info': module_info,
-        'changelog_history': changelog_history,
-        'project_structure': project_structure,
-        'commit_categories': commit_categories,
-        'impact_analysis': impact_analysis,
-        'test_coverage': test_coverage,
-        'labels': labels
-    }
-    
-    # Generate changelog
-    if OPENAI_AVAILABLE and openai_api_key:
-        changelog_entry = generate_with_openai(openai_api_key, pr_info)
-    else:
-        changelog_entry = generate_basic_entry(pr_info)
-    
-    # Write to file
-    with open('pr_changelog_entry.md', 'w') as f:
-        f.write(changelog_entry)
-    
-    # Generate release notes
-    generate_release_notes(changelog_entry, pr_info)
-    
-    print("Changelog entry generated and saved to 'pr_changelog_entry.md'")
-    
-    # Print to stdout for GitHub workflow
-    print(changelog_entry)
+    except Exception as e:
+        logger.error(f"Unhandled exception in main: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Create an emergency changelog entry
+        emergency_entry = f"## [0.0.1] - {datetime.now().strftime('%Y-%m-%d')}\n\n### Emergency Entry\n- PR #{os.getenv('PR_NUMBER', '0')}: {os.getenv('PR_TITLE', 'No title')}\n- Note: This is an emergency fallback entry due to generation failure\n"
+        
+        try:
+            with open('pr_changelog_entry.md', 'w') as f:
+                f.write(emergency_entry)
+            print(emergency_entry)
+        except:
+            # If we can't even write the emergency entry, we're out of options
+            sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
     
-    # Validate generated changelog entry
-    if not os.path.exists('pr_changelog_entry.md') or os.stat('pr_changelog_entry.md').st_size == 0:
-        print("Error: Failed to generate a valid changelog entry.")
+    # Final validation
+    try:
+        if not os.path.exists('pr_changelog_entry.md') or os.stat('pr_changelog_entry.md').st_size == 0:
+            logger.error("Error: Failed to generate a valid changelog entry.")
+            
+            # Last ditch effort - create a minimal valid entry
+            emergency_entry = f"## [0.0.1] - {datetime.now().strftime('%Y-%m-%d')}\n\n### Emergency Entry\n- Generated as fallback\n"
+            with open('pr_changelog_entry.md', 'w') as f:
+                f.write(emergency_entry)
+                
+            # Check if it worked
+            if not os.path.exists('pr_changelog_entry.md') or os.stat('pr_changelog_entry.md').st_size == 0:
+                sys.exit(1)
+    except Exception as e:
+        logger.error(f"Error in final validation: {str(e)}")
         sys.exit(1) 

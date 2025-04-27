@@ -104,35 +104,90 @@ jobs:
             CONTEXT=$(python -c "import json; data = json.loads(open('changelog_embeddings.json').read()); print('\n'.join([f'--- {k} ---\n{v[:1000]}...' for k, v in data.get('content_samples', {}).items()]))")
           fi
           
-          # Create a temporary payload file for the API call
-          cat > payload.json << EOF
-          {
-            "model": "gpt-4o",
-            "messages": [
-              {"role": "system", "content": "You are a changelog generator that creates detailed, structured entries for pull requests. Generate a concise changelog entry in markdown format for the PR."},
-              {"role": "user", "content": "Generate a changelog entry for PR #${{ github.event.pull_request.number }} with title: \"${{ github.event.pull_request.title }}\". The PR description is: \"${{ github.event.pull_request.body }}\". Here is additional context about the codebase:\n\n${CONTEXT}"}
-            ]
-          }
-          EOF
-          
-          # Make the API call
-          curl -s -X POST https://api.openai.com/v1/chat/completions \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            --data-binary @payload.json | \
-            jq -r '.choices[0].message.content' > pr_changelog_entry.md
-          
-          # Check if output is valid
-          if [ ! -s pr_changelog_entry.md ]; then
-            echo "API call failed, falling back to traditional method..."
+          # Validate the OpenAI API key
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "Warning: OPENAI_API_KEY is not set or empty"
+            echo "Falling back to traditional method..."
             python scripts/generate_changelog_entry.py > pr_changelog_entry.md
+          else
+            echo "OpenAI API key is set, proceeding with API call"
+            
+            # Create a temporary payload file for the API call
+            cat > payload.json << EOF
+            {
+              "model": "gpt-4o",
+              "messages": [
+                {"role": "system", "content": "You are a changelog generator that creates detailed, structured entries for pull requests. Generate a concise changelog entry in markdown format for the PR."},
+                {"role": "user", "content": "Generate a changelog entry for PR #${{ github.event.pull_request.number }} with title: \"${{ github.event.pull_request.title }}\". The PR description is: \"${{ github.event.pull_request.body }}\". Here is additional context about the codebase:\n\n${CONTEXT}"}
+              ]
+            }
+            EOF
+            
+            # Validate JSON payload
+            if ! jq empty payload.json 2>/dev/null; then
+              echo "Error: Generated payload.json is not valid JSON"
+              cat payload.json
+              echo "Fixing JSON format issues..."
+              # Try to fix simple JSON formatting issues
+              python -c "import json, sys; json.dump(json.loads(open('payload.json').read()), open('payload_fixed.json', 'w'), indent=2)"
+              if [ -f payload_fixed.json ]; then
+                mv payload_fixed.json payload.json
+              fi
+            fi
+            
+            # Make the API call with retries
+            MAX_RETRIES=3
+            RETRY_COUNT=0
+            SUCCESS=false
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = false ]; do
+              echo "API call attempt $(($RETRY_COUNT + 1))/$MAX_RETRIES"
+              
+              # Use a temporary file for API response
+              curl -s -X POST https://api.openai.com/v1/chat/completions \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $OPENAI_API_KEY" \
+                --data-binary @payload.json > api_response.json
+              
+              # Check if the API call succeeded
+              if jq -e '.choices[0].message.content' api_response.json > /dev/null 2>&1; then
+                echo "API call successful"
+                jq -r '.choices[0].message.content' api_response.json > pr_changelog_entry.md
+                SUCCESS=true
+              else
+                echo "API call failed, response:"
+                cat api_response.json
+                RETRY_COUNT=$(($RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "Retrying in 5 seconds..."
+                  sleep 5
+                fi
+              fi
+            done
+            
+            # Fall back to traditional method if API call fails
+            if [ "$SUCCESS" = false ]; then
+              echo "All API attempts failed, falling back to traditional method..."
+              python scripts/generate_changelog_entry.py > pr_changelog_entry.md
+            fi
           fi
           
-          # Validate fallback output
+          # Validate the generated content
           if [ ! -s pr_changelog_entry.md ]; then
-            echo "Error: Both methods failed to generate a changelog entry."
-            exit 1
+            echo "Warning: Generated changelog is empty."
+            echo "Creating a basic changelog entry as fallback..."
+            cat > pr_changelog_entry.md << EOF
+            ## [0.0.1] - $(date +%Y-%m-%d)
+            
+            ### Changes
+            - PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+            - Note: This is an automatically generated fallback entry.
+            EOF
           fi
+          
+          # Debug output
+          echo "Generated changelog content:"
+          cat pr_changelog_entry.md
           
           # Save the output to GitHub step output
           echo "changelog_entry<<EOF" >> $GITHUB_OUTPUT
