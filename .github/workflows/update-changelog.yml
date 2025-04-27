@@ -79,9 +79,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_NAME: ${{ github.repository }}
         run: |
-          # Use the embedding-based approach for more efficient token usage
-          # Read the embeddings
-          EMBEDDINGS=$(cat changelog_embeddings.json)
+          # Attempt embedding-based approach
+          EMBEDDINGS=$(cat changelog_embeddings.json || echo "{}")
           
           # Create a temporary payload file for the API call
           cat > payload.json << 'EOF'
@@ -104,15 +103,20 @@ jobs:
             --data-binary @payload.json | \
             jq -r '.choices[0].message.content' > pr_changelog_entry.md
           
-          # Save the output to GitHub step output
-          cat pr_changelog_entry.md >> $GITHUB_OUTPUT
-          
-          # Fallback to traditional method if embedding approach fails
+          # Check if embedding-based output is valid
           if [ ! -s pr_changelog_entry.md ]; then
             echo "Embedding approach failed, falling back to traditional method..."
-            python scripts/generate_changelog_entry.py > changelog_output.txt
-            cat pr_changelog_entry.md >> $GITHUB_OUTPUT
+            python scripts/generate_changelog_entry.py > pr_changelog_entry.md
           fi
+          
+          # Validate fallback output
+          if [ ! -s pr_changelog_entry.md ]; then
+            echo "Error: Both embedding and fallback methods failed to generate a changelog entry."
+            exit 1
+          fi
+          
+          # Save the output to GitHub step output
+          cat pr_changelog_entry.md >> $GITHUB_OUTPUT
 
       - name: Generate visual changelog
         env:
