@@ -1,4 +1,4 @@
-name: Test Current Commit
+name: Unit Tests
 
 on:
   pull_request:
