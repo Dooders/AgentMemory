@@ -116,7 +116,9 @@ jobs:
           fi
           
           # Save the output to GitHub step output
+          echo "changelog_entry<<EOF" >> $GITHUB_OUTPUT
           cat pr_changelog_entry.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Generate visual changelog
         env:
