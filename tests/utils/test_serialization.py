@@ -414,8 +414,11 @@ class TestMemorySystemSerialization(unittest.TestCase):
         # Set the validator to return True
         mock_validate.return_value = True
         
-        # Create a mock memory agent
+        # Create a mock memory agent with mock store attributes
         mock_memory_agent = MagicMock()
+        mock_memory_agent.stm_store = MagicMock()
+        mock_memory_agent.im_store = MagicMock()
+        mock_memory_agent.ltm_store = MagicMock()
         
         # Configure the mock memory system to return the mock agent
         mock_memory_system = MagicMock()
@@ -439,10 +442,14 @@ class TestMemorySystemSerialization(unittest.TestCase):
         # Verify the validation was called
         mock_validate.assert_called_once()
         
-        # Verify memory agent was created and memories were added
+        # Verify memory agent was created and memories were added to the correct stores
         mock_memory_system.get_memory_agent.assert_called_once_with("agent_1")
-        self.assertEqual(mock_memory_agent.store_state.call_count, 1)
-        self.assertEqual(mock_memory_agent.store_interaction.call_count, 1)
+        
+        # Verify that the stm_store.store was called for the state memory
+        self.assertEqual(mock_memory_agent.stm_store.store.call_count, 1)
+        
+        # Verify that the im_store.store was called for the interaction memory
+        self.assertEqual(mock_memory_agent.im_store.store.call_count, 1)
 
     @patch('memory.schema.validate_memory_system_json')
     def test_load_memory_system_validation_failure(self, mock_validate):
