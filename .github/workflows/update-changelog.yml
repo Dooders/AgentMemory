@@ -1,0 +1,212 @@
+name: Update Changelog on PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+jobs:
+  generate-pr-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install openai markdown matplotlib numpy tiktoken
+
+      - name: Get PR diff information
+        id: get_pr_diff
+        run: |
+          # Get the base and head commits for the PR
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          
+          # Get commits in this PR
+          git log --pretty=format:"%h - %s (%an)" $PR_BASE_SHA..$PR_HEAD_SHA > pr_commits.txt
+          
+          # Get files changed in this PR
+          git diff --name-status $PR_BASE_SHA..$PR_HEAD_SHA > pr_files_changed.txt
+          
+          # Get detailed diff of changed files (for context)
+          git diff --stat $PR_BASE_SHA..$PR_HEAD_SHA > pr_diff_stats.txt
+          
+          # Output for debugging
+          echo "PR diff between: $PR_BASE_SHA and $PR_HEAD_SHA"
+
+      - name: Analyze PR labels
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          gh pr view $PR_NUMBER --json labels -q '.labels[].name' > pr_labels.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Gather library context
+        id: gather_context
+        run: |
+          # Run the context extraction script
+          python scripts/extract_changelog_context.py
+
+      - name: Create context embeddings
+        id: create_embeddings
+        env:
+          OPENAI_API_KEY: ${{ vars.OPENAI_API_KEY || secrets.OPENAI_API_KEY }}
+        run: |
+          # Generate embeddings for all context files to reduce token usage
+          python scripts/create_changelog_embeddings.py
+          
+          # Store embedding statistics for monitoring
+          echo "Embedding stats:"
+          python -c "import json; from pathlib import Path; data = json.loads(Path('changelog_embeddings.json').read_text()); print(f'Total files embedded: {len(data[\"embeddings\"])}'); total_tokens = sum(data['token_counts'].values()); print(f'Total tokens in original files: {total_tokens}')"
+
+      - name: Generate changelog entry for PR
+        id: generate_pr_changelog
+        env:
+          OPENAI_API_KEY: ${{ vars.OPENAI_API_KEY || secrets.OPENAI_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          # Use the embedding-based approach for more efficient token usage
+          # Read the embeddings
+          EMBEDDINGS=$(cat changelog_embeddings.json)
+          
+          # Create a temporary payload file for the API call
+          cat > payload.json << 'EOF'
+          {
+            "model": "gpt-4o",
+            "messages": [
+              {"role": "system", "content": "You are a changelog generator that creates detailed, structured entries for pull requests. Generate a concise changelog entry in markdown format for the PR."},
+              {"role": "user", "content": "Generate a changelog entry for PR #${{ github.event.pull_request.number }} with title: \"${{ github.event.pull_request.title }}\". The PR description is: \"${{ github.event.pull_request.body }}\". Use the context embeddings to understand the codebase and create an appropriate entry."}
+            ],
+            "context_embeddings": 
+          EOF
+          
+          # Append the embeddings JSON content to the payload
+          cat changelog_embeddings.json >> payload.json
+          
+          # Make the API call
+          curl -s -X POST https://api.openai.com/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            --data-binary @payload.json | \
+            jq -r '.choices[0].message.content' > pr_changelog_entry.md
+          
+          # Save the output to GitHub step output
+          cat pr_changelog_entry.md >> $GITHUB_OUTPUT
+          
+          # Fallback to traditional method if embedding approach fails
+          if [ ! -s pr_changelog_entry.md ]; then
+            echo "Embedding approach failed, falling back to traditional method..."
+            python scripts/generate_changelog_entry.py > changelog_output.txt
+            cat pr_changelog_entry.md >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate visual changelog
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          # Generate visual HTML changelog
+          python scripts/generate_changelog_html.py
+
+      - name: Create or update PR changelog file
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          # Create the PR comment and save to a file
+          cat pr_changelog_entry.md > "PR_${PR_NUMBER}_CHANGELOG.md"
+          
+          # Prepare comment with links to assets
+          echo "## Changelog Preview for this PR:" > pr_comment.txt
+          echo "" >> pr_comment.txt
+          cat pr_changelog_entry.md >> pr_comment.txt
+          echo "" >> pr_comment.txt
+          echo "### Additional resources:" >> pr_comment.txt
+          echo "- [Release Notes](RELEASE_NOTES.md)" >> pr_comment.txt
+          echo "" >> pr_comment.txt
+          echo "This will be automatically added to CHANGELOG.md when merged." >> pr_comment.txt
+          echo "" >> pr_comment.txt
+          echo "💡 *Generated using vector embeddings for efficient token usage*" >> pr_comment.txt
+          
+          # Add a comment to the PR with the changelog preview
+          gh pr comment $PR_NUMBER --body-file pr_comment.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload changelog assets
+        uses: actions/upload-artifact@v3
+        with:
+          name: changelog-assets
+          path: |
+            pr_changelog_entry.md
+            RELEASE_NOTES.md
+            changelog_visual.html
+            impact_analysis.txt
+            test_coverage_analysis.txt
+            impact_analysis.json
+            commit_categories.json
+            commit_categories.txt
+            changelog_embeddings.json
+
+  update-changelog-on-merge:
+    runs-on: ubuntu-latest
+    # Only run this job when PR is merged to main
+    if: github.event.pull_request.merged == true
+    needs: generate-pr-changelog
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # We need to use a token with write permissions to push to main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download changelog assets
+        uses: actions/download-artifact@v3
+        with:
+          name: changelog-assets
+
+      - name: Update CHANGELOG.md
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            NEW_ENTRY=$(cat pr_changelog_entry.md)
+            EXISTING=$(cat CHANGELOG.md)
+            echo -e "$NEW_ENTRY\n\n$EXISTING" > CHANGELOG.md
+          else
+            HEADER="# Changelog\n\n"
+            NEW_ENTRY=$(cat pr_changelog_entry.md)
+            echo -e "$HEADER$NEW_ENTRY" > CHANGELOG.md
+          fi
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md
+          
+          # Also add release assets if available
+          if [ -f RELEASE_NOTES.md ]; then
+            git add RELEASE_NOTES.md
+          fi
+          if [ -f changelog_visual.html ]; then
+            git add changelog_visual.html
+          fi
+          
+          git commit -m "Update CHANGELOG.md with changes from PR #${{ github.event.pull_request.number }}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
