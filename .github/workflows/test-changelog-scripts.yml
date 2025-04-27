@@ -1,14 +1,18 @@
-name: Test Changelog Scripts
+name: Test Changelog Scripts (Disabled)
 
+# Workflow is disabled by only allowing manual triggers
+# To re-enable automatic triggers, uncomment the push/pull_request sections
 on:
-  push:
-    paths:
-      - 'scripts/**'
-      - '.github/workflows/test-changelog-scripts.yml'
-  pull_request:
-    paths:
-      - 'scripts/**'
-      - '.github/workflows/test-changelog-scripts.yml'
+  # Manual trigger only
+  workflow_dispatch:
+  # push:
+  #   paths:
+  #     - 'scripts/**'
+  #     - '.github/workflows/test-changelog-scripts.yml'
+  # pull_request:
+  #   paths:
+  #     - 'scripts/**'
+  #     - '.github/workflows/test-changelog-scripts.yml'
 
 jobs:
   test:
