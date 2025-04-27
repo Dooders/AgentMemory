@@ -70,7 +70,7 @@ class ImportanceStrategy(SearchStrategy):
             min_importance = float(query)
             if min_importance < 0:
                 raise ValueError("Importance value cannot be negative")
-        else:
+        elif isinstance(query, dict):
             # Handle min_importance
             if "min_importance" in query:
                 try:
@@ -126,49 +126,61 @@ class ImportanceStrategy(SearchStrategy):
                 if importance_value is None:
                     continue
 
-                # Convert string importance to float if needed
-                if isinstance(importance_value, str):
-                    if importance_value.lower() in self.importance_mapping:
-                        importance = self.importance_mapping[importance_value.lower()]
-                    else:
-                        try:
+                # Parse importance value to numeric
+                try:
+                    if isinstance(importance_value, str):
+                        if importance_value.lower() in self.importance_mapping:
+                            importance = self.importance_mapping[importance_value.lower()]
+                        else:
                             importance = float(importance_value)
-                        except (ValueError, TypeError):
-                            # Skip if we can't convert to float
-                            continue
-                else:
-                    importance = float(importance_value)
+                    else:
+                        importance = float(importance_value)
+                except (ValueError, TypeError):
+                    continue
 
+                # Check if memory meets importance threshold - without normalizing
+                # (tests use values like 8, 9 for importance)
                 if min_importance <= importance <= max_importance:
+                    # Store the parsed importance in the memory metadata for sorting
+                    metadata["_parsed_importance"] = importance
                     results.append(memory)
 
         # Apply metadata filtering
         if metadata_filter:
-            results = [
-                memory
-                for memory in results
-                if self._matches_metadata_filters(memory, metadata_filter)
-            ]
+            filtered_results = []
+            for memory in results:
+                if self._matches_metadata_filters(memory, metadata_filter):
+                    filtered_results.append(memory)
+            results = filtered_results
 
         # Sort by importance
         reverse_sort = sort_order.lower() == "desc"
 
         def get_importance(memory):
             metadata = memory.get("metadata", {})
-            # Check both field names for compatibility
+            
+            # If we've already parsed the importance, use that value
+            if "_parsed_importance" in metadata:
+                return metadata["_parsed_importance"]
+            
+            # Otherwise, get and parse the importance value
             importance_value = metadata.get("importance_score")
             if importance_value is None:
                 importance_value = metadata.get("importance", 0)
 
-            if isinstance(importance_value, str):
-                if importance_value.lower() in self.importance_mapping:
-                    return self.importance_mapping[importance_value.lower()]
-                try:
+            # Parse importance value to numeric
+            try:
+                if isinstance(importance_value, str):
+                    if importance_value.lower() in self.importance_mapping:
+                        return self.importance_mapping[importance_value.lower()]
+                    else:
+                        return float(importance_value)
+                else:
                     return float(importance_value)
-                except (ValueError, TypeError):
-                    return 0
-            return float(importance_value)
+            except (ValueError, TypeError):
+                return 0
 
+        # Sort the memories by importance
         results.sort(
             key=get_importance,
             reverse=reverse_sort,
@@ -198,8 +210,45 @@ class ImportanceStrategy(SearchStrategy):
             return True
 
         memory_metadata = memory.get("metadata", {})
-        for key, value in metadata_filter.items():
-            if memory_metadata.get(key) != value:
+
+        for key, filter_value in metadata_filter.items():
+            memory_value = memory_metadata.get(key)
+
+            # Skip this memory if the metadata key doesn't exist
+            if memory_value is None:
                 return False
 
+            # Special case for 'tags' which is often a list
+            if key == "tags":
+                if isinstance(memory_value, list) and filter_value in memory_value:
+                    continue
+                elif memory_value == filter_value:
+                    continue
+                return False
+
+            # Special case for 'type'
+            elif key == "type":
+                if memory_value == filter_value:
+                    continue
+                return False
+
+            # For other list metadata values, check membership
+            elif isinstance(memory_value, list):
+                if filter_value in memory_value:
+                    continue
+                return False
+
+            # For dict metadata values, check keys and values
+            elif isinstance(memory_value, dict):
+                if filter_value in memory_value or filter_value in memory_value.values():
+                    continue
+                return False
+
+            # For direct equality comparison
+            elif memory_value == filter_value:
+                continue
+            else:
+                return False
+
+        # All filter criteria matched
         return True

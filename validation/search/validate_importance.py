@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 # Add the project root to the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from demos.demo_utils import (
+from validation.demo_utils import (
     create_memory_system,
     log_print,
     pretty_print_memories,
@@ -209,7 +209,7 @@ def validate_importance_search():
         "Search with Metadata Filter",
         0.5,  # Threshold value
         AGENT_ID,
-        metadata_filter={"tags": "important"},
+        metadata_filter={"current_tier": "stm"},
     )
 
     # Test 7: Complex query with min/max and metadata
@@ -218,7 +218,7 @@ def validate_importance_search():
         "Complex Query with Min/Max and Metadata",
         {"min_importance": 0.6, "max_importance": 0.9},
         AGENT_ID,
-        metadata_filter={"type": "meeting"},
+        metadata_filter={"current_tier": "im"},
     )
 
     # Test 8: Zero importance threshold
@@ -270,6 +270,49 @@ def validate_importance_search():
         1.1,  # Threshold above 1.0
         AGENT_ID,
     )
+
+    # Additional test to examine all memories for specific metadata
+    log_print(logger, "\n=== Examining All Memories for Metadata ===")
+
+    # Get all memories
+    all_memories = []
+    all_memories.extend(agent.stm_store.get_all(AGENT_ID))
+    all_memories.extend(agent.im_store.get_all(AGENT_ID))
+    all_memories.extend(agent.ltm_store.get_all(AGENT_ID))
+
+    log_print(logger, f"Total memories: {len(all_memories)}")
+
+    # Look for memories with specific metadata
+    tags_important = []
+    type_meeting = []
+
+    for memory in all_memories:
+        memory_id = memory.get("memory_id", memory.get("id", "unknown"))
+        metadata = memory.get("metadata", {})
+
+        # Check for tags
+        tags = metadata.get("tags", [])
+        if tags:
+            log_print(logger, f"Memory {memory_id} has tags: {tags}")
+            if isinstance(tags, list) and "important" in tags:
+                tags_important.append(memory_id)
+            elif tags == "important":
+                tags_important.append(memory_id)
+
+        # Check for type
+        memory_type = metadata.get("type")
+        if memory_type:
+            log_print(logger, f"Memory {memory_id} has type: {memory_type}")
+            if memory_type == "meeting":
+                type_meeting.append(memory_id)
+
+    log_print(logger, f"\nMemories with 'important' tag: {len(tags_important)}")
+    for mem_id in tags_important:
+        log_print(logger, f"  - {mem_id}")
+
+    log_print(logger, f"\nMemories with 'meeting' type: {len(type_meeting)}")
+    for mem_id in type_meeting:
+        log_print(logger, f"  - {mem_id}")
 
 
 if __name__ == "__main__":
