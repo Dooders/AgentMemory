@@ -113,7 +113,7 @@ jobs:
             echo "OpenAI API key is set, proceeding with API call"
             
             # Create a temporary payload file for the API call
-            cat > payload.json << EOF
+            cat > payload.json << 'EOF'
             {
               "model": "gpt-4o",
               "messages": [
@@ -125,14 +125,8 @@ jobs:
             
             # Validate JSON payload
             if ! jq empty payload.json 2>/dev/null; then
-              echo "Error: Generated payload.json is not valid JSON"
-              cat payload.json
-              echo "Fixing JSON format issues..."
-              # Try to fix simple JSON formatting issues
-              python -c "import json, sys; json.dump(json.loads(open('payload.json').read()), open('payload_fixed.json', 'w'), indent=2)"
-              if [ -f payload_fixed.json ]; then
-                mv payload_fixed.json payload.json
-              fi
+              echo "Error: Invalid JSON format in payload.json"
+              exit 1
             fi
             
             # Make the API call with retries
@@ -176,7 +170,7 @@ jobs:
           if [ ! -s pr_changelog_entry.md ]; then
             echo "Warning: Generated changelog is empty."
             echo "Creating a basic changelog entry as fallback..."
-            cat > pr_changelog_entry.md << EOF
+            cat > pr_changelog_entry.md << 'EOF'
             ## [0.0.1] - $(date +%Y-%m-%d)
             
             ### Changes
