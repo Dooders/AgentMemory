@@ -84,7 +84,7 @@ jobs:
 
           # Store embedding statistics for monitoring
           echo "Embedding stats:"
-          python -c "import json; from pathlib import Path; data = json.loads(Path('changelog_embeddings.json').read_text()); print(f'Total files embedded: {len(data[\"embeddings\"])}'); total_tokens = sum(data['token_counts'].values()); print(f'Total tokens in original files: {total_tokens}')"
+          python -c "import json; from pathlib import Path; data = json.loads(Path('changelog_embeddings.json').read_text()); print(f\"\"\"Total files embedded: {len(data['embeddings'])}\"\"\"); total_tokens = sum(data['token_counts'].values()); print(f\"\"\"Total tokens in original files: {total_tokens}\"\"\")"
 
       - name: Generate changelog entry for PR
         id: generate_pr_changelog
