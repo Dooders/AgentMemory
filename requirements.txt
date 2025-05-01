@@ -15,7 +15,7 @@ deepdiff
 # Neural embedding dependencies
 torch
 transformers
-# sentence-transformers
+sentence-transformers
 scikit-learn
 faiss-cpu
 
@@ -25,3 +25,12 @@ sqlite3-plus
 # Testing dependencies
 pytest
 pytest-asyncio 
+
+matplotlib
+numpy
+tiktoken
+openai
+
+# Additional needed dependencies
+redis[hiredis]
+markdown

@@ -1,0 +1,48 @@
+name: Test Changelog Scripts (Disabled)
+
+# Workflow is disabled by only allowing manual triggers
+# To re-enable automatic triggers, uncomment the push/pull_request sections
+on:
+  # Manual trigger only
+  workflow_dispatch:
+  # push:
+  #   paths:
+  #     - 'scripts/**'
+  #     - '.github/workflows/test-changelog-scripts.yml'
+  # pull_request:
+  #   paths:
+  #     - 'scripts/**'
+  #     - '.github/workflows/test-changelog-scripts.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install markdown matplotlib
+          # Install any other dependencies your project needs
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Run unit tests for extract_changelog_context.py
+        run: python -m scripts.test_extract_changelog_context
+
+      - name: Run unit tests for generate_changelog_entry.py
+        run: python -m scripts.test_generate_changelog_entry
+
+      - name: Run unit tests for generate_changelog_html.py
+        run: python -m scripts.test_generate_changelog_html
+
+      - name: Run integration tests
+        run: python -m scripts.integration_test_changelog 

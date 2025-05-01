@@ -1,0 +1,48 @@
+# Git
+.git
+.github
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# DB files (unless you need them)
+*.db
+
+# Benchmark results
+benchmark_results/
+
+# VSCode
+.vscode/
+
+# Other
+*.log
+*.swp
+.DS_Store 
