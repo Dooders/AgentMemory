@@ -480,7 +480,7 @@ class RedisIMStore:
             )
             return False
 
-    def get(self, agent_id: str, memory_id: str, skip_validation: bool = False) -> Optional[MemoryEntry]:
+    def get(self, agent_id: str, memory_id: str, skip_validation: bool = True) -> Optional[MemoryEntry]:
         """Retrieve a memory entry by ID.
 
         Args:
@@ -616,7 +616,7 @@ class RedisIMStore:
         return memory_entry
 
     def get_by_timerange(
-        self, agent_id: str, start_time: float, end_time: float, limit: int = 100, skip_validation: bool = False
+        self, agent_id: str, start_time: float, end_time: float, limit: int = 100, skip_validation: bool = True
     ) -> List[MemoryEntry]:
         """Retrieve memories within a time range.
 
@@ -713,7 +713,7 @@ class RedisIMStore:
         min_importance: float = 0.0,
         max_importance: float = 1.0,
         limit: int = 100,
-        skip_validation: bool = False,
+        skip_validation: bool = True,
     ) -> List[MemoryEntry]:
         """Retrieve memories by importance score range.
 
@@ -1341,7 +1341,7 @@ class RedisIMStore:
             logger.exception("Error retrieving memory size for agent %s", agent_id)
             return 0
 
-    def get_all(self, agent_id: str, limit: int = 1000, skip_validation: bool = False) -> List[MemoryEntry]:
+    def get_all(self, agent_id: str, limit: int = 1000, skip_validation: bool = True) -> List[MemoryEntry]:
         """Get all memories for an agent.
 
         Args:

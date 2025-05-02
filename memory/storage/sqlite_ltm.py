@@ -555,7 +555,7 @@ class SQLiteLTMStore:
             logger.error("Unexpected error storing batch of memories: %s", str(e))
             return False
 
-    def get(self, memory_id: str, agent_id: str, skip_validation: bool = False) -> Optional[Dict[str, Any]]:
+    def get(self, memory_id: str, agent_id: str, skip_validation: bool = True) -> Optional[Dict[str, Any]]:
         """Retrieve a memory by ID.
 
         Args:
@@ -711,7 +711,7 @@ class SQLiteLTMStore:
         end_time: Union[float, int, str],
         agent_id: str = None,
         limit: int = 100,
-        skip_validation: bool = False,
+        skip_validation: bool = True,
     ) -> List[Dict[str, Any]]:
         """Retrieve memories within a time range.
 
@@ -800,7 +800,7 @@ class SQLiteLTMStore:
         min_importance: float = 0.0,
         max_importance: float = 1.0,
         limit: int = 100,
-        skip_validation: bool = False,
+        skip_validation: bool = True,
     ) -> List[Dict[str, Any]]:
         """Retrieve memories by importance score.
 
@@ -858,7 +858,7 @@ class SQLiteLTMStore:
         query_vector: List[float],
         top_k: int = 10,
         agent_id: str = None,
-        skip_validation: bool = False,
+        skip_validation: bool = True,
     ) -> List[Tuple[Dict[str, Any], float]]:
         """Retrieve memories most similar to the query vector.
 
@@ -940,7 +940,7 @@ class SQLiteLTMStore:
         k: int = 5,
         memory_type: Optional[str] = None,
         agent_id: str = None,
-        skip_validation: bool = False,
+        skip_validation: bool = True,
     ) -> List[Dict[str, Any]]:
         """Search for memories with similar embeddings.
 
@@ -1161,7 +1161,7 @@ class SQLiteLTMStore:
             logger.error("Unexpected error calculating memory size: %s", str(e))
             return 0
 
-    def get_all(self, agent_id: str = None, limit: int = 1000, skip_validation: bool = False) -> List[Dict[str, Any]]:
+    def get_all(self, agent_id: str = None, limit: int = 1000, skip_validation: bool = True) -> List[Dict[str, Any]]:
         """Get all memories for the agent.
 
         Args:
@@ -1342,7 +1342,7 @@ class SQLiteLTMStore:
         start_step: int,
         end_step: int,
         memory_type: Optional[str] = None,
-        skip_validation: bool = False,
+        skip_validation: bool = True,
     ) -> List[Dict[str, Any]]:
         """Search for memories within a specific step range.
 

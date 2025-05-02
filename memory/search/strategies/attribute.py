@@ -33,7 +33,7 @@ class AttributeSearchStrategy(SearchStrategy):
         im_store: RedisIMStore,
         ltm_store: SQLiteLTMStore,
         scoring_method: str = "length_ratio",
-        skip_validation: bool = False,
+        skip_validation: bool = True,
     ):
         """Initialize the attribute search strategy.
 
@@ -146,7 +146,7 @@ class AttributeSearchStrategy(SearchStrategy):
         case_sensitive: bool = False,
         use_regex: bool = False,
         scoring_method: Optional[str] = None,
-        skip_validation: Optional[bool] = None,
+        skip_validation: Optional[bool] = True,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """Search for memories based on content and metadata attributes.
