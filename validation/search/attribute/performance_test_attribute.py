@@ -21,7 +21,7 @@ from memory_profiler import profile
 import logging
 
 # Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 # Suppress checksum validation warnings - important to set this before imports
 logging.getLogger('memory.storage.redis_im').setLevel(logging.ERROR)
