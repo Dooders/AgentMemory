@@ -22,7 +22,9 @@ from memory.search.strategies.attribute import AttributeSearchStrategy
 
 # Constants
 AGENT_ID = "test-agent-attribute-search"
-MEMORY_SAMPLE = os.path.join("memory_samples", "attribute_validation_memory.json")
+MEMORY_SAMPLE = os.path.join("validation", "memory_samples", "attribute_validation_memory.json")
+
+print(f"MEMORY_SAMPLE: {MEMORY_SAMPLE}")
 
 # Dictionary mapping memory IDs to their checksums for easier reference
 MEMORY_CHECKSUMS = {
