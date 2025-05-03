@@ -6,35 +6,46 @@ This module provides a comprehensive framework for validating memory system comp
 
 ```
 validation/
-├── framework/                 # Core validation framework
-│   └── validation_framework.py  # Base classes and utilities
-├── search/                   # Search strategy validations
-│   ├── attribute/           # Attribute search validation
-│   └── example/             # Example validation implementation
-├── memory_samples/          # Sample memory data for testing
-├── logs/                    # Test execution logs
-├── demo_utils.py           # Common utilities for demos and tests
-└── *.py                    # Various validation scripts
+├── framework/                   # Core validation framework
+│   ├── validation_framework.py  # Original base classes
+│   ├── test_runner.py           # Test runner implementation
+│   ├── test_suite.py            # Test suite base classes 
+│   ├── cli.py                   # Command-line interface
+│   └── README.md                # Framework documentation
+├── search/                      # Search strategy validations
+│   ├── attribute/               # Attribute search validation
+│   ├── importance/              # Importance search validation
+│   └── ...
+├── memory_samples/              # Sample memory data for testing
+├── logs/                        # Test execution logs
+├── run_validations.py           # Main entry point script
+├── demo_utils.py                # Common utilities for demos and tests
+└── README.md                    # This file
 ```
 
 ## Framework Components
 
 ### 1. Base Validation Classes
 
-The framework provides two main base classes:
+The framework provides several main classes:
 
-#### ValidationTest (ABC)
-- Base class for all validation tests
-- Handles test setup, execution, and result validation
-- Provides common utilities for logging and result storage
+#### ValidationTestRunner
+- Handles the execution of individual tests
+- Manages test setup, execution, and result validation
+- Provides utilities for tracking and reporting test results
 
-#### PerformanceTest (ValidationTest)
-- Extends ValidationTest for performance testing
-- Adds capabilities for:
-  - Scaling tests
-  - Concurrent load testing
-  - Performance metrics collection
-  - Result visualization
+#### TestSuite (ABC)
+- Abstract base class for organizing related tests
+- Standardizes the test suite structure
+- Groups tests into basic, advanced, and edge case categories
+
+#### PerformanceTestSuite
+- Extends TestSuite for performance testing
+- Adds capabilities for scaling and concurrent load tests
+
+#### Original Base Classes
+- ValidationTest - Core validation functionality
+- PerformanceTest - Performance testing capabilities
 
 ### 2. Key Features
 
@@ -44,193 +55,183 @@ The framework provides two main base classes:
 - **Visualization**: Automatic generation of performance plots
 - **Logging**: Comprehensive logging of test execution
 - **Results Storage**: JSON-based result storage with timestamps
+- **Command-line Interface**: Run validations from the command line
 
 ## Usage Examples
 
-### 1. Creating a Validation Test
+### 1. Creating a Test Suite
 
 ```python
-from validation.framework.validation_framework import ValidationTest
+from validation.framework.test_suite import TestSuite
+from memory.search.strategies.your_strategy import YourStrategy
 
-class YourStrategyValidationTest(ValidationTest):
-    def setup_memory_system(self, memory_count: int = 1000):
-        # Setup your memory system
-        self.memory_system = create_memory_system(...)
-        self.search_strategy = YourSearchStrategy(...)
+class YourStrategyTestSuite(TestSuite):
+    def __init__(self, logger=None):
+        # Constants
+        STRATEGY_NAME = "your_strategy"
+        AGENT_ID = "test-agent-your-strategy"
+        MEMORY_SAMPLE = os.path.join("validation", "memory_samples", "your_strategy_memory.json")
+        
+        # Memory ID to checksum mapping
+        MEMORY_CHECKSUMS = {
+            "memory-1": "checksum1",
+            "memory-2": "checksum2",
+            # More mappings...
+        }
+        
+        super().__init__(
+            strategy_name=STRATEGY_NAME,
+            strategy_class=YourStrategy,
+            agent_id=AGENT_ID,
+            memory_sample_path=MEMORY_SAMPLE,
+            memory_checksum_map=MEMORY_CHECKSUMS,
+            logger=logger
+        )
     
-    def run_test(self, test_name, query, expected_checksums=None, **search_params):
-        # Run your test
-        results = self.search_strategy.search(query, **search_params)
-        return self.validate_results(results, expected_checksums)
+    def run_basic_tests(self):
+        # Basic functionality tests
+        self.runner.run_test(
+            "Basic Search",
+            "test query",
+            expected_memory_ids=["memory-1", "memory-2"],
+            memory_checksum_map=self.memory_checksum_map
+        )
+    
+    def run_advanced_tests(self):
+        # Advanced functionality tests
+        self.runner.run_test(
+            "Complex Search",
+            {"content": "test", "metadata": {"type": "test"}},
+            match_all=True,
+            expected_memory_ids=["memory-2"],
+            memory_checksum_map=self.memory_checksum_map
+        )
+    
+    def run_edge_case_tests(self):
+        # Edge case tests
+        self.runner.run_test(
+            "Empty Query",
+            "",
+            expected_memory_ids=[],
+            memory_checksum_map=self.memory_checksum_map
+        )
 ```
 
-### 2. Running Functional Tests
+### 2. Running a Test Suite Programmatically
 
 ```python
-# Create validation test instance
-validation_test = create_validation_test("your_strategy", YourStrategy)
+# Create and run the test suite
+test_suite = YourStrategyTestSuite()
 
-# Run basic tests
-validation_test.run_test(
-    "Basic Search",
-    "test query",
-    expected_memory_ids=["memory-1", "memory-2"],
-    content_fields=["content.content"]
-)
+# Run all tests
+test_suite.run_all_tests()
 
-# Run metadata tests
-validation_test.run_test(
-    "Metadata Search",
-    {"metadata": {"type": "test"}},
-    expected_memory_ids=["memory-3"]
-)
-
-# Save results
-validation_test.save_results()
+# Or run specific test categories
+test_suite.run_basic_tests()
+test_suite.run_advanced_tests()
+test_suite.run_edge_case_tests()
+test_suite.runner.display_summary()
 ```
 
-### 3. Running Performance Tests
+### 3. Running Tests from Command Line
 
-```python
-# Create performance test instance
-performance_test = create_validation_test("your_strategy", YourStrategy, is_performance=True)
+The framework includes a command-line interface for running tests:
 
-# Run scaling tests
-scaling_results = performance_test.run_scaling_test(
-    "test query",
-    memory_sizes=[1000, 5000, 10000]
-)
+```bash
+# Run all tests for a specific strategy
+python validation/run_validations.py your_strategy
 
-# Run concurrent tests
-concurrent_results = performance_test.run_concurrent_test(
-    "test query",
-    concurrency_levels=[1, 5, 10]
-)
+# Run only basic tests
+python validation/run_validations.py your_strategy --test-type basic
 
-# Generate performance plots
-performance_test.generate_plots(scaling_results, concurrent_results)
+# Run with performance tests
+python validation/run_validations.py your_strategy --perf
+
+# Run all available test suites
+python validation/run_validations.py all
 ```
 
 ## Test Categories
 
-### 1. Functional Tests
-- Basic content search
-- Case sensitivity
-- Metadata filtering
-- Match all conditions
-- Tier-specific searching
-- Regex support
-- Edge cases
+### 1. Basic Tests
+- Core functionality tests
+- Simple search queries
+- Basic filtering options
 
-### 2. Performance Tests
+### 2. Advanced Tests
+- Complex queries
+- Multiple conditions
+- Advanced filtering
+- Special search options
+
+### 3. Edge Case Tests
+- Empty queries
+- Invalid inputs
+- Boundary conditions
+- Error handling
+
+### 4. Performance Tests
 - Memory scaling
 - Concurrent load
 - Response time
 - Resource usage
-- Scoring method comparison
 
 ## Best Practices
 
+### Creating Test Suites
+
 1. **Test Organization**
-   - Group related tests together
-   - Use descriptive test names
+   - Group related tests in appropriate test methods
+   - Use clear, descriptive test names
    - Include both success and failure cases
 
 2. **Result Validation**
    - Always specify expected results
-   - Validate both presence and absence of results
-   - Check result ordering when relevant
+   - Use the memory_checksum_map for consistent validation
+   - Check both presence and absence of results
 
 3. **Performance Testing**
-   - Test with realistic data sizes
-   - Include warm-up runs
-   - Measure both average and peak performance
+   - Extend PerformanceTestSuite for performance tests
+   - Use realistic data sizes
+   - Test with varying memory sizes and concurrency levels
 
 4. **Documentation**
    - Document test assumptions
    - Explain expected behavior
    - Note any known limitations
 
-## Example Validation Structure
+### Running Tests
 
-```python
-def validate_your_strategy():
-    # Create test instance
-    validation_test = create_validation_test("your_strategy", YourStrategy)
-    
-    # Basic functionality tests
-    validation_test.run_test(
-        "Basic Search",
-        "test query",
-        expected_memory_ids=["memory-1"]
-    )
-    
-    # Advanced functionality tests
-    validation_test.run_test(
-        "Complex Search",
-        {"content": "test", "metadata": {"type": "test"}},
-        match_all=True,
-        expected_memory_ids=["memory-2"]
-    )
-    
-    # Edge case tests
-    validation_test.run_test(
-        "Empty Query",
-        "",
-        expected_memory_ids=[]
-    )
-    
-    # Save and display results
-    validation_test.save_results()
-    display_summary(validation_test.results)
-```
+1. **Use the CLI for quick testing**
+   - The command-line interface provides easy access to all test suites
+   - Filter by test type to focus on specific areas
+   - Use the --verbose flag for detailed logging
 
-## Performance Metrics
-
-The framework tracks several key performance metrics:
-
-1. **Time Metrics**
-   - Total execution time
-   - Per-operation timing
-   - Concurrent operation timing
-
-2. **Resource Usage**
-   - CPU utilization
-   - Memory consumption
-   - I/O operations
-
-3. **Result Quality**
-   - Result count
-   - Result relevance
-   - Result ordering
-
-## Visualization
-
-The framework automatically generates performance visualizations:
-
-1. **Scaling Performance**
-   - Memory size vs. execution time
-   - Memory size vs. resource usage
-
-2. **Concurrency Performance**
-   - Concurrent users vs. execution time
-   - Concurrent users vs. resource usage
-
-## Logging
-
-Comprehensive logging is provided through:
-- Test execution logs
-- Performance metrics
-- Error tracking
-- Result validation
-
-Logs are stored in the `logs/` directory with timestamps for easy reference.
+2. **Use programmatic interface for integration**
+   - Create custom test runners for integration with other systems
+   - Automate test execution in CI/CD pipelines
+   - Implement custom result handling
 
 ## Contributing
 
 When adding new validation tests:
-1. Follow the existing structure
-2. Document test assumptions
-3. Include both functional and performance tests
-4. Add appropriate logging
-5. Save and visualize results 
+
+1. **Follow the framework structure**
+   - Create a new test suite class extending TestSuite
+   - Implement the required test methods
+   - Use the standard validation patterns
+
+2. **Add your tests to the discovery system**
+   - Name your files following the convention (validate_*.py)
+   - Place them in the appropriate directory
+   - Make sure they're discoverable by the CLI
+
+3. **Include comprehensive tests**
+   - Cover all functionality of your component
+   - Include edge cases and error handling
+   - Add performance tests if applicable
+
+4. **Document your tests**
+   - Add docstrings to your test suite and methods
+   - Comment complex test scenarios
+   - Update this README if adding new test categories 

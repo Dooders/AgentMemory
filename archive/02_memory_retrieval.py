@@ -25,7 +25,7 @@ import random
 from typing import Any, Dict, List
 
 # Import common utilities for demos
-from demo_utils import (
+from validation.demo_utils import (
     create_memory_system,
     log_print,
     pretty_print_memories,
