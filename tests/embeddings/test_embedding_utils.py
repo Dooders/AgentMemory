@@ -186,15 +186,16 @@ def test_text_processing_for_embeddings():
     
     # Dictionary with inventory
     inventory_dict = {"inventory": ["sword", "shield", "potion"]}
-    assert "has sword, shield, potion" in object_to_text(inventory_dict)
+    text = object_to_text(inventory_dict)
+    assert "has sword" in text
+    assert "has shield" in text
+    assert "has potion" in text
     
     # Dictionary with position
     position_dict = {"position": {"room": "kitchen", "x": 5, "y": 10}}
     position_text = object_to_text(position_dict)
     assert "room is kitchen" in position_text
-    assert "coordinates" in position_text
-    assert "5" in position_text
-    assert "10" in position_text
+    assert "coordinates: 5, 10" in position_text
 
 def test_object_to_text_realistic_agent_state():
     """Test object_to_text with realistic agent state information."""

@@ -50,7 +50,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         ]
 
         # Mock memory retrieval
-        self.mock_stm_store.get.side_effect = lambda id: {
+        self.mock_stm_store.get.side_effect = lambda agent_id, memory_id: {
             "mem1": {
                 "id": "mem1",
                 "content": {"type": "task", "priority": "high", "status": "pending"},
@@ -70,7 +70,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
                 "content": {"type": "note", "priority": "low"},
                 "metadata": {"tags": ["reference"]},
             },
-        }.get(id)
+        }.get(memory_id)
 
         # Perform search
         results = self.strategy.search(
@@ -105,7 +105,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         ]
 
         # Mock memory retrieval
-        self.mock_im_store.get.side_effect = lambda id: {
+        self.mock_im_store.get.side_effect = lambda agent_id, memory_id: {
             "mem1": {
                 "id": "mem1",
                 "content": {
@@ -125,7 +125,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
                 },
                 "metadata": {},
             },
-        }.get(id)
+        }.get(memory_id)
 
         # Perform search with fields mask
         results = self.strategy.search(
@@ -158,11 +158,11 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         ]
 
         # Mock memory retrieval
-        self.mock_ltm_store.get.side_effect = lambda id: {
+        self.mock_ltm_store.get.side_effect = lambda agent_id, memory_id: {
             "mem1": {"id": "mem1", "content": "matching content 1", "metadata": {}},
             "mem2": {"id": "mem2", "content": "matching content 2", "metadata": {}},
             "mem3": {"id": "mem3", "content": "matching content 3", "metadata": {}},
-        }.get(id)
+        }.get(memory_id)
 
         # Perform search with min_score
         results = self.strategy.search(
@@ -193,7 +193,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         ]
 
         # Mock memory retrieval
-        self.mock_stm_store.get.side_effect = lambda id: {
+        self.mock_stm_store.get.side_effect = lambda agent_id, memory_id: {
             "mem1": {
                 "id": "mem1",
                 "content": "content 1",
@@ -204,7 +204,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
                 "content": "content 2",
                 "metadata": {"type": "note"},
             },
-        }.get(id)
+        }.get(memory_id)
 
         # Perform search with metadata filter
         metadata_filter = {"type": "task"}
@@ -349,11 +349,11 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         ]
 
         # Mock memory retrieval with one memory missing
-        self.mock_stm_store.get.side_effect = lambda id: {
+        self.mock_stm_store.get.side_effect = lambda agent_id, memory_id: {
             "mem1": {"id": "mem1", "content": "content 1", "metadata": {}},
             "mem2": None,  # Missing memory
             "mem3": {"id": "mem3", "content": "content 3", "metadata": {}},
-        }.get(id)
+        }.get(memory_id)
 
         # Perform search
         results = self.strategy.search(

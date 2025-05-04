@@ -197,9 +197,9 @@ class AttributeSearchTestSuite(TestSuite):
             "Large Result Set Limiting",
             "a",  # Common letter to match many memories
             expected_memory_ids=[
-                "meeting-123456-1",
-                "meeting-123456-6",
-                "meeting-123456-3",
+                "meeting-123456-1",  # High importance and shorter content
+                "meeting-123456-6",  # High importance but longer content
+                "meeting-123456-3",  # Medium importance and longer content
             ],
             limit=3,  # Only show top 3 results
             memory_checksum_map=self.memory_checksum_map,

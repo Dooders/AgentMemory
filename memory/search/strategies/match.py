@@ -109,9 +109,6 @@ class ExampleMatchingStrategy(SearchStrategy):
         if tier == "im" and fields_mask:
             # Field masking with IM tier needs lower threshold
             adjusted_min_score = 0.4  
-        elif tier == "ltm":
-            # LTM tier has more compressed vectors, lower threshold
-            adjusted_min_score = 0.4  
 
         # Find similar memories
         search_limit = limit * 2  # Get more results for post-filtering
