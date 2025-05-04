@@ -5,8 +5,9 @@ package to avoid code duplication.
 """
 
 import logging
-import numpy as np
 from typing import Any, Dict, Set
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -69,55 +70,35 @@ def object_to_text(obj: Any) -> str:
     elif isinstance(obj, dict):
         if not obj:
             return "empty"
-        # Better handling of nested structures
+
+        # Special handling for memory content
+        if "content" in obj:
+            content = obj["content"]
+            if isinstance(content, dict):
+                parts = []
+                # Add content text if available
+                if "content" in content:
+                    parts.append(str(content["content"]))
+                # Add metadata if available
+                if "metadata" in content:
+                    metadata = content["metadata"]
+                    if isinstance(metadata, dict):
+                        metadata_parts = []
+                        for key, value in metadata.items():
+                            metadata_parts.append(f"{key}: {value}")
+                        if metadata_parts:
+                            parts.append("metadata: " + ", ".join(metadata_parts))
+                return " | ".join(parts)
+            else:
+                return str(content)
+
+        # Default dictionary handling
         parts = []
-        
-        # Prioritize agent_id and emphasize it for better agent clustering
-        if "agent_id" in obj:
-            agent_id = obj["agent_id"]
-            agent_emphasis = f"agent_id: {agent_id} " * 5  # Repeat 5 times for stronger emphasis
-            parts.append(agent_emphasis)
-        
         for key, value in obj.items():
-            # Skip agent_id as we've already handled it specially
-            if key == "agent_id":
-                continue
-                
-            # Format based on value type
             if isinstance(value, dict):
-                # For nested dictionaries like position
-                if key == "position":
-                    position_parts = []
-                    if "room" in value:
-                        position_parts.append(f"room is {value['room']}")
-                    
-                    if "x" in value and "y" in value:
-                        position_parts.append(f"coordinates x={value['x']} y={value['y']}")
-                    
-                    # Include all other position properties
-                    for pk, pv in value.items():
-                        if pk not in ["room", "x", "y"]:
-                            position_parts.append(f"{pk}={pv}")
-                    
-                    formatted = f"{key}: " + ", ".join(position_parts)
-                else:
-                    formatted = f"{key}: " + ", ".join(f"{k}={v}" for k, v in value.items())
+                formatted = f"{key}: " + object_to_text(value)
             elif isinstance(value, list):
-                if key == "inventory":
-                    # Make inventory items more prominent
-                    if not value:
-                        formatted = f"empty inventory"
-                    else:
-                        # Allow both "has item1, item2" format for specific tests
-                        # and "has item1, has item2" format for other tests
-                        formatted_has_each = f"{key}: " + ", ".join(f"has {item}" for item in value)
-                        formatted_has_once = f"{key}: has " + ", ".join(str(item) for item in value)
-                        formatted = formatted_has_each
-                        # We'll include both formats to satisfy both test cases
-                        if len(value) > 0:
-                            parts.append(formatted_has_once)
-                else:
-                    formatted = f"{key}: " + ", ".join(str(item) for item in value)
+                formatted = f"{key}: " + ", ".join(str(item) for item in value)
             else:
                 formatted = f"{key}: {value}"
             parts.append(formatted)
@@ -125,10 +106,8 @@ def object_to_text(obj: Any) -> str:
     elif isinstance(obj, list):
         if not obj:
             return "empty"
-        # Handle lists with better formatting
         return "items: " + ", ".join(object_to_text(item) for item in obj)
     else:
-        # Convert other types to string
         return str(obj)
 
 
@@ -144,11 +123,11 @@ def filter_dict_keys(content: Dict[str, Any], filter_keys: Set[str]) -> Dict[str
     """
     if not isinstance(content, dict):
         return content
-        
+
     # Get keys to remove (cannot modify during iteration)
     keys_to_remove = [key for key in content if key in filter_keys]
-    
+
     # Create a filtered copy
     result = {k: v for k, v in content.items() if k not in keys_to_remove}
-    
-    return result 
+
+    return result

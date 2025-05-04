@@ -61,6 +61,8 @@ class ValidationTestRunner:
             logging_level=logging_level,
             memory_file=memory_sample_path,
             use_mock_redis=use_mock_redis,
+            use_embeddings=True,  # Enable embeddings for vector store
+            embedding_type="text",  # Use text embeddings
         )
 
         if not self.memory_system:

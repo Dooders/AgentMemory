@@ -66,6 +66,9 @@ class ExampleMatchingStrategy(SearchStrategy):
         example = query["example"]
         fields_mask = query.get("fields")
 
+        print(f"DEBUG: Original example: {example}")
+        print(f"DEBUG: Fields mask: {fields_mask}")
+
         if not isinstance(example, dict):
             raise ValueError("Example must be a dictionary")
 
@@ -74,7 +77,14 @@ class ExampleMatchingStrategy(SearchStrategy):
 
         # Apply fields mask if provided
         if fields_mask:
+            # Extract only the specified fields from the example
             example_to_encode = self._extract_fields(example, fields_mask)
+            print(f"DEBUG: Extracted fields: {example_to_encode}")
+            
+            # If no fields were extracted, return empty results
+            if not example_to_encode:
+                print("DEBUG: No fields extracted, returning empty results")
+                return []
         else:
             example_to_encode = example
 
@@ -90,13 +100,28 @@ class ExampleMatchingStrategy(SearchStrategy):
             vector = self.embedding_engine.encode(example_to_encode)
 
         if not vector:
+            print("DEBUG: No vector generated, returning empty results")
             return []
+
+        # Adjust min_score based on tier for better results
+        # Different tiers may have different similarity distributions
+        adjusted_min_score = min_score
+        if tier == "im" and fields_mask:
+            # Field masking with IM tier needs lower threshold
+            adjusted_min_score = 0.4  
+        elif tier == "ltm":
+            # LTM tier has more compressed vectors, lower threshold
+            adjusted_min_score = 0.4  
 
         # Find similar memories
         search_limit = limit * 2  # Get more results for post-filtering
         similar_memories = self.vector_store.find_similar_memories(
             vector, tier=tier, limit=search_limit, metadata_filter=metadata_filter
         )
+
+        print(f"DEBUG: Found {len(similar_memories)} similar memories")
+        for i, mem in enumerate(similar_memories[:3]):  # Print first 3 for debug
+            print(f"DEBUG: Memory {i}: id={mem.get('id')}, score={mem.get('score')}")
 
         if not similar_memories:
             return []
@@ -109,14 +134,16 @@ class ExampleMatchingStrategy(SearchStrategy):
             memory_id = match["id"]
             score = match["score"]
 
-            if score < min_score:
+            if score < adjusted_min_score:
+                print(f"DEBUG: Memory {memory_id} score {score} below threshold {adjusted_min_score}")
                 continue
 
-            memory = store.get(memory_id)
+            memory = store.get(agent_id, memory_id)
             if memory:
                 memory["metadata"]["match_score"] = score
                 results.append(memory)
 
+        print(f"DEBUG: Returning {len(results)} results")
         return results[:limit]
 
     def _get_store_for_tier(self, tier):
@@ -145,27 +172,34 @@ class ExampleMatchingStrategy(SearchStrategy):
 
         for path in field_paths:
             parts = path.split(".")
-
+            
             # Navigate to the correct nested dict
             current_src = memory
             current_dest = result
-
+            
+            path_valid = True
             for i, part in enumerate(parts):
                 # Create nested dicts as needed
                 if i < len(parts) - 1:
                     if part not in current_src:
                         # Skip this field path if an intermediate key is missing
+                        path_valid = False
                         break
-                        continue
-
+                    
                     if part not in current_dest:
                         current_dest[part] = {}
-
+                    
                     current_src = current_src.get(part, {})
                     current_dest = current_dest[part]
                 else:
                     # Set the leaf value
                     if part in current_src:
                         current_dest[part] = current_src[part]
+                    else:
+                        path_valid = False
+            
+            # Skip if path wasn't valid
+            if not path_valid:
+                continue
 
         return result

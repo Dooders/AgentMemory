@@ -1,0 +1,200 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "test-agent-example": {
+      "agent_id": "test-agent-example",
+      "memories": [
+        {
+          "memory_id": "example-meeting-1",
+          "agent_id": "test-agent-example",
+          "step_number": 1,
+          "timestamp": 1686816000,
+          "content": {
+            "content": "Quarterly product strategy meeting with the executive team. Discussed new market opportunities and resource allocation.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": [
+                "strategy",
+                "executive",
+                "quarterly"
+              ],
+              "participants": [
+                "CEO",
+                "CTO",
+                "CPO",
+                "CFO"
+              ],
+              "date": "2023-06-15",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686816000,
+            "last_access_time": 1686816000,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "checksum": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "example-task-1",
+          "agent_id": "test-agent-example",
+          "step_number": 2,
+          "timestamp": 1686902400,
+          "content": {
+            "content": "Implement new authentication system with multi-factor authentication support.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": [
+                "development",
+                "security",
+                "auth"
+              ],
+              "deadline": "2023-06-30",
+              "priority": "P0",
+              "source": "jira"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686902400,
+            "last_access_time": 1686902400,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "checksum": "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "example-note-1",
+          "agent_id": "test-agent-example",
+          "step_number": 3,
+          "timestamp": 1687075200,
+          "content": {
+            "content": "New API documentation template needs to be created for better consistency across teams.",
+            "metadata": {
+              "type": "note",
+              "importance": "medium",
+              "tags": [
+                "documentation",
+                "api",
+                "process"
+              ],
+              "source": "team_feedback"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687075200,
+            "last_access_time": 1687075200,
+            "compression_level": 0,
+            "importance_score": 0.6,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm",
+            "checksum": "c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "example-alert-1",
+          "agent_id": "test-agent-example",
+          "step_number": 4,
+          "timestamp": 1687161600,
+          "content": {
+            "content": "Critical security vulnerability detected in user authentication module. Immediate action required.",
+            "metadata": {
+              "type": "alert",
+              "importance": "critical",
+              "tags": [
+                "security",
+                "critical",
+                "auth"
+              ],
+              "severity": "high",
+              "source": "security_scan"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687161600,
+            "last_access_time": 1687161600,
+            "compression_level": 0,
+            "importance_score": 0.95,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm",
+            "checksum": "d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "example-contact-1",
+          "agent_id": "test-agent-example",
+          "step_number": 5,
+          "timestamp": 1687248000,
+          "content": {
+            "content": "New project manager contact information: Sarah Johnson, sarah.j@example.com, 555-987-6543",
+            "metadata": {
+              "type": "contact",
+              "importance": "low",
+              "tags": [
+                "contact",
+                "project",
+                "team"
+              ],
+              "name": "Sarah Johnson",
+              "role": "Project Manager",
+              "source": "email"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687248000,
+            "last_access_time": 1687248000,
+            "compression_level": 0,
+            "importance_score": 0.4,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm",
+            "checksum": "e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4"
+          },
+          "type": "generic",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 
