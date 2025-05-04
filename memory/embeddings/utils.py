@@ -98,12 +98,17 @@ def object_to_text(obj: Any) -> str:
             if isinstance(value, dict):
                 # Special case for position
                 if key == "position":
+                    # Special formatting for "position" to provide a descriptive
+                    # representation of location-related data.
                     position_parts = []
                     if "room" in value:
+                        # Include the room name if available.
                         position_parts.append(f"room is {value['room']}")
                     if "x" in value and "y" in value:
+                        # Include coordinates if both x and y are present.
                         position_parts.append(f"coordinates: {value['x']}, {value['y']}")
                     if "facing" in value:
+                        # Include the facing direction if available.
                         position_parts.append(f"facing {value['facing']}")
                     parts.append(" | ".join(position_parts))
                 else:
