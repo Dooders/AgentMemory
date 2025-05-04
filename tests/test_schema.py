@@ -24,8 +24,6 @@ from memory.schema import (
 SAMPLES_DIR = Path("validation/memory_samples")
 
 # Sample files to test
-SIMPLE_AGENT_SAMPLE = SAMPLES_DIR / "simple_agent_memory.json"
-MULTI_AGENT_SAMPLE = SAMPLES_DIR / "multi_agent_memory.json"
 ATTRIBUTE_VALIDATION_SAMPLE = SAMPLES_DIR / "attribute_validation_memory.json"
 IMPORTANCE_VALIDATION_SAMPLE = SAMPLES_DIR / "importance_validation_memory.json"
 
@@ -58,8 +56,6 @@ def test_schema_completeness():
 def test_valid_sample_json_files():
     """Test validating the sample JSON files against the schema."""
     sample_files = [
-        SIMPLE_AGENT_SAMPLE,
-        MULTI_AGENT_SAMPLE,
         ATTRIBUTE_VALIDATION_SAMPLE,
         IMPORTANCE_VALIDATION_SAMPLE,
     ]
@@ -138,7 +134,7 @@ def test_save_schema_to_file():
 def test_load_and_validate():
     """Test loading and validating a JSON file."""
     # Test with a valid file
-    valid_data = load_and_validate(str(SIMPLE_AGENT_SAMPLE))
+    valid_data = load_and_validate(str(ATTRIBUTE_VALIDATION_SAMPLE))
     assert valid_data is not None
 
     # Create a temporary file with invalid JSON

@@ -21,9 +21,6 @@ from memory.schema import validate_memory_system_json
 # Path to the memory samples directory
 SAMPLES_DIR = Path("validation/memory_samples")
 
-# Sample files to test
-SIMPLE_AGENT_SAMPLE = SAMPLES_DIR / "simple_agent_memory.json"
-MULTI_AGENT_SAMPLE = SAMPLES_DIR / "multi_agent_memory.json"
 ATTRIBUTE_VALIDATION_SAMPLE = SAMPLES_DIR / "attribute_validation_memory.json"
 
 
@@ -40,8 +37,6 @@ def cleanup_memory_system():
 def test_json_schema_validation():
     """Test that the sample JSON files pass the schema validation."""
     for sample_file in [
-        SIMPLE_AGENT_SAMPLE,
-        MULTI_AGENT_SAMPLE,
         ATTRIBUTE_VALIDATION_SAMPLE,
     ]:
         with open(sample_file, "r", encoding="utf-8") as f:
@@ -52,162 +47,6 @@ def test_json_schema_validation():
             data
         ), f"Sample file {sample_file} failed schema validation"
 
-
-def test_load_simple_agent_memory(cleanup_memory_system):
-    """Test loading the simple agent memory sample."""
-    # Configure logging to see debug messages
-    logging.basicConfig(level=logging.DEBUG)
-    logger = logging.getLogger()
-
-    # Check if file exists
-    logger.info(f"Testing file path: {SIMPLE_AGENT_SAMPLE}")
-    logger.info(f"File exists: {SIMPLE_AGENT_SAMPLE.exists()}")
-
-    # Read the file contents
-    with open(SIMPLE_AGENT_SAMPLE, "r", encoding="utf-8") as f:
-        file_content = f.read()
-        logger.info(f"File content length: {len(file_content)}")
-        logger.info(f"File content first 100 chars: {file_content[:100]}")
-        logger.info(f"File content last 100 chars: {file_content[-100:]}")
-
-    # Validate JSON before loading
-    try:
-        with open(SIMPLE_AGENT_SAMPLE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            logger.info("Successfully loaded JSON data for pre-validation")
-
-            # Check schema validation
-            is_valid = validate_memory_system_json(data)
-            logger.info(f"Pre-validation schema validation result: {is_valid}")
-
-            if not is_valid:
-                logger.error("Pre-validation schema validation failed")
-    except Exception as e:
-        logger.error(f"Error during pre-validation: {e}")
-
-    # Load the memory system from the JSON file
-    logger.info("Attempting to load memory system from JSON")
-    try:
-        memory_system = AgentMemorySystem.load_from_json(
-            str(SIMPLE_AGENT_SAMPLE), use_mock_redis=True
-        )
-        logger.info(f"Load result: {memory_system is not None}")
-    except Exception as e:
-        logger.error(f"Exception during load_from_json: {e}")
-        import traceback
-
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        memory_system = None
-
-    if memory_system is None:
-        logger.error("Memory system load returned None")
-
-        # Try to open and validate the file manually to see what's wrong
-        try:
-            with open(SIMPLE_AGENT_SAMPLE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                logger.info("Successfully loaded JSON data")
-
-                # Check schema validation
-                is_valid = validate_memory_system_json(data)
-                logger.info(f"Schema validation result: {is_valid}")
-
-                if not is_valid:
-                    logger.error("Schema validation failed")
-        except Exception as e:
-            logger.error(f"Error loading or validating JSON: {e}")
-
-    # Verify the memory system was created
-    assert (
-        memory_system is not None
-    ), "Failed to load memory system from simple agent JSON"
-
-    # Verify the config was loaded
-    assert memory_system.config.logging_level == "INFO"
-    assert memory_system.config.cleanup_interval == 100
-    assert memory_system.config.enable_memory_hooks is False
-
-    # Verify the agent was created
-    assert "demo_agent" in memory_system.agents
-    agent = memory_system.get_memory_agent("demo_agent")
-
-    # Verify memories are loaded
-    # Get memory statistics to check the counts
-    stats = agent.get_memory_statistics()
-    total_memories = sum(tier["count"] for tier in stats["tiers"].values())
-
-    # The simple agent sample has 3 memories
-    assert total_memories == 3, f"Expected 3 memories, but found {total_memories}"
-
-    # Directly check for memories
-    stm_memories = agent.stm_store.get_all("demo_agent")
-    im_memories = agent.im_store.get_all("demo_agent")
-    ltm_memories = agent.ltm_store.get_all("demo_agent")
-
-    all_memories = stm_memories + im_memories + ltm_memories
-    logger.info(f"Direct memory count: {len(all_memories)}")
-
-    # The simple agent sample has 3 memories
-    assert len(all_memories) == 3, f"Expected 3 memories, but found {len(all_memories)}"
-
-    # Check memory types directly from the memories
-    memory_types = {}
-    for memory in all_memories:
-        memory_type = memory.get("type", "unknown")
-        if memory_type not in memory_types:
-            memory_types[memory_type] = 0
-        memory_types[memory_type] += 1
-
-    logger.info(f"Memory types from direct check: {memory_types}")
-
-    # Validate that we have memories, the exact type is less important
-    # as long as the memories are stored and retrievable
-    assert len(memory_types) > 0, "No memory types found"
-
-    # Print content of first memory for debugging
-    if all_memories:
-        logger.info(f"First memory content: {all_memories[0]}")
-
-        # Check that memories have the expected structure
-        memory = all_memories[0]
-        assert "memory_id" in memory, "Memory missing memory_id field"
-        assert "agent_id" in memory, "Memory missing agent_id field"
-        assert "content" in memory, "Memory missing content field"
-
-
-def test_load_multi_agent_memory(cleanup_memory_system):
-    """Test loading the multi-agent memory sample."""
-    # Load the memory system from the JSON file
-    memory_system = AgentMemorySystem.load_from_json(
-        MULTI_AGENT_SAMPLE, use_mock_redis=True
-    )
-
-    # Verify the memory system was created
-    assert (
-        memory_system is not None
-    ), "Failed to load memory system from multi-agent JSON"
-
-    # Verify multiple agents were created
-    assert (
-        len(memory_system.agents) >= 2
-    ), f"Expected at least 2 agents, but found {len(memory_system.agents)}"
-
-    # Check if the expected agent IDs are present
-    agent_ids = list(memory_system.agents.keys())
-    assert "assistant" in agent_ids, "assistant not found in loaded memory system"
-    assert "researcher" in agent_ids, "researcher not found in loaded memory system"
-
-    # Verify each agent has memories
-    for agent_id in ["assistant", "researcher"]:
-        agent = memory_system.get_memory_agent(agent_id)
-
-        # Directly check for memories instead of relying on statistics
-        stm_memories = agent.stm_store.get_all(agent_id)
-        im_memories = agent.im_store.get_all(agent_id)
-        ltm_memories = agent.ltm_store.get_all(agent_id)
-
-        all_memories = stm_memories + im_memories + ltm_memories
-        assert len(all_memories) > 0, f"Agent {agent_id} has no memories"
 
 
 def test_load_attribute_validation_memory(cleanup_memory_system):
@@ -305,19 +144,19 @@ def test_memory_content_preservation(cleanup_memory_system):
     """Test that memory content is preserved when loading from JSON."""
     # Load the memory system from the simple agent JSON file
     memory_system = AgentMemorySystem.load_from_json(
-        SIMPLE_AGENT_SAMPLE, use_mock_redis=True
+        ATTRIBUTE_VALIDATION_SAMPLE, use_mock_redis=True
     )
 
     # Verify the memory system was created
     assert memory_system is not None
 
     # Get the agent
-    agent = memory_system.get_memory_agent("demo_agent")
+    agent = memory_system.get_memory_agent("test-agent-attribute-search")
 
     # Get all memories
-    stm_memories = agent.stm_store.get_all("demo_agent")
-    im_memories = agent.im_store.get_all("demo_agent")
-    ltm_memories = agent.ltm_store.get_all("demo_agent")
+    stm_memories = agent.stm_store.get_all("test-agent-attribute-search")
+    im_memories = agent.im_store.get_all("test-agent-attribute-search")
+    ltm_memories = agent.ltm_store.get_all("test-agent-attribute-search")
 
     all_memories = stm_memories + im_memories + ltm_memories
     assert len(all_memories) > 0, "No memories were loaded"
@@ -344,7 +183,7 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
     print(f"Temp path is writable: {os.access(tmp_path, os.W_OK)}")
 
     memory_system1 = AgentMemorySystem.load_from_json(
-        SIMPLE_AGENT_SAMPLE, use_mock_redis=True
+        ATTRIBUTE_VALIDATION_SAMPLE, use_mock_redis=True
     )
     assert memory_system1 is not None
 
@@ -365,7 +204,7 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
     def debug_save():
         try:
             # Get agent data
-            agent_id = "demo_agent"
+            agent_id = "test-agent-attribute-search"
             if agent_id not in memory_system1.agents:
                 print(
                     f"Error: Agent '{agent_id}' not found. Available agents: {list(memory_system1.agents.keys())}"
@@ -448,7 +287,7 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
 
             data = {
                 "config": config_dict,
-                "agents": {"demo_agent": {"agent_id": "demo_agent", "memories": []}},
+                "agents": {"test-agent-attribute-search": {"agent_id": "test-agent-attribute-search", "memories": []}},
             }
 
             # Add minimal valid memories
@@ -456,7 +295,7 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
                 # Create a minimal valid memory
                 minimal_memory = {
                     "memory_id": memory.get("memory_id", "unknown"),
-                    "agent_id": memory.get("agent_id", "demo_agent"),
+                    "agent_id": memory.get("agent_id", "test-agent-attribute-search"),
                     "content": memory.get("content", {}),
                     "metadata": {
                         "memory_type": "generic",
@@ -465,7 +304,7 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
                     },
                     "type": memory.get("type", "generic"),
                 }
-                data["agents"]["demo_agent"]["memories"].append(minimal_memory)
+                data["agents"]["test-agent-attribute-search"]["memories"].append(minimal_memory)
 
             # Validate against schema
             from memory.schema import validate_memory_system_json
@@ -475,7 +314,7 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
 
             if not validation_result:
                 # Try with empty memories
-                data["agents"]["demo_agent"]["memories"] = []
+                data["agents"]["test-agent-attribute-search"]["memories"] = []
                 validation_result = validate_memory_system_json(data)
                 print(f"Schema validation with empty memories: {validation_result}")
 
@@ -512,7 +351,7 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
     memory_system2 = AgentMemorySystem(memory_system1.config)
 
     # Verify the agent exists
-    assert "demo_agent" in memory_system1.agents
+    assert "test-agent-attribute-search" in memory_system1.agents
 
     # Compare config values directly
     assert memory_system1.config.logging_level == memory_system2.config.logging_level

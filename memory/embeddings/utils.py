@@ -96,12 +96,34 @@ def object_to_text(obj: Any) -> str:
         parts = []
         for key, value in obj.items():
             if isinstance(value, dict):
-                formatted = f"{key}: " + object_to_text(value)
+                # Special case for position
+                if key == "position":
+                    position_parts = []
+                    if "room" in value:
+                        position_parts.append(f"room is {value['room']}")
+                    if "x" in value and "y" in value:
+                        position_parts.append(f"coordinates: {value['x']}, {value['y']}")
+                    if "facing" in value:
+                        position_parts.append(f"facing {value['facing']}")
+                    parts.append(" | ".join(position_parts))
+                else:
+                    formatted = f"{key}: " + object_to_text(value)
+                    parts.append(formatted)
             elif isinstance(value, list):
-                formatted = f"{key}: " + ", ".join(str(item) for item in value)
+                # Special case for inventory
+                if key == "inventory":
+                    if not value:
+                        parts.append("empty inventory")
+                    else:
+                        # Add individual "has" statements for each item
+                        for item in value:
+                            parts.append(f"has {item}")
+                else:
+                    formatted = f"{key}: " + ", ".join(str(item) for item in value)
+                    parts.append(formatted)
             else:
                 formatted = f"{key}: {value}"
-            parts.append(formatted)
+                parts.append(formatted)
         return " | ".join(parts)
     elif isinstance(obj, list):
         if not obj:
