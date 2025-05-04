@@ -38,7 +38,7 @@ from typing import Any, Dict, List
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import common utilities for demos
-from demo_utils import create_memory_system, print_memory_details
+from validation.demo_utils import create_memory_system, print_memory_details
 
 
 # Define some custom memory hook functions

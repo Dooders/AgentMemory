@@ -36,7 +36,7 @@ import time
 from typing import Any, Dict, List
 
 # Import common utilities for demos
-from demo_utils import create_memory_system, generate_random_state, print_memory_details
+from validation.demo_utils import create_memory_system, generate_random_state, print_memory_details
 
 
 def measure_time(func, *args, **kwargs) -> tuple:

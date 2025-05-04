@@ -24,7 +24,7 @@ import logging
 import time
 
 # Import common utilities for demos
-from demo_utils import (
+from validation.demo_utils import (
     create_memory_system,
     log_print,
     print_memory_details,

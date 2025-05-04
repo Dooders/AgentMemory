@@ -34,7 +34,7 @@ import time
 from typing import Any, Dict, List
 
 # Import common utilities for demos
-from demo_utils import create_memory_system, print_memory_details
+from validation.demo_utils import create_memory_system, print_memory_details
 
 
 def create_detailed_state(step: int) -> Dict[str, Any]:
