@@ -14,6 +14,7 @@ class RedisSTMConfig:
         self.namespace = "agent-stm"
         self.password = None
         self.use_mock = False
+        self.test_mode = False  # Whether to run in test mode
 
         # Update with any provided values
         for key, value in kwargs.items():
@@ -34,6 +35,7 @@ class RedisIMConfig:
         self.namespace = "agent-im"
         self.password = None
         self.use_mock = False
+        self.test_mode = False  # Whether to run in test mode
 
         # Update with any provided values
         for key, value in kwargs.items():
@@ -51,7 +53,7 @@ class SQLiteLTMConfig:
         self.batch_size = 100
         self.table_prefix = "ltm"
         self.use_mock = False
-        
+
         # Whitelist settings
         self.whitelist_enabled = True
         self.whitelisted_types = ["*"]

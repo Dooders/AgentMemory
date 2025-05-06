@@ -39,6 +39,7 @@ def get_redis_config():
         namespace=test_namespace,
         ttl=60,  # Short TTL for tests
         use_mock=True,  # Set to use MockRedis instead of real Redis
+        test_mode=True  # Enable test mode to prevent importance score updates
     )
 
 

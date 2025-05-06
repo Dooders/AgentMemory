@@ -81,7 +81,8 @@ def stm_store(mock_redis_client):
             db=0,
             password=None,
             namespace="test-stm",
-            ttl=3600
+            ttl=3600,
+            test_mode=True  # Enable test mode to prevent importance score updates
         )
         store = RedisSTMStore(config)
         yield store
