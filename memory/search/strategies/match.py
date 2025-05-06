@@ -84,19 +84,7 @@ class ExampleMatchingStrategy(SearchStrategy):
             logger.debug(f"Original example structure: {example}")
             
             # Extract only the specified fields from the example
-            # Remove 'content.' prefix from field paths since example already contains the content structure
-            adjusted_fields = [path.replace('content.', '') if path.startswith('content.') else path for path in fields_mask]
-            logger.debug(f"Adjusted field paths: {adjusted_fields}")
-            
-            # If the example has a content key, we need to extract from that
-            if 'content' in example:
-                logger.debug(f"Found 'content' key in example, extracting from example['content']")
-                logger.debug(f"Content structure: {example['content']}")
-                example_to_encode = self._extract_fields(example['content'], adjusted_fields)
-            else:
-                logger.debug(f"No 'content' key found, extracting from root example")
-                example_to_encode = self._extract_fields(example, adjusted_fields)
-                
+            example_to_encode = self._extract_fields(example, fields_mask)
             logger.debug(f"Final extracted fields: {example_to_encode}")
             
             # If no fields were extracted, return empty results

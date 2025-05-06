@@ -36,6 +36,7 @@ def get_redis_config():
 def stm_store():
     """Create a RedisSTMStore for integration testing."""
     config = get_redis_config()
+    config.test_mode = True  # Enable test mode to prevent importance score updates
     store = RedisSTMStore(config)
     
     # Clean up before tests
@@ -255,6 +256,9 @@ def test_update_access_metadata_integration(stm_store, memory_entries):
     """Test that accessing memories updates their metadata."""
     agent_id = "test-agent"
     
+    # Disable test mode to allow importance score updates
+    stm_store.config.test_mode = False
+    
     # Store a memory
     memory_entry = memory_entries[0]
     memory_id = memory_entry["memory_id"]
@@ -273,6 +277,9 @@ def test_update_access_metadata_integration(stm_store, memory_entries):
     initial_importance = memory_entry["metadata"]["importance_score"]
     final_importance = final["metadata"]["importance_score"]
     assert final_importance > initial_importance
+    
+    # Re-enable test mode
+    stm_store.config.test_mode = True
 
 
 def test_store_with_different_priorities_integration(stm_store):

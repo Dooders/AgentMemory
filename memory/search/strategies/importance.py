@@ -215,9 +215,12 @@ class ImportanceStrategy(SearchStrategy):
                     return None
             return current
 
+        # Get the metadata dictionary
+        metadata = memory.get("metadata", {})
+
         for key, filter_value in metadata_filter.items():
             # Handle nested paths
-            memory_value = get_nested_value(memory, key)
+            memory_value = get_nested_value(metadata, key)
             if memory_value is None:
                 return False
 

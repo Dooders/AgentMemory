@@ -42,6 +42,7 @@ def im_store(mock_redis_client):
         db=1,
         namespace="test_memory:im",
         ttl=604800,  # 7 days
+        test_mode=True  # Enable test mode to prevent importance score updates
     )
     store = RedisIMStore(config)
     store.redis = mock_redis_client

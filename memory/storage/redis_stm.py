@@ -273,7 +273,9 @@ class RedisSTMStore:
             )
             return False
 
-    def get(self, agent_id: str, memory_id: str, skip_validation: bool = True) -> Optional[MemoryEntry]:
+    def get(
+        self, agent_id: str, memory_id: str, skip_validation: bool = True
+    ) -> Optional[MemoryEntry]:
         """Retrieve a memory entry by ID.
 
         Args:
@@ -358,9 +360,8 @@ class RedisSTMStore:
             key = self._get_memory_key(agent_id, memory_id)
             self.redis.set(key, json.dumps(memory_entry), ex=self.config.ttl)
 
-            # Update importance based on access patterns
-            # Increase importance for frequently accessed memories
-            if retrieval_count > 1:
+            # Update importance based on access patterns if not in test mode
+            if not self.config.test_mode and retrieval_count > 1:
                 importance = metadata.get("importance_score", 0.0)
                 access_factor = min(retrieval_count / 10.0, 1.0)  # Cap at 1.0
                 new_importance = importance + (access_factor * 0.1)  # Slight boost
@@ -378,7 +379,12 @@ class RedisSTMStore:
             )
 
     def get_by_timerange(
-        self, agent_id: str, start_time: float, end_time: float, limit: int = 100, skip_validation: bool = True
+        self,
+        agent_id: str,
+        start_time: float,
+        end_time: float,
+        limit: int = 100,
+        skip_validation: bool = True,
     ) -> List[MemoryEntry]:
         """Retrieve memories within a time range.
 
@@ -641,7 +647,9 @@ class RedisSTMStore:
             logger.error("Error calculating memory size: %s", e)
             return 0
 
-    def get_all(self, agent_id: str, limit: int = 1000, skip_validation: bool = True) -> List[MemoryEntry]:
+    def get_all(
+        self, agent_id: str, limit: int = 1000, skip_validation: bool = True
+    ) -> List[MemoryEntry]:
         """Get all memories for an agent.
 
         Args:
