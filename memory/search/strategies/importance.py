@@ -1,6 +1,9 @@
 from typing import Any, Dict, List, Optional, Union
+import logging
 
 from .base import SearchStrategy
+
+logger = logging.getLogger(__name__)
 
 
 class ImportanceStrategy(SearchStrategy):
@@ -138,12 +141,22 @@ class ImportanceStrategy(SearchStrategy):
                 except (ValueError, TypeError):
                     continue
 
-                # Check if memory meets importance threshold - without normalizing
-                # (tests use values like 8, 9 for importance)
+                # Round importance to 2 decimal places to avoid floating point precision issues
+                importance = round(importance, 2)
+                min_importance = round(min_importance, 2)
+                max_importance = round(max_importance, 2)
+
+                # Debug logging for importance comparison
+                logger.debug(f"Memory {memory.get('memory_id')}: importance={importance}, min={min_importance}, max={max_importance}")
+                
+                # Check if memory meets importance threshold
                 if min_importance <= importance <= max_importance:
+                    logger.debug(f"Memory {memory.get('memory_id')} passed importance check")
                     # Store the parsed importance in the memory metadata for sorting
-                    metadata["_parsed_importance"] = importance
+                    memory["metadata"]["_parsed_importance"] = importance
                     results.append(memory)
+                else:
+                    logger.debug(f"Memory {memory.get('memory_id')} failed importance check: {importance} not in [{min_importance}, {max_importance}]")
 
         # Apply metadata filtering
         if metadata_filter:
@@ -158,27 +171,7 @@ class ImportanceStrategy(SearchStrategy):
 
         def get_importance(memory):
             metadata = memory.get("metadata", {})
-            
-            # If we've already parsed the importance, use that value
-            if "_parsed_importance" in metadata:
-                return metadata["_parsed_importance"]
-            
-            # Otherwise, get and parse the importance value
-            importance_value = metadata.get("importance_score")
-            if importance_value is None:
-                importance_value = metadata.get("importance", 0)
-
-            # Parse importance value to numeric
-            try:
-                if isinstance(importance_value, str):
-                    if importance_value.lower() in self.importance_mapping:
-                        return self.importance_mapping[importance_value.lower()]
-                    else:
-                        return float(importance_value)
-                else:
-                    return float(importance_value)
-            except (ValueError, TypeError):
-                return 0
+            return metadata.get("_parsed_importance", 0)
 
         # Sort the memories by importance
         results.sort(
@@ -209,17 +202,27 @@ class ImportanceStrategy(SearchStrategy):
         if not metadata_filter:
             return True
 
-        memory_metadata = memory.get("metadata", {})
+        def get_nested_value(obj, path):
+            """Get a value from a nested dictionary using dot notation."""
+            parts = path.split('.')
+            current = obj
+            for part in parts:
+                if isinstance(current, dict):
+                    current = current.get(part)
+                else:
+                    return None
+                if current is None:
+                    return None
+            return current
 
         for key, filter_value in metadata_filter.items():
-            memory_value = memory_metadata.get(key)
-
-            # Skip this memory if the metadata key doesn't exist
+            # Handle nested paths
+            memory_value = get_nested_value(memory, key)
             if memory_value is None:
                 return False
 
             # Special case for 'tags' which is often a list
-            if key == "tags":
+            if key.endswith('.tags'):
                 if isinstance(memory_value, list) and filter_value in memory_value:
                     continue
                 elif memory_value == filter_value:
@@ -227,7 +230,7 @@ class ImportanceStrategy(SearchStrategy):
                 return False
 
             # Special case for 'type'
-            elif key == "type":
+            elif key.endswith('.type'):
                 if memory_value == filter_value:
                     continue
                 return False

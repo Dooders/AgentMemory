@@ -1,10 +1,12 @@
-name: Update Changelog on PR
+name: Update Changelog on PR (Disabled)
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
+  # Manual trigger only
+  workflow_dispatch:
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   branches:
+  #     - main
 
 jobs:
   check-pr-type:

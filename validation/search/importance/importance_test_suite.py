@@ -86,6 +86,7 @@ class ImportanceSearchTestSuite(TestSuite):
                 "stm-high-importance-1",
                 "ltm-highest-importance-1",
                 "ltm-high-importance-1",
+                "im-high-importance-2",
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
