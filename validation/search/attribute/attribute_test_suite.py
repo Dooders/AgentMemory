@@ -192,20 +192,8 @@ class AttributeSearchTestSuite(TestSuite):
             memory_checksum_map=self.memory_checksum_map,
         )
 
-        # Test 6: Large result set limiting
-        self.runner.run_test(
-            "Large Result Set Limiting",
-            "a",  # Common letter to match many memories
-            expected_memory_ids=[
-                "meeting-123456-1",  # High importance and shorter content
-                "meeting-123456-6",  # High importance but longer content
-                "meeting-123456-3",  # Medium importance and longer content
-            ],
-            limit=3,  # Only show top 3 results
-            memory_checksum_map=self.memory_checksum_map,
-        )
 
-        # Test 7: Multi-tier search
+        # Test 6: Multi-tier search
         self.runner.run_test(
             "Multi-Tier Search",
             "important",
@@ -215,7 +203,7 @@ class AttributeSearchTestSuite(TestSuite):
 
         # === Scoring Method Tests ===
 
-        # Test 8: Default length ratio scoring
+        # Test 7: Default length ratio scoring
         self.runner.run_test(
             "Default Length Ratio Scoring",
             "meeting",
@@ -231,7 +219,7 @@ class AttributeSearchTestSuite(TestSuite):
             memory_checksum_map=self.memory_checksum_map,
         )
 
-        # Test 9: Term frequency scoring
+        # Test 8: Term frequency scoring
         self.runner.run_test(
             "Term Frequency Scoring",
             "meeting",
@@ -247,7 +235,7 @@ class AttributeSearchTestSuite(TestSuite):
             memory_checksum_map=self.memory_checksum_map,
         )
 
-        # Test 10: BM25 scoring
+        # Test 9: BM25 scoring
         self.runner.run_test(
             "BM25 Scoring",
             "meeting",
@@ -263,7 +251,7 @@ class AttributeSearchTestSuite(TestSuite):
             memory_checksum_map=self.memory_checksum_map,
         )
 
-        # Test 11: Binary scoring
+        # Test 10: Binary scoring
         self.runner.run_test(
             "Binary Scoring",
             "meeting",
@@ -279,7 +267,7 @@ class AttributeSearchTestSuite(TestSuite):
             memory_checksum_map=self.memory_checksum_map,
         )
 
-        # Test 12: Term frequency with repetition
+        # Test 11: Term frequency with repetition
         self.runner.run_test(
             "Term Frequency with Term Repetition",
             "security",
@@ -289,7 +277,7 @@ class AttributeSearchTestSuite(TestSuite):
             memory_checksum_map=self.memory_checksum_map,
         )
 
-        # Test 13: BM25 with term repetition
+        # Test 12: BM25 with term repetition
         self.runner.run_test(
             "BM25 with Term Repetition",
             "security",

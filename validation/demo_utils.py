@@ -59,7 +59,7 @@ def setup_logging(demo_name: str) -> logging.Logger:
 
     # Configure logging
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     # Clear existing handlers if any
     if logger.handlers:
@@ -69,11 +69,13 @@ def setup_logging(demo_name: str) -> logging.Logger:
     file_handler = logging.FileHandler(log_file)
     file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(file_formatter)
+    file_handler.setLevel(logging.DEBUG)
 
     # Console handler for logging to console
     console_handler = logging.StreamHandler()
     console_formatter = logging.Formatter("%(message)s")
     console_handler.setFormatter(console_formatter)
+    console_handler.setLevel(logging.INFO)
 
     # Create a filter to exclude embedding-related log messages
     class EmbeddingFilter(logging.Filter):
