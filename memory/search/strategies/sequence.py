@@ -123,7 +123,7 @@ class NarrativeSequenceStrategy(SearchStrategy):
         # Find reference memory index
         reference_index = None
         for i, memory in enumerate(sorted_memories):
-            memory_id = memory.get("memory_id") or memory.get("id")
+            memory_id = self._extract_memory_id(memory)
             if memory_id == reference_id:
                 reference_index = i
                 break
