@@ -61,7 +61,7 @@ class NarrativeSequenceStrategy(SearchStrategy):
             before_count = None
             after_count = None
             time_window_minutes = None
-            timestamp_field = "metadata.timestamp"
+            timestamp_field = "timestamp"
         else:
             # Extract parameters from query dict
             reference_id = query.get("reference_id")
@@ -69,7 +69,7 @@ class NarrativeSequenceStrategy(SearchStrategy):
             before_count = query.get("before_count")
             after_count = query.get("after_count")
             time_window_minutes = query.get("time_window_minutes")
-            timestamp_field = query.get("timestamp_field", "metadata.timestamp")
+            timestamp_field = query.get("timestamp_field", "timestamp")
 
         # Validate required parameters
         if not reference_id:
@@ -108,12 +108,12 @@ class NarrativeSequenceStrategy(SearchStrategy):
         store = self._get_store_for_tier(tier)
 
         # Try to get the reference memory
-        reference_memory = store.get(reference_id, agent_id)
+        reference_memory = store.get(agent_id, reference_id)
         if not reference_memory:
             raise ValueError(f"Reference memory with ID {reference_id} not found")
 
         # Get all memories for filtering
-        all_memories = store.list(agent_id)
+        all_memories = store.get_all(agent_id)
 
         # Sort memories by timestamp
         sorted_memories = self._sort_memories_by_timestamp(
@@ -123,7 +123,8 @@ class NarrativeSequenceStrategy(SearchStrategy):
         # Find reference memory index
         reference_index = None
         for i, memory in enumerate(sorted_memories):
-            if memory["id"] == reference_id:
+            memory_id = self._extract_memory_id(memory)
+            if memory_id == reference_id:
                 reference_index = i
                 break
 
@@ -138,17 +139,34 @@ class NarrativeSequenceStrategy(SearchStrategy):
             reference_timestamp = self._get_timestamp_value(
                 reference_memory, timestamp_field
             )
-            reference_dt = datetime.fromisoformat(reference_timestamp)
+            if reference_timestamp is None:
+                raise ValueError(
+                    f"Could not find timestamp at path {timestamp_field} in reference memory"
+                )
+
+            # Convert timestamp to datetime
+            if isinstance(reference_timestamp, str):
+                reference_dt = datetime.fromisoformat(reference_timestamp)
+            else:
+                reference_dt = datetime.fromtimestamp(float(reference_timestamp))
             window_start = reference_dt - timedelta(minutes=time_window_minutes)
             window_end = reference_dt + timedelta(minutes=time_window_minutes)
 
             results = []
             for memory in sorted_memories:
                 memory_timestamp = self._get_timestamp_value(memory, timestamp_field)
-                memory_dt = datetime.fromisoformat(memory_timestamp)
+                if memory_timestamp is None:
+                    continue
+
+                # Convert memory timestamp to datetime
+                if isinstance(memory_timestamp, str):
+                    memory_dt = datetime.fromisoformat(memory_timestamp)
+                else:
+                    memory_dt = datetime.fromtimestamp(float(memory_timestamp))
                 if window_start <= memory_dt <= window_end:
                     # Mark the reference memory
-                    if memory["id"] == reference_id:
+                    memory_id = memory.get("memory_id") or memory.get("id")
+                    if memory_id == reference_id:
                         memory = dict(
                             memory
                         )  # Create a copy to avoid modifying the original
@@ -163,7 +181,8 @@ class NarrativeSequenceStrategy(SearchStrategy):
 
             # Mark the reference memory
             for i, memory in enumerate(results):
-                if memory["id"] == reference_id:
+                memory_id = memory.get("memory_id") or memory.get("id")
+                if memory_id == reference_id:
                     results[i] = dict(
                         memory
                     )  # Create a copy to avoid modifying the original
@@ -206,7 +225,12 @@ class NarrativeSequenceStrategy(SearchStrategy):
 
         def get_timestamp(memory):
             timestamp = self._get_timestamp_value(memory, timestamp_field)
-            return timestamp
+            if isinstance(timestamp, str):
+                return datetime.fromisoformat(timestamp).timestamp()
+            elif isinstance(timestamp, (int, float)):
+                return float(timestamp)
+            else:
+                return 0.0  # Default timestamp for invalid values
 
         return sorted(memories, key=get_timestamp)
 
@@ -219,13 +243,16 @@ class NarrativeSequenceStrategy(SearchStrategy):
             timestamp_field: Field path to use for timestamp (e.g., "metadata.timestamp")
 
         Returns:
-            Timestamp value as string
+            Timestamp value as int/float or None if not found
         """
         if "." in timestamp_field:
             parts = timestamp_field.split(".")
             value = memory
             for part in parts:
-                value = value.get(part, {})
+                if isinstance(value, dict) and part in value:
+                    value = value[part]
+                else:
+                    return None
             return value
         else:
             return memory.get(timestamp_field)

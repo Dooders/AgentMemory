@@ -61,7 +61,7 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
         ]
 
         # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        self.mock_stm_store.get_all.return_value = memories
 
         # Configure mock to return reference memory
         reference_memory = memories[2]  # mem3
@@ -124,7 +124,7 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
         ]
 
         # Configure mock to return all memories for listing
-        self.mock_im_store.list.return_value = memories
+        self.mock_im_store.get_all.return_value = memories
 
         # Configure mock to return reference memory
         reference_memory = memories[2]  # mem3
@@ -190,7 +190,7 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
         ]
 
         # Configure mock to return all memories for listing
-        self.mock_ltm_store.list.return_value = memories
+        self.mock_ltm_store.get_all.return_value = memories
 
         # Configure mock to return reference memory
         reference_memory = memories[2]  # mem3
@@ -201,6 +201,7 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
             query={
                 "reference_id": "mem3",
                 "time_window_minutes": 10,  # 10 minutes before and after
+                "timestamp_field": "metadata.timestamp"  # Specify the correct timestamp field path
             },
             agent_id="agent-1",
             tier="ltm",
@@ -269,7 +270,7 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
         ]
 
         # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        self.mock_stm_store.get_all.return_value = memories
 
         # Configure mock to return reference memory
         reference_memory = memories[2]  # mem3
@@ -313,7 +314,7 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
         ]
 
         # Configure mock to return all memories for listing
-        self.mock_im_store.list.return_value = memories
+        self.mock_im_store.get_all.return_value = memories
 
         # Configure mock to return reference memory
         reference_memory = memories[1]  # mem2
@@ -360,7 +361,7 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
         ]
 
         # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        self.mock_stm_store.get_all.return_value = memories
 
         # Test with reference at start
         self.mock_stm_store.get.return_value = memories[0]  # mem1

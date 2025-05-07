@@ -1,0 +1,321 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "test-agent-sequence-search": {
+      "agent_id": "test-agent-sequence-search",
+      "memories": [
+        {
+          "memory_id": "test-agent-sequence-search-meeting-123456-1",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 1,
+          "timestamp": 1686816000,
+          "content": {
+            "content": "Initial project kickoff meeting with the team. We discussed project scope and timeline.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "kickoff", "planning"],
+              "participants": ["John", "Sarah", "Mike"],
+              "date": "2023-06-15",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686816000,
+            "last_access_time": 1686816000,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "checksum": "0eb0f81d07276f08e05351a604d3c994564fedee3a93329e318186da517a3c56"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-meeting-123456-2",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 2,
+          "timestamp": 1686902400,
+          "content": {
+            "content": "Follow-up meeting to discuss technical requirements and architecture decisions.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "technical", "architecture"],
+              "participants": ["John", "Sarah", "Mike", "Alex"],
+              "date": "2023-06-16",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686902400,
+            "last_access_time": 1686902400,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "checksum": "f6ab36930459e74a52fdf21fb96a84241ccae3f6987365a21f9a17d84c5dae1e"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-meeting-123456-3",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 3,
+          "timestamp": 1686988800,
+          "content": {
+            "content": "Technical architecture review meeting. Finalized the system design and component interactions.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "review", "architecture"],
+              "participants": ["John", "Sarah", "Mike", "Alex", "Emma"],
+              "date": "2023-06-17",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686988800,
+            "last_access_time": 1686988800,
+            "compression_level": 0,
+            "importance_score": 0.95,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "checksum": "ffa0ee60ebaec5574358a02d1857823e948519244e366757235bf755c888a87f"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-meeting-123456-4",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 4,
+          "timestamp": 1687075200,
+          "content": {
+            "content": "Sprint planning meeting for the next iteration. Assigned tasks and set priorities.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "medium",
+              "tags": ["meeting", "sprint", "planning"],
+              "participants": ["John", "Sarah", "Mike"],
+              "date": "2023-06-18",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687075200,
+            "last_access_time": 1687075200,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "checksum": "9214ebc2d11877665b32771bd3c080414d9519b435ec3f6c19cc5f337bb0ba90"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-meeting-123456-5",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 5,
+          "timestamp": 1687161600,
+          "content": {
+            "content": "Client demo preparation meeting. Reviewed the presentation and prepared for questions.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "demo", "client"],
+              "participants": ["John", "Sarah", "Client"],
+              "date": "2023-06-19",
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1687161600,
+            "last_access_time": 1687161600,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "checksum": "ad2e7c963751beb1ebc1c9b84ecb09ec3ccdef14f276cd14bbebad12d0f9b0df"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-task-123456-1",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 6,
+          "timestamp": 1686819600,
+          "content": {
+            "content": "Create initial project documentation and setup repository structure.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["task", "documentation", "setup"],
+              "assignee": "John",
+              "deadline": "2023-06-16",
+              "source": "meeting"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686819600,
+            "last_access_time": 1686819600,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "checksum": "e0f7deb6929a17f65f56e5b03e16067c8bb65649fd2745f842aca7af701c9cac"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-task-123456-2",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 7,
+          "timestamp": 1686906000,
+          "content": {
+            "content": "Set up development environment and configure CI/CD pipeline.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["task", "setup", "devops"],
+              "assignee": "Mike",
+              "deadline": "2023-06-17",
+              "source": "meeting"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686906000,
+            "last_access_time": 1686906000,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "checksum": "1d23b6683acd8c3863cb2f2010fe3df2c3e69a2d94c7c4757a291d4872066cfd"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-task-123456-3",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 8,
+          "timestamp": 1686992400,
+          "content": {
+            "content": "Implement core authentication system with OAuth integration.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["task", "development", "auth"],
+              "assignee": "Sarah",
+              "deadline": "2023-06-20",
+              "source": "meeting"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686992400,
+            "last_access_time": 1686992400,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "checksum": "f3c73b06d6399ed30ea9d9ad7c711a86dd58154809cc05497f8955425ec6dc67"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-note-123456-1",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 9,
+          "timestamp": 1686823200,
+          "content": {
+            "content": "Important security considerations for the project: need to implement rate limiting and input validation.",
+            "metadata": {
+              "type": "note",
+              "importance": "high",
+              "tags": ["note", "security", "requirements"],
+              "author": "John",
+              "source": "meeting"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686823200,
+            "last_access_time": 1686823200,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm",
+            "checksum": "1e9e265e75c2ef678dfd0de0ab5c801f845daa48a90a48bb02ee85148ccc3470"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-sequence-search-note-123456-2",
+          "agent_id": "test-agent-sequence-search",
+          "step_number": 10,
+          "timestamp": 1686909600,
+          "content": {
+            "content": "Performance optimization ideas for the database layer: implement caching and query optimization.",
+            "metadata": {
+              "type": "note",
+              "importance": "medium",
+              "tags": ["note", "performance", "database"],
+              "author": "Sarah",
+              "source": "meeting"
+            }
+          },
+          "metadata": {
+            "creation_time": 1686909600,
+            "last_access_time": 1686909600,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm",
+            "checksum": "169c452e368fd62e3c0cf5ce7731769ed46ab6ae73e5048e0c3a7caaa66fba46"
+          },
+          "type": "generic",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 
