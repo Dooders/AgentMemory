@@ -115,6 +115,20 @@ class NarrativeSequenceStrategy(SearchStrategy):
         # Get all memories for filtering
         all_memories = store.get_all(agent_id)
 
+        # Get reference memory type from content metadata
+        reference_type = (
+            reference_memory.get("content", {}).get("metadata", {}).get("type")
+        )
+
+        # Filter memories by type if reference type exists
+        if reference_type:
+            all_memories = [
+                memory
+                for memory in all_memories
+                if memory.get("content", {}).get("metadata", {}).get("type")
+                == reference_type
+            ]
+
         # Sort memories by timestamp
         sorted_memories = self._sort_memories_by_timestamp(
             all_memories, timestamp_field
@@ -277,3 +291,15 @@ class NarrativeSequenceStrategy(SearchStrategy):
                 return False
 
         return True
+
+    def _extract_memory_id(self, memory: Dict[str, Any]) -> str:
+        """
+        Extract memory ID from a memory object.
+
+        Args:
+            memory: Memory object to extract ID from
+
+        Returns:
+            Memory ID as string
+        """
+        return memory.get("memory_id") or memory.get("id")
