@@ -7,8 +7,6 @@ from openai import OpenAI
 import tempfile
 import sounddevice as sd
 import soundfile as sf
-import numpy as np
-
 # Load environment variables
 load_dotenv()
 
