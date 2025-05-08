@@ -111,7 +111,7 @@ class SequenceSearchTestSuite(TestSuite):
             "Time Window Sequence",
             {
                 "reference_id": "test-agent-sequence-search-meeting-123456-3",
-                "time_window_minutes": 30,
+                "time_window_minutes": 1440,  # 24 hours
             },
             expected_memory_ids=[
                 "test-agent-sequence-search-meeting-123456-2",
@@ -127,6 +127,7 @@ class SequenceSearchTestSuite(TestSuite):
             {
                 "reference_id": "test-agent-sequence-search-meeting-123456-3",
                 "tier": "stm",
+                "sequence_size": 3,
             },
             expected_memory_ids=[
                 "test-agent-sequence-search-meeting-123456-2",

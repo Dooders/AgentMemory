@@ -115,6 +115,25 @@ class NarrativeSequenceStrategy(SearchStrategy):
         # Get all memories for filtering
         all_memories = store.get_all(agent_id)
 
+        # Get reference memory type from content metadata
+        reference_type = None
+        if isinstance(reference_memory.get("content"), dict):
+            reference_type = reference_memory.get("content", {}).get("metadata", {}).get("type")
+        else:
+            # If content is a string, check metadata directly
+            reference_type = reference_memory.get("metadata", {}).get("type")
+
+        # Filter memories by type if reference type exists
+        if reference_type:
+            all_memories = [
+                memory
+                for memory in all_memories
+                if (isinstance(memory.get("content"), dict) and 
+                    memory.get("content", {}).get("metadata", {}).get("type") == reference_type) or
+                   (not isinstance(memory.get("content"), dict) and 
+                    memory.get("metadata", {}).get("type") == reference_type)
+            ]
+
         # Sort memories by timestamp
         sorted_memories = self._sort_memories_by_timestamp(
             all_memories, timestamp_field
@@ -146,11 +165,17 @@ class NarrativeSequenceStrategy(SearchStrategy):
 
             # Convert timestamp to datetime
             if isinstance(reference_timestamp, str):
-                reference_dt = datetime.fromisoformat(reference_timestamp)
+                try:
+                    reference_dt = datetime.fromisoformat(reference_timestamp)
+                except ValueError:
+                    reference_dt = datetime.fromtimestamp(float(reference_timestamp))
             else:
                 reference_dt = datetime.fromtimestamp(float(reference_timestamp))
-            window_start = reference_dt - timedelta(minutes=time_window_minutes)
-            window_end = reference_dt + timedelta(minutes=time_window_minutes)
+            
+            # Convert window to seconds for Unix timestamp comparison
+            window_seconds = time_window_minutes * 60
+            window_start_ts = reference_dt.timestamp() - window_seconds
+            window_end_ts = reference_dt.timestamp() + window_seconds
 
             results = []
             for memory in sorted_memories:
@@ -158,12 +183,18 @@ class NarrativeSequenceStrategy(SearchStrategy):
                 if memory_timestamp is None:
                     continue
 
-                # Convert memory timestamp to datetime
+                # Convert memory timestamp to float for comparison
                 if isinstance(memory_timestamp, str):
-                    memory_dt = datetime.fromisoformat(memory_timestamp)
+                    try:
+                        memory_dt = datetime.fromisoformat(memory_timestamp)
+                        memory_ts = memory_dt.timestamp()
+                    except ValueError:
+                        memory_ts = float(memory_timestamp)
                 else:
-                    memory_dt = datetime.fromtimestamp(float(memory_timestamp))
-                if window_start <= memory_dt <= window_end:
+                    memory_ts = float(memory_timestamp)
+                
+                # Compare timestamps
+                if window_start_ts <= memory_ts <= window_end_ts:
                     # Mark the reference memory
                     memory_id = memory.get("memory_id") or memory.get("id")
                     if memory_id == reference_id:
@@ -277,3 +308,15 @@ class NarrativeSequenceStrategy(SearchStrategy):
                 return False
 
         return True
+
+    def _extract_memory_id(self, memory: Dict[str, Any]) -> str:
+        """
+        Extract memory ID from a memory object.
+
+        Args:
+            memory: Memory object to extract ID from
+
+        Returns:
+            Memory ID as string
+        """
+        return memory.get("memory_id") or memory.get("id")

@@ -30,6 +30,8 @@ matplotlib
 numpy
 tiktoken
 openai
+openai-agents
+openai-voice
 
 # Additional needed dependencies
 redis[hiredis]
