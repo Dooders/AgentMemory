@@ -316,34 +316,36 @@ class StepBasedSearchStrategy(SearchStrategy):
 
     def _get_nested_value(self, obj: Dict[str, Any], path: str) -> Any:
         """Get value from a nested dictionary using a dot-separated path.
-        
+
         Args:
             obj: Dictionary to extract value from
             path: Dot-separated path to the value (e.g., "content.metadata.importance")
-            
+
         Returns:
             Value found at the path, or None if not found
         """
         if not path or not isinstance(obj, dict):
             return None
-            
-        parts = path.split('.')
+
+        parts = path.split(".")
         current = obj
-        
+
         for part in parts:
             if not isinstance(current, dict) or part not in current:
                 return None
             current = current[part]
-            
+
         return current
 
-    def _metadata_matches(self, memory: Dict[str, Any], metadata_filter: Dict[str, Any]) -> bool:
+    def _metadata_matches(
+        self, memory: Dict[str, Any], metadata_filter: Dict[str, Any]
+    ) -> bool:
         """Check if a memory matches the metadata filter.
-        
+
         Args:
             memory: Memory object to check
             metadata_filter: Metadata filter to apply
-            
+
         Returns:
             True if memory matches filter, False otherwise
         """
@@ -352,27 +354,31 @@ class StepBasedSearchStrategy(SearchStrategy):
             if memory_value is None:
                 # Try to get from non-nested metadata
                 memory_value = memory.get("metadata", {}).get(key)
-                
+
             # No matching value found
             if memory_value is None:
                 logger.debug(f"No value found for key {key} in memory")
                 return False
-                
+
             # Handle list/array values - check if filter_value is a subset of memory_value
             if isinstance(filter_value, list):
                 if not isinstance(memory_value, list):
                     # Convert to list if memory_value is a single value
                     memory_value = [memory_value]
-                
+
                 # Check if all items in filter_value are in memory_value
                 if not all(item in memory_value for item in filter_value):
-                    logger.debug(f"List match failed for {key}: filter={filter_value}, memory={memory_value}")
+                    logger.debug(
+                        f"List match failed for {key}: filter={filter_value}, memory={memory_value}"
+                    )
                     return False
             # For other types, do a direct comparison
             elif memory_value != filter_value:
-                logger.debug(f"Value mismatch for {key}: filter={filter_value}, memory={memory_value}")
+                logger.debug(
+                    f"Value mismatch for {key}: filter={filter_value}, memory={memory_value}"
+                )
                 return False
-                
+
         return True
 
     def _filter_memories(
