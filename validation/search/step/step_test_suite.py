@@ -62,6 +62,7 @@ class StepSearchTestSuite(TestSuite):
                 "test-agent-step-search-stm-1",
                 "test-agent-step-search-stm-2"
             ],
+            tier="stm",
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -153,7 +154,10 @@ class StepSearchTestSuite(TestSuite):
                 "test-agent-step-search-ltm-1",
                 "test-agent-step-search-ltm-2"
             ],
-            metadata_filter={"content.metadata.type": "system", "content.metadata.importance": "high"},
+            metadata_filter={
+                "content.metadata.type": "state",
+                "content.metadata.importance": "high"
+            },
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -264,7 +268,8 @@ class StepSearchTestSuite(TestSuite):
             {"start_step": 100, "end_step": 200},
             expected_memory_ids=[
                 "test-agent-step-search-stm-1",
-                "test-agent-step-search-stm-2"
+                "test-agent-step-search-stm-2",
+                "test-agent-step-search-im-1"
             ],
             metadata_filter={},
             memory_checksum_map=self.memory_checksum_map,
