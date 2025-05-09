@@ -39,7 +39,7 @@ class StepSearchTestSuite(TestSuite):
             "test-agent-step-search-im-1": "c3d4e5f6g7h8i9j0k1l2",
             "test-agent-step-search-im-2": "d4e5f6g7h8i9j0k1l2m3",
             "test-agent-step-search-ltm-1": "e5f6g7h8i9j0k1l2m3n4",
-            "test-agent-step-search-ltm-2": "f6g7h8i9j0k1l2m3n4o5"
+            "test-agent-step-search-ltm-2": "f6g7h8i9j0k1l2m3n4o5",
         }
 
         # Initialize base class
@@ -60,8 +60,9 @@ class StepSearchTestSuite(TestSuite):
             {"start_step": 100, "end_step": 200},
             expected_memory_ids=[
                 "test-agent-step-search-stm-1",
-                "test-agent-step-search-stm-2"
+                "test-agent-step-search-stm-2",
             ],
+            tier="stm",
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -72,7 +73,7 @@ class StepSearchTestSuite(TestSuite):
             expected_memory_ids=[
                 "test-agent-step-search-im-1",
                 "test-agent-step-search-stm-2",
-                "test-agent-step-search-im-2"
+                "test-agent-step-search-im-2",
             ],
             step_range=50,
             memory_checksum_map=self.memory_checksum_map,
@@ -84,7 +85,7 @@ class StepSearchTestSuite(TestSuite):
             {"start_step": 200, "end_step": 300},
             expected_memory_ids=[
                 "test-agent-step-search-im-1",
-                "test-agent-step-search-im-2"
+                "test-agent-step-search-im-2",
             ],
             tier="im",
             memory_checksum_map=self.memory_checksum_map,
@@ -98,7 +99,7 @@ class StepSearchTestSuite(TestSuite):
                 "test-agent-step-search-stm-1",
                 "test-agent-step-search-stm-2",
                 "test-agent-step-search-ltm-1",
-                "test-agent-step-search-ltm-2"
+                "test-agent-step-search-ltm-2",
             ],
             metadata_filter={"content.metadata.importance": "high"},
             memory_checksum_map=self.memory_checksum_map,
@@ -111,7 +112,7 @@ class StepSearchTestSuite(TestSuite):
             expected_memory_ids=[
                 "test-agent-step-search-im-1",
                 "test-agent-step-search-stm-2",
-                "test-agent-step-search-im-2"
+                "test-agent-step-search-im-2",
             ],
             step_range=50,
             step_weight=2.0,
@@ -127,7 +128,7 @@ class StepSearchTestSuite(TestSuite):
             expected_memory_ids=[
                 "test-agent-step-search-stm-2",
                 "test-agent-step-search-im-1",
-                "test-agent-step-search-im-2"
+                "test-agent-step-search-im-2",
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -139,7 +140,7 @@ class StepSearchTestSuite(TestSuite):
             expected_memory_ids=[
                 "test-agent-step-search-im-2",
                 "test-agent-step-search-im-1",
-                "test-agent-step-search-stm-2"
+                "test-agent-step-search-stm-2",
             ],
             step_range=50,
             memory_checksum_map=self.memory_checksum_map,
@@ -151,9 +152,12 @@ class StepSearchTestSuite(TestSuite):
             {"start_step": 200, "end_step": 350},
             expected_memory_ids=[
                 "test-agent-step-search-ltm-1",
-                "test-agent-step-search-ltm-2"
+                "test-agent-step-search-ltm-2",
             ],
-            metadata_filter={"content.metadata.type": "system", "content.metadata.importance": "high"},
+            metadata_filter={
+                "content.metadata.type": "state",
+                "content.metadata.importance": "high",
+            },
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -164,7 +168,7 @@ class StepSearchTestSuite(TestSuite):
             expected_memory_ids=[
                 "test-agent-step-search-stm-1",
                 "test-agent-step-search-stm-2",
-                "test-agent-step-search-ltm-1"
+                "test-agent-step-search-ltm-1",
             ],
             metadata_filter={"content.metadata.importance": "high"},
             memory_checksum_map=self.memory_checksum_map,
@@ -176,7 +180,7 @@ class StepSearchTestSuite(TestSuite):
             {"start_step": 200, "end_step": 300},
             expected_memory_ids=[
                 "test-agent-step-search-im-1",
-                "test-agent-step-search-im-2"
+                "test-agent-step-search-im-2",
             ],
             metadata_filter={"content.metadata.tags": ["database", "api"]},
             memory_checksum_map=self.memory_checksum_map,
@@ -218,7 +222,7 @@ class StepSearchTestSuite(TestSuite):
                 "test-agent-step-search-im-1",
                 "test-agent-step-search-im-2",
                 "test-agent-step-search-ltm-1",
-                "test-agent-step-search-ltm-2"
+                "test-agent-step-search-ltm-2",
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -264,7 +268,8 @@ class StepSearchTestSuite(TestSuite):
             {"start_step": 100, "end_step": 200},
             expected_memory_ids=[
                 "test-agent-step-search-stm-1",
-                "test-agent-step-search-stm-2"
+                "test-agent-step-search-stm-2",
+                "test-agent-step-search-im-1",
             ],
             metadata_filter={},
             memory_checksum_map=self.memory_checksum_map,
@@ -286,4 +291,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()

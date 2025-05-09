@@ -314,6 +314,73 @@ class StepBasedSearchStrategy(SearchStrategy):
 
         return None
 
+    def _get_nested_value(self, obj: Dict[str, Any], path: str) -> Any:
+        """Get value from a nested dictionary using a dot-separated path.
+
+        Args:
+            obj: Dictionary to extract value from
+            path: Dot-separated path to the value (e.g., "content.metadata.importance")
+
+        Returns:
+            Value found at the path, or None if not found
+        """
+        if not path or not isinstance(obj, dict):
+            return None
+
+        parts = path.split(".")
+        current = obj
+
+        for part in parts:
+            if not isinstance(current, dict) or part not in current:
+                return None
+            current = current[part]
+
+        return current
+
+    def _metadata_matches(
+        self, memory: Dict[str, Any], metadata_filter: Dict[str, Any]
+    ) -> bool:
+        """Check if a memory matches the metadata filter.
+
+        Args:
+            memory: Memory object to check
+            metadata_filter: Metadata filter to apply
+
+        Returns:
+            True if memory matches filter, False otherwise
+        """
+        for key, filter_value in metadata_filter.items():
+            memory_value = self._get_nested_value(memory, key)
+            if memory_value is None:
+                # Try to get from non-nested metadata
+                memory_value = memory.get("metadata", {}).get(key)
+
+            # No matching value found
+            if memory_value is None:
+                logger.debug(f"No value found for key {key} in memory")
+                return False
+
+            # Handle list/array values - check if filter_value is a subset of memory_value
+            if isinstance(filter_value, list):
+                if not isinstance(memory_value, list):
+                    # Convert to list if memory_value is a single value
+                    memory_value = [memory_value]
+
+                # Check if all items in filter_value are in memory_value
+                if not all(item in memory_value for item in filter_value):
+                    logger.debug(
+                        f"List match failed for {key}: filter={filter_value}, memory={memory_value}"
+                    )
+                    return False
+            # For other types, do a direct comparison
+            elif memory_value != filter_value:
+                logger.debug(
+                    f"Value mismatch for {key}: filter={filter_value}, memory={memory_value}"
+                )
+                return False
+
+        return True
+
     def _filter_memories(
         self,
         memories: List[Dict[str, Any]],
@@ -364,11 +431,8 @@ class StepBasedSearchStrategy(SearchStrategy):
                 continue
 
             # Apply metadata filter
-            if metadata_filter:
-                memory_metadata = memory.get("metadata", {})
-                if not all(
-                    memory_metadata.get(k) == v for k, v in metadata_filter.items()
-                ):
+            if metadata_filter and len(metadata_filter) > 0:
+                if not self._metadata_matches(memory, metadata_filter):
                     continue
 
             filtered.append(memory)
@@ -412,13 +476,24 @@ class StepBasedSearchStrategy(SearchStrategy):
                 # Normalize step distance (closer = higher score)
                 # Adjust max_distance based on your simulation scale
                 max_distance = step_params.get("step_range", 100) * 2
-                normalized_distance = min(step_distance / max_distance, 1.0)
+                # Avoid division by zero
+                if max_distance > 0:
+                    normalized_distance = min(step_distance / max_distance, 1.0)
+                else:
+                    normalized_distance = 1.0 if step_distance > 0 else 0.0
 
-                # Higher score for closer steps
+                # Higher score for closer steps (1.0 for exact match, decreasing as distance increases)
                 step_score = 1.0 - normalized_distance
 
-                # Apply step weight
-                step_score = step_score * step_weight
+                # Apply step weight (higher weight emphasizes proximity more)
+                step_score = pow(step_score, 1.0 / max(step_weight, 0.001))
+
+                # Log the scoring calculations for debugging
+                logger.debug(
+                    f"Memory {memory.get('id', 'unknown')}: step={memory_step}, "
+                    f"ref={reference_step}, distance={step_distance}, "
+                    f"normalized_distance={normalized_distance}, score={step_score}"
+                )
 
             # Create a copy of the memory to avoid modifying the original
             memory_copy = memory.copy()
