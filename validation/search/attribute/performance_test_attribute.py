@@ -48,33 +48,24 @@ class PerformanceTest:
 
     def setup_memory_system(self, memory_count=1000):
         """Initialize memory system with specified number of test memories."""
-        log_print(
-            self.logger, f"Setting up memory system with {memory_count} test memories"
+        # Clean up any existing resources first
+        self.cleanup()
+        
+        log_print(self.logger, f"Setting up memory system with {memory_count} test memories")
+        
+        # Create memory system with clean database
+        self.memory_system = create_memory_system(
+            logging_level="ERROR",  # Reduce logging noise during tests
+            use_mock_redis=True,
+            clear_db=True,  # Always clear DB for clean state
         )
-
-        # Create memory system with clean database for first run
-        if not hasattr(self, "_first_run_complete"):
-            # First run - create with clean database
-            self.memory_system = create_memory_system(
-                logging_level="ERROR",  # Reduce logging noise during tests
-                use_mock_redis=True,
-                clear_db=True,  # Clear DB only on first run
-            )
-            self._first_run_complete = True
-        else:
-            # Subsequent runs - use existing database
-            self.memory_system = create_memory_system(
-                logging_level="ERROR",
-                use_mock_redis=True,
-                clear_db=False,  # Keep existing tables
-            )
-
+        
         # Get agent reference
         agent = self.memory_system.get_memory_agent(AGENT_ID)
-
+        
         # Generate test memories
         self._generate_test_memories(memory_count)
-
+        
         # Setup search strategy with skip_validation enabled for performance tests
         log_print(self.logger, "Setting up search strategy with skip_validation=True")
         
@@ -649,185 +640,143 @@ class PerformanceTest:
     def run_all_tests(self):
         """Run a comprehensive set of performance tests."""
         log_print(self.logger, "Starting comprehensive performance test suite")
-
-        # Test 1: Memory scaling test
-        log_print(self.logger, f"\n{'#'*80}")
-        log_print(self.logger, f"{'#'*30} TEST 1: MEMORY SCALING {'#'*30}")
-        log_print(self.logger, f"{'#'*80}")
-        memory_sizes = [100, 500, 1000, 5000, 10000]
-        scaling_results = self.run_scaling_test("meeting", memory_sizes)
-
-        # Calculate scaling factor for later use
-        if scaling_results and len(scaling_results) > 1:
-            min_duration = min([r["duration"] for r in scaling_results])
-            max_duration = max([r["duration"] for r in scaling_results])
-            scaling_factor = max_duration / min_duration if min_duration > 0 else float('inf')
-        else:
-            scaling_factor = 1.0
+        
+        try:
+            # Test 1: Memory scaling test
+            log_print(self.logger, f"\n{'#'*80}")
+            log_print(self.logger, f"{'#'*30} TEST 1: MEMORY SCALING {'#'*30}")
+            log_print(self.logger, f"{'#'*80}")
+            memory_sizes = [100, 500, 1000, 5000, 10000]
+            scaling_results = self.run_scaling_test("meeting", memory_sizes)
             
-        # Test 2: Concurrent load test
-        log_print(self.logger, f"\n{'#'*80}")
-        log_print(self.logger, f"{'#'*30} TEST 2: CONCURRENT LOAD {'#'*30}")
-        log_print(self.logger, f"{'#'*80}")
-        concurrency_levels = [1, 5, 10, 20, 50]
-        concurrent_results = self.run_concurrent_test("project", concurrency_levels)
-
-        # Test 3: Scoring method comparison
-        log_print(self.logger, f"\n{'#'*80}")
-        log_print(self.logger, f"{'#'*29} TEST 3: SCORING METHOD COMPARISON {'#'*29}")
-        log_print(self.logger, f"{'#'*80}")
-        scoring_results = self.run_scoring_method_comparison("report")
-
-        # Test 4: Regex vs standard comparison
-        log_print(self.logger, f"\n{'#'*80}")
-        log_print(
-            self.logger, f"{'#'*29} TEST 4: REGEX VS STANDARD COMPARISON {'#'*29}"
-        )
-        log_print(self.logger, f"{'#'*80}")
-        regex_comparison = self.run_regex_comparison(
-            "meeting with team", "meeting.*team"
-        )
-
-        # Test 5: Complex query performance
-        log_print(self.logger, f"\n{'#'*80}")
-        log_print(self.logger, f"{'#'*29} TEST 5: COMPLEX QUERY PERFORMANCE {'#'*29}")
-        log_print(self.logger, f"{'#'*80}")
-        log_print(
-            self.logger,
-            "Setting up system with 5000 memories for complex query testing",
-        )
-        self.setup_memory_system(memory_count=5000)
-        complex_query = {
-            "content": "project",
-            "metadata": {"importance": "high", "type": "meeting"},
-        }
-        log_print(self.logger, f"Testing complex query: {complex_query}")
-        complex_duration, complex_results = self.run_test("Complex query test", complex_query, match_all=True, limit=100)
-        
-        # Complex query summary
-        log_print(self.logger, f"\n{'-'*20} COMPLEX QUERY SUMMARY {'-'*20}")
-        log_print(self.logger, f"Query structure: Nested with metadata filters")
-        log_print(self.logger, f"Performance: {complex_duration:.6f}s for {len(complex_results)} results")
-        
-        if complex_duration > 0.5:
-            log_print(self.logger, "Complex queries show significant performance impact")
-            log_print(self.logger, "RECOMMENDATION: Consider optimizing metadata indexing for frequent query patterns")
-        else:
-            log_print(self.logger, "Complex queries perform adequately")
-            log_print(self.logger, "RECOMMENDATION: No optimization needed at current load levels")
-        log_print(self.logger, f"{'-'*60}")
-
-        # Test 6: Filter performance
-        log_print(self.logger, f"\n{'#'*80}")
-        log_print(self.logger, f"{'#'*30} TEST 6: FILTER PERFORMANCE {'#'*30}")
-        log_print(self.logger, f"{'#'*80}")
-        log_print(self.logger, "Testing metadata filter performance")
-        filter_duration, filter_results = self.run_test(
-            "Filter test",
-            "project",
-            metadata_filter={"content.metadata.importance": "high"},
-            limit=100,
-        )
-        
-        # Filter test summary
-        log_print(self.logger, f"\n{'-'*20} FILTER TEST SUMMARY {'-'*20}")
-        log_print(self.logger, f"Filter applied: content.metadata.importance=high")
-        log_print(self.logger, f"Performance: {filter_duration:.6f}s for {len(filter_results)} results")
-        
-        # Compare to complex query performance
-        if complex_duration > 0:
-            filter_vs_complex = filter_duration / complex_duration
-            log_print(self.logger, f"Filter vs complex query: {filter_vs_complex:.2f}x {'slower' if filter_vs_complex > 1 else 'faster'}")
+            # Cleanup after scaling test
+            self.cleanup()
             
-            if filter_vs_complex < 0.7:
-                log_print(self.logger, "FINDING: Metadata filters are more efficient than complex nested queries")
-            elif filter_vs_complex > 1.3:
-                log_print(self.logger, "FINDING: Metadata filters have overhead compared to complex queries")
+            # Test 2: Concurrent load test
+            log_print(self.logger, f"\n{'#'*80}")
+            log_print(self.logger, f"{'#'*30} TEST 2: CONCURRENT LOAD {'#'*30}")
+            log_print(self.logger, f"{'#'*80}")
+            concurrency_levels = [1, 5, 10, 20, 50]
+            concurrent_results = self.run_concurrent_test("project", concurrency_levels)
+            
+            # Cleanup after concurrent test
+            self.cleanup()
+            
+            # Test 3: Scoring method comparison
+            log_print(self.logger, f"\n{'#'*80}")
+            log_print(self.logger, f"{'#'*29} TEST 3: SCORING METHOD COMPARISON {'#'*29}")
+            log_print(self.logger, f"{'#'*80}")
+            scoring_results = self.run_scoring_method_comparison("report")
+            
+            # Test 4: Regex vs standard comparison
+            log_print(self.logger, f"\n{'#'*80}")
+            log_print(
+                self.logger, f"{'#'*29} TEST 4: REGEX VS STANDARD COMPARISON {'#'*29}"
+            )
+            log_print(self.logger, f"{'#'*80}")
+            regex_comparison = self.run_regex_comparison(
+                "meeting with team", "meeting.*team"
+            )
+            
+            # Test 5: Complex query performance
+            log_print(self.logger, f"\n{'#'*80}")
+            log_print(self.logger, f"{'#'*29} TEST 5: COMPLEX QUERY PERFORMANCE {'#'*29}")
+            log_print(self.logger, f"{'#'*80}")
+            log_print(
+                self.logger,
+                "Setting up system with 5000 memories for complex query testing",
+            )
+            self.setup_memory_system(memory_count=5000)
+            complex_query = {
+                "content": "project",
+                "metadata": {"importance": "high", "type": "meeting"},
+            }
+            log_print(self.logger, f"Testing complex query: {complex_query}")
+            complex_duration, complex_results = self.run_test("Complex query test", complex_query, match_all=True, limit=100)
+            
+            # Complex query summary
+            log_print(self.logger, f"\n{'-'*20} COMPLEX QUERY SUMMARY {'-'*20}")
+            log_print(self.logger, f"Query structure: Nested with metadata filters")
+            log_print(self.logger, f"Performance: {complex_duration:.6f}s for {len(complex_results)} results")
+            
+            if complex_duration > 0.5:
+                log_print(self.logger, "Complex queries show significant performance impact")
+                log_print(self.logger, "RECOMMENDATION: Consider optimizing metadata indexing for frequent query patterns")
             else:
-                log_print(self.logger, "FINDING: Metadata filters and complex queries have similar performance")
-        log_print(self.logger, f"{'-'*60}")
-
-        # Test 7: Case sensitivity performance impact
-        log_print(self.logger, f"\n{'#'*80}")
-        log_print(self.logger, f"{'#'*28} TEST 7: CASE SENSITIVITY IMPACT {'#'*28}")
-        log_print(self.logger, f"{'#'*80}")
-        log_print(self.logger, "Testing case sensitivity impact")
-        sensitive_duration, sensitive_results = self.run_test("Case sensitive test", "Project", case_sensitive=True, limit=100)
-        insensitive_duration, insensitive_results = self.run_test(
-            "Case insensitive test", "Project", case_sensitive=False, limit=100
-        )
-        
-        # Case sensitivity summary
-        log_print(self.logger, f"\n{'-'*20} CASE SENSITIVITY SUMMARY {'-'*20}")
-        log_print(self.logger, f"Case sensitive search: {sensitive_duration:.6f}s for {len(sensitive_results)} results")
-        log_print(self.logger, f"Case insensitive search: {insensitive_duration:.6f}s for {len(insensitive_results)} results")
-        
-        # Compare performance
-        if sensitive_duration > 0:
-            case_ratio = insensitive_duration / sensitive_duration
-            log_print(self.logger, f"Performance ratio: Case insensitive is {case_ratio:.2f}x {'slower' if case_ratio > 1 else 'faster'}")
-        
-        # Compare result counts
-        result_diff = abs(len(sensitive_results) - len(insensitive_results))
-        if result_diff > 0:
-            log_print(self.logger, f"Result difference: {result_diff} more results with case {'sensitive' if len(sensitive_results) > len(insensitive_results) else 'insensitive'} search")
-        
-        # Recommendation
-        if insensitive_duration > sensitive_duration * 1.5:
-            log_print(self.logger, "RECOMMENDATION: Use case sensitive search when possible for better performance")
-        else:
-            log_print(self.logger, "RECOMMENDATION: Case insensitivity has minimal performance impact - use based on UX needs")
-        log_print(self.logger, f"{'-'*60}")
-
-        # Save all results
-        self.save_results()
-
-        # Generate plots
-        self.generate_plots(
-            scaling_results, concurrent_results, scoring_results, regex_comparison
-        )
-        
-        # Final comprehensive test summary
-        log_print(self.logger, f"\n{'='*80}")
-        log_print(self.logger, "ALL PERFORMANCE TESTS COMPLETE")
-        log_print(self.logger, f"\n{'#'*20} COMPREHENSIVE TEST SUMMARY {'#'*20}")
-        
-        # Collect key findings
-        all_test_durations = [test["duration"] for test in self.results]
-        avg_duration = sum(all_test_durations) / len(all_test_durations) if all_test_durations else 0
-        max_duration = max(all_test_durations) if all_test_durations else 0
-        min_duration = min(all_test_durations) if all_test_durations else 0
-        
-        log_print(self.logger, f"Tests executed: {len(self.results)}")
-        log_print(self.logger, f"Average query duration: {avg_duration:.6f}s")
-        log_print(self.logger, f"Duration range: {min_duration:.6f}s - {max_duration:.6f}s")
-        
-        # Overall performance assessment
-        if avg_duration < 0.1:
-            performance_rating = "Excellent"
-        elif avg_duration < 0.3:
-            performance_rating = "Good"
-        elif avg_duration < 0.5:
-            performance_rating = "Acceptable"
-        else:
-            performance_rating = "Needs optimization"
+                log_print(self.logger, "Complex queries perform adequately")
+                log_print(self.logger, "RECOMMENDATION: No optimization needed at current load levels")
+            log_print(self.logger, f"{'-'*60}")
             
-        log_print(self.logger, f"Overall performance rating: {performance_rating}")
-        
-        # Key recommendations
-        log_print(self.logger, "KEY RECOMMENDATIONS:")
-        
-        # Add specific recommendations based on test results
-        if any(test["duration"] > 1.0 for test in self.results):
-            slow_tests = [test["test_name"] for test in self.results if test["duration"] > 1.0]
-            log_print(self.logger, f"- Consider optimizing slow operations: {', '.join(slow_tests[:3])}")
+            # Test 6: Filter performance
+            log_print(self.logger, f"\n{'#'*80}")
+            log_print(self.logger, f"{'#'*30} TEST 6: FILTER PERFORMANCE {'#'*30}")
+            log_print(self.logger, f"{'#'*80}")
+            log_print(self.logger, "Testing metadata filter performance")
+            filter_duration, filter_results = self.run_test(
+                "Filter test",
+                "project",
+                metadata_filter={"content.metadata.importance": "high"},
+                limit=100,
+            )
             
-        # Add scaling recommendation
-        if scaling_factor > 2:
-            log_print(self.logger, f"- Improve scaling characteristics for larger memory sets")
+            # Filter test summary
+            log_print(self.logger, f"\n{'-'*20} FILTER TEST SUMMARY {'-'*20}")
+            log_print(self.logger, f"Filter applied: content.metadata.importance=high")
+            log_print(self.logger, f"Performance: {filter_duration:.6f}s for {len(filter_results)} results")
             
-        log_print(self.logger, f"{'#'*60}")
-        log_print(self.logger, f"{'='*80}")
+            # Compare to complex query performance
+            if complex_duration > 0:
+                filter_vs_complex = filter_duration / complex_duration
+                log_print(self.logger, f"Filter vs complex query: {filter_vs_complex:.2f}x {'slower' if filter_vs_complex > 1 else 'faster'}")
+                
+                if filter_vs_complex < 0.7:
+                    log_print(self.logger, "FINDING: Metadata filters are more efficient than complex nested queries")
+                elif filter_vs_complex > 1.3:
+                    log_print(self.logger, "FINDING: Metadata filters have overhead compared to complex queries")
+                else:
+                    log_print(self.logger, "FINDING: Metadata filters and complex queries have similar performance")
+            log_print(self.logger, f"{'-'*60}")
+            
+            # Test 7: Case sensitivity performance impact
+            log_print(self.logger, f"\n{'#'*80}")
+            log_print(self.logger, f"{'#'*28} TEST 7: CASE SENSITIVITY IMPACT {'#'*28}")
+            log_print(self.logger, f"{'#'*80}")
+            log_print(self.logger, "Testing case sensitivity impact")
+            sensitive_duration, sensitive_results = self.run_test("Case sensitive test", "Project", case_sensitive=True, limit=100)
+            insensitive_duration, insensitive_results = self.run_test(
+                "Case insensitive test", "Project", case_sensitive=False, limit=100
+            )
+            
+            # Case sensitivity summary
+            log_print(self.logger, f"\n{'-'*20} CASE SENSITIVITY SUMMARY {'-'*20}")
+            log_print(self.logger, f"Case sensitive search: {sensitive_duration:.6f}s for {len(sensitive_results)} results")
+            log_print(self.logger, f"Case insensitive search: {insensitive_duration:.6f}s for {len(insensitive_results)} results")
+            
+            # Compare performance
+            if sensitive_duration > 0:
+                case_ratio = insensitive_duration / sensitive_duration
+                log_print(self.logger, f"Performance ratio: Case insensitive is {case_ratio:.2f}x {'slower' if case_ratio > 1 else 'faster'}")
+            
+            # Compare result counts
+            result_diff = abs(len(sensitive_results) - len(insensitive_results))
+            if result_diff > 0:
+                log_print(self.logger, f"Result difference: {result_diff} more results with case {'sensitive' if len(sensitive_results) > len(insensitive_results) else 'insensitive'} search")
+            
+            # Recommendation
+            if insensitive_duration > sensitive_duration * 1.5:
+                log_print(self.logger, "RECOMMENDATION: Use case sensitive search when possible for better performance")
+            else:
+                log_print(self.logger, "RECOMMENDATION: Case insensitivity has minimal performance impact - use based on UX needs")
+            log_print(self.logger, f"{'-'*60}")
+            
+        except Exception as e:
+            log_print(self.logger, f"Error during test execution: {e}")
+            # Ensure cleanup happens even if tests fail
+            self.cleanup()
+            raise
+        finally:
+            # Final cleanup
+            self.cleanup()
 
     def save_results(self):
         """Save test results to CSV file."""
@@ -910,13 +859,53 @@ class PerformanceTest:
 
         log_print(self.logger, "Performance plot generation complete")
 
+    def cleanup(self):
+        """Clean up test resources and data."""
+        log_print(self.logger, "Cleaning up test resources...")
+        
+        try:
+            # Clean up memory stores
+            if self.memory_system:
+                agent = self.memory_system.get_memory_agent(AGENT_ID)
+                
+                # Clear STM store
+                if agent.stm_store:
+                    agent.stm_store.clear(AGENT_ID)
+                    log_print(self.logger, "Cleared STM store")
+                
+                # Clear IM store
+                if agent.im_store:
+                    agent.im_store.clear(AGENT_ID)
+                    log_print(self.logger, "Cleared IM store")
+                
+                # Clear LTM store - SQLiteLTMStore.clear() doesn't take agent_id
+                if agent.ltm_store:
+                    agent.ltm_store.clear()  # Remove AGENT_ID parameter
+                    log_print(self.logger, "Cleared LTM store")
+            
+            # Clear pattern cache in search strategy
+            if self.search_strategy:
+                self.search_strategy.clear_pattern_cache()
+                log_print(self.logger, "Cleared pattern cache")
+            
+            # Reset instance variables
+            self.results = []
+            self._first_run_complete = False
+            
+            log_print(self.logger, "Cleanup completed successfully")
+            
+        except Exception as e:
+            log_print(self.logger, f"Error during cleanup: {e}")
+            raise
+
 
 def main():
     """Main entry point for performance testing."""
     # Setup logging
     logger = setup_logging("attribute_search_performance")
     log_print(logger, "Starting Attribute Search Performance Testing")
-
+    
+    perf_test = None
     try:
         perf_test = PerformanceTest(logger)
         perf_test.run_all_tests()
@@ -924,10 +913,13 @@ def main():
     except Exception as e:
         log_print(logger, f"ERROR: Performance testing failed: {e}")
         import traceback
-
         log_print(logger, traceback.format_exc())
         return 1
-
+    finally:
+        # Ensure cleanup happens even if tests fail
+        if perf_test:
+            perf_test.cleanup()
+    
     return 0
 
 
