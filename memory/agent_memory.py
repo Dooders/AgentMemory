@@ -9,6 +9,7 @@ from memory.config import MemoryConfig
 from memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
 from memory.embeddings.compression import CompressionEngine
 from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.vector_store import VectorStore
 from memory.storage.redis_im import RedisIMStore
 from memory.storage.redis_stm import RedisSTMStore
 from memory.storage.sqlite_ltm import SQLiteLTMStore
@@ -29,6 +30,7 @@ class MemoryAgent:
         stm_store: Short-Term Memory store (Redis)
         im_store: Intermediate Memory store (Redis with TTL)
         ltm_store: Long-Term Memory store (SQLite)
+        vector_store: Vector store for similarity search
         compression_engine: Engine for compressing memory entries
         embedding_engine: Optional neural embedding engine
     """
@@ -47,6 +49,15 @@ class MemoryAgent:
         self.stm_store = RedisSTMStore(config.stm_config)
         self.im_store = RedisIMStore(config.im_config)
         self.ltm_store = SQLiteLTMStore(agent_id, config.ltm_config)
+
+        # Initialize vector store
+        self.vector_store = VectorStore(
+            redis_client=self.stm_store.redis,
+            stm_dimension=config.autoencoder_config.stm_dim,
+            im_dimension=config.autoencoder_config.im_dim,
+            ltm_dimension=config.autoencoder_config.ltm_dim,
+            namespace=f"agent-{agent_id}"
+        )
 
         # Initialize compression engine
         self.compression_engine = CompressionEngine(config.autoencoder_config)
