@@ -26,8 +26,14 @@ sqlite3-plus
 pytest
 pytest-asyncio 
 
+# Visualization and analysis
 matplotlib
 numpy
+pandas
+psutil
+memory_profiler
+
+# OpenAI dependencies
 tiktoken
 openai
 openai-agents
