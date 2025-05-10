@@ -1428,10 +1428,15 @@ class MockRedis:
             max_retries: Maximum number of retries (ignored in mock implementation)
 
         Returns:
-            The result of the store_func call
+            The result of the store_func call, or False if an exception occurs
         """
-        # Just call the store function directly
-        return store_func(agent_id, state_data)
+        try:
+            # Call the store function and return its result
+            result = store_func(agent_id, state_data)
+            return result
+        except Exception as e:
+            logger.error(f"Error in store_with_retry: {str(e)}")
+            return False
 
     @classmethod
     def from_url(cls, url):
