@@ -245,9 +245,9 @@ class ImportanceStrategy(SearchStrategy):
 
         for key, filter_value in metadata_filter.items():
             # Handle nested paths
-            memory_value = memory.get(key)  # Look in memory dictionary first
-            if memory_value is None:
-                memory_value = metadata.get(key)  # Then look in metadata dictionary
+            memory_value = get_nested_value(
+                metadata, key
+            )  # Changed from memory to metadata
             logger.debug(
                 f"Checking key {key}: memory_value={memory_value}, filter_value={filter_value}"
             )
@@ -293,49 +293,8 @@ class ImportanceStrategy(SearchStrategy):
                         return False
                 continue
 
-            # Special case for 'tags' which is often a list
-            if key.endswith(".tags"):
-                if isinstance(memory_value, list) and filter_value in memory_value:
-                    continue
-                elif memory_value == filter_value:
-                    continue
-                logger.debug(
-                    f"Memory {memory.get('memory_id')} failed metadata check: tags not found"
-                )
-                return False
-
-            # Special case for 'type'
-            elif key.endswith(".type"):
-                if memory_value == filter_value:
-                    continue
-                logger.debug(
-                    f"Memory {memory.get('memory_id')} failed metadata check: type not found"
-                )
-                return False
-
-            # For other list metadata values, check membership
-            elif isinstance(memory_value, list):
-                if filter_value in memory_value:
-                    continue
-                logger.debug(
-                    f"Memory {memory.get('memory_id')} failed metadata check: value not in list"
-                )
-                return False
-
-            # For dict metadata values, check keys and values
-            elif isinstance(memory_value, dict):
-                if (
-                    filter_value in memory_value
-                    or filter_value in memory_value.values()
-                ):
-                    continue
-                logger.debug(
-                    f"Memory {memory.get('memory_id')} failed metadata check: value not in dict"
-                )
-                return False
-
             # For direct equality comparison
-            elif memory_value == filter_value:
+            if memory_value == filter_value:
                 continue
             else:
                 logger.debug(
