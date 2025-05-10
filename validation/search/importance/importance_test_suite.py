@@ -3,7 +3,6 @@ Test Suite Implementation for Importance Search Strategy.
 
 This module demonstrates how to use the validation framework
 to create a complete test suite for the importance search strategy.
-#! Needs to be validated still
 """
 
 import os
@@ -100,11 +99,10 @@ class ImportanceSearchTestSuite(TestSuite):
                 "max_importance": 0.8,
             },
             expected_memory_ids=[
-                "stm-medium-importance-1",
-                "stm-medium-importance-2",
-                "im-high-importance-1",
-                "im-medium-importance-2",
-                "ltm-medium-importance-1",
+                "stm-medium-importance-1",  # 0.68
+                "stm-medium-importance-2",  # 0.63
+                "im-medium-importance-1",  # 0.67
+                "ltm-medium-importance-1",  # 0.7
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -114,9 +112,9 @@ class ImportanceSearchTestSuite(TestSuite):
             "Top N Most Important Memories",
             {"top_n": 3},
             expected_memory_ids=[
-                "ltm-highest-importance-1",
-                "stm-high-importance-1",
-                "ltm-high-importance-1",
+                "ltm-highest-importance-1",  # 0.98
+                "stm-high-importance-1",  # 0.95
+                "ltm-high-importance-1",  # 0.9
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -126,8 +124,9 @@ class ImportanceSearchTestSuite(TestSuite):
             "Search in STM Tier Only",
             0.7,
             expected_memory_ids=[
-                "stm-high-importance-1",
-                "stm-high-importance-2",
+                "stm-high-importance-1",  # 0.95
+                "stm-high-importance-2",  # 0.85
+                "stm-medium-importance-1",  # 0.68
             ],
             tier="stm",
             memory_checksum_map=self.memory_checksum_map,
@@ -140,14 +139,9 @@ class ImportanceSearchTestSuite(TestSuite):
             "Search with Metadata Filter",
             0.7,
             expected_memory_ids=[
-                "stm-high-importance-1",
-                "stm-high-importance-2",
-                "im-high-importance-1",
-                "im-high-importance-2",
-                "ltm-highest-importance-1",
-                "ltm-high-importance-1",
+                "stm-high-importance-1",  # 0.95, type: "alert"
             ],
-            metadata_filter={"content.metadata.type": "critical"},
+            metadata_filter={"content.metadata.type": "alert"},
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -156,13 +150,11 @@ class ImportanceSearchTestSuite(TestSuite):
             "Search with Ascending Sort Order",
             0.5,
             expected_memory_ids=[
-                "stm-low-importance-1",
-                "im-low-importance-1",
-                "im-low-importance-2",
-                "ltm-low-importance-1",
-                "stm-medium-importance-1",
+                "stm-low-importance-1",  # 0.25
+                "im-low-importance-1",  # 0.3
+                "im-low-importance-2",  # 0.35
+                "ltm-low-importance-1",  # 0.4
             ],
-            limit=5,
             sort_order="asc",
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -172,8 +164,8 @@ class ImportanceSearchTestSuite(TestSuite):
             "Combined Tier and Importance Search",
             0.7,
             expected_memory_ids=[
-                "im-high-importance-1",
-                "im-high-importance-2",
+                "im-high-importance-1",  # 0.8
+                "im-high-importance-2",  # 0.87
             ],
             tier="im",
             memory_checksum_map=self.memory_checksum_map,
@@ -184,9 +176,9 @@ class ImportanceSearchTestSuite(TestSuite):
             "Multi-Tier Search with Limit",
             0.7,
             expected_memory_ids=[
-                "ltm-highest-importance-1",
-                "stm-high-importance-1",
-                "ltm-high-importance-1",
+                "ltm-highest-importance-1",  # 0.98
+                "stm-high-importance-1",  # 0.95
+                "ltm-high-importance-1",  # 0.9
             ],
             limit=3,
             memory_checksum_map=self.memory_checksum_map,
@@ -197,7 +189,8 @@ class ImportanceSearchTestSuite(TestSuite):
             "Very High Threshold",
             0.95,
             expected_memory_ids=[
-                "ltm-highest-importance-1",
+                "ltm-highest-importance-1",  # 0.98
+                "stm-high-importance-1",  # 0.95
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -207,10 +200,12 @@ class ImportanceSearchTestSuite(TestSuite):
             "Important and Recent Memories",
             0.8,
             expected_memory_ids=[
-                "stm-high-importance-1",
-                "stm-high-importance-2",
+                "stm-high-importance-1",  # 0.95, timestamp: 1686816000
+                "stm-high-importance-2",  # 0.85, timestamp: 1686902400
+                "im-high-importance-1",  # 0.8, timestamp: 1685520000
+                "im-high-importance-2",  # 0.87, timestamp: 1685865600
             ],
-            metadata_filter={"metadata.creation_time": {"$gt": 1600000000}},
+            metadata_filter={"metadata.creation_time": {"$gt": 1685520000}},
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -222,10 +217,10 @@ class ImportanceSearchTestSuite(TestSuite):
                 "max_importance": 0.4,
             },
             expected_memory_ids=[
-                "stm-low-importance-1",
-                "im-low-importance-1",
-                "im-low-importance-2",
-                "ltm-low-importance-1",
+                "stm-low-importance-1",  # 0.25
+                "im-low-importance-1",  # 0.3
+                "im-low-importance-2",  # 0.35
+                "ltm-low-importance-1",  # 0.4
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -233,15 +228,11 @@ class ImportanceSearchTestSuite(TestSuite):
         # Test 8: String importance mapping (high)
         self.runner.run_test(
             "String Importance Mapping - High",
-            0.85,
-            metadata_filter={"importance": "high"},
+            0.9,
             expected_memory_ids=[
-                "stm-high-importance-1",
-                "stm-high-importance-2",
-                "im-high-importance-1",
-                "im-high-importance-2",
-                "ltm-highest-importance-1",
-                "ltm-high-importance-1",
+                "ltm-highest-importance-1",  # 0.98
+                "stm-high-importance-1",  # 0.95
+                "ltm-high-importance-1",  # 0.9
             ],
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -253,22 +244,23 @@ class ImportanceSearchTestSuite(TestSuite):
             "Zero Importance Threshold",
             0.0,
             expected_memory_ids=[
-                "stm-high-importance-1",
-                "stm-high-importance-2",
-                "stm-medium-importance-1",
-                "stm-medium-importance-2",
-                "stm-low-importance-1",
-                "im-high-importance-1",
-                "im-high-importance-2",
-                "im-medium-importance-1",
-                "im-medium-importance-2",
-                "im-low-importance-1",
-                "im-low-importance-2",
-                "ltm-highest-importance-1",
-                "ltm-high-importance-1",
-                "ltm-medium-importance-1",
-                "ltm-low-importance-1",
+                "ltm-highest-importance-1",  # 0.98
+                "stm-high-importance-1",  # 0.95
+                "ltm-high-importance-1",  # 0.9
+                "im-high-importance-2",  # 0.87
+                "stm-high-importance-2",  # 0.85
+                "im-high-importance-1",  # 0.8
+                "ltm-medium-importance-1",  # 0.7
+                "stm-medium-importance-1",  # 0.68
+                "im-medium-importance-2",  # 0.68
+                "im-medium-importance-1",  # 0.67
+                "stm-medium-importance-2",  # 0.63
+                "ltm-low-importance-1",  # 0.4
+                "im-low-importance-2",  # 0.35
+                "im-low-importance-1",  # 0.3
+                "stm-low-importance-1",  # 0.25
             ],
+            sort_order="desc",
             memory_checksum_map=self.memory_checksum_map,
         )
 

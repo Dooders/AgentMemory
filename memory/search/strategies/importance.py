@@ -1,5 +1,5 @@
-from typing import Any, Dict, List, Optional, Union
 import logging
+from typing import Any, Dict, List, Optional, Union
 
 from .base import SearchStrategy
 
@@ -47,7 +47,7 @@ class ImportanceStrategy(SearchStrategy):
         limit: int = 10,
         metadata_filter: Optional[Dict[str, Any]] = None,
         tier: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """
         Search for memories meeting a specified importance threshold.
@@ -60,6 +60,7 @@ class ImportanceStrategy(SearchStrategy):
             tier: Memory tier to search in (stm, im, ltm, or None for all)
             **kwargs: Additional parameters:
                 - sort_order: "asc" or "desc" for importance sorting (default: "desc")
+                - sort_by: List of fields to sort by (default: ["importance"])
 
         Returns:
             List of memory entries meeting the importance threshold
@@ -106,6 +107,7 @@ class ImportanceStrategy(SearchStrategy):
             raise ValueError("min_importance cannot be greater than max_importance")
 
         sort_order = kwargs.get("sort_order", "desc")
+        sort_by = kwargs.get("sort_by", ["importance"])
 
         # Get stores for the specified tier
         stores = self._get_stores_for_tier(tier)
@@ -133,7 +135,9 @@ class ImportanceStrategy(SearchStrategy):
                 try:
                     if isinstance(importance_value, str):
                         if importance_value.lower() in self.importance_mapping:
-                            importance = self.importance_mapping[importance_value.lower()]
+                            importance = self.importance_mapping[
+                                importance_value.lower()
+                            ]
                         else:
                             importance = float(importance_value)
                     else:
@@ -147,16 +151,22 @@ class ImportanceStrategy(SearchStrategy):
                 max_importance = round(max_importance, 2)
 
                 # Debug logging for importance comparison
-                logger.debug(f"Memory {memory.get('memory_id')}: importance={importance}, min={min_importance}, max={max_importance}")
-                
+                logger.debug(
+                    f"Memory {memory.get('memory_id')}: importance={importance}, min={min_importance}, max={max_importance}"
+                )
+
                 # Check if memory meets importance threshold
                 if min_importance <= importance <= max_importance:
-                    logger.debug(f"Memory {memory.get('memory_id')} passed importance check")
+                    logger.debug(
+                        f"Memory {memory.get('memory_id')} passed importance check"
+                    )
                     # Store the parsed importance in the memory metadata for sorting
                     memory["metadata"]["_parsed_importance"] = importance
                     results.append(memory)
                 else:
-                    logger.debug(f"Memory {memory.get('memory_id')} failed importance check: {importance} not in [{min_importance}, {max_importance}]")
+                    logger.debug(
+                        f"Memory {memory.get('memory_id')} failed importance check: {importance} not in [{min_importance}, {max_importance}]"
+                    )
 
         # Apply metadata filtering
         if metadata_filter:
@@ -166,16 +176,27 @@ class ImportanceStrategy(SearchStrategy):
                     filtered_results.append(memory)
             results = filtered_results
 
-        # Sort by importance
+        # Sort by importance and other fields
         reverse_sort = sort_order.lower() == "desc"
 
-        def get_importance(memory):
-            metadata = memory.get("metadata", {})
-            return metadata.get("_parsed_importance", 0)
+        def get_sort_key(memory):
+            sort_values = []
+            for field in sort_by:
+                if field == "importance":
+                    sort_values.append(
+                        memory.get("metadata", {}).get("_parsed_importance", 0)
+                    )
+                elif field == "recency":
+                    sort_values.append(
+                        memory.get("metadata", {}).get("last_access_time", 0)
+                    )
+                else:
+                    sort_values.append(memory.get(field, 0))
+            return tuple(sort_values)
 
-        # Sort the memories by importance
+        # Sort the memories
         results.sort(
-            key=get_importance,
+            key=get_sort_key,
             reverse=reverse_sort,
         )
 
@@ -204,7 +225,7 @@ class ImportanceStrategy(SearchStrategy):
 
         def get_nested_value(obj, path):
             """Get a value from a nested dictionary using dot notation."""
-            parts = path.split('.')
+            parts = path.split(".")
             current = obj
             for part in parts:
                 if isinstance(current, dict):
@@ -225,7 +246,7 @@ class ImportanceStrategy(SearchStrategy):
                 return False
 
             # Special case for 'tags' which is often a list
-            if key.endswith('.tags'):
+            if key.endswith(".tags"):
                 if isinstance(memory_value, list) and filter_value in memory_value:
                     continue
                 elif memory_value == filter_value:
@@ -233,7 +254,7 @@ class ImportanceStrategy(SearchStrategy):
                 return False
 
             # Special case for 'type'
-            elif key.endswith('.type'):
+            elif key.endswith(".type"):
                 if memory_value == filter_value:
                     continue
                 return False
@@ -246,7 +267,10 @@ class ImportanceStrategy(SearchStrategy):
 
             # For dict metadata values, check keys and values
             elif isinstance(memory_value, dict):
-                if filter_value in memory_value or filter_value in memory_value.values():
+                if (
+                    filter_value in memory_value
+                    or filter_value in memory_value.values()
+                ):
                     continue
                 return False
 

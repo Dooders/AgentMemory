@@ -353,6 +353,7 @@ def create_memory_system(
         memory_limit=stm_limit,
         ttl=stm_ttl,
         use_mock=use_mock_redis,
+        test_mode=True,
     )
 
     im_config = RedisIMConfig(
@@ -361,12 +362,14 @@ def create_memory_system(
         memory_limit=im_limit,
         compression_level=im_compression_level,
         use_mock=use_mock_redis,
+        test_mode=True,
     )
 
     ltm_config = SQLiteLTMConfig(
         db_path=DB_PATH,
         compression_level=ltm_compression_level,
         batch_size=ltm_batch_size,
+        test_mode=True,
     )
 
     memory_config = MemoryConfig(
