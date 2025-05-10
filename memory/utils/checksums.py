@@ -80,6 +80,13 @@ def generate_checksum(
         except ValueError:
             raise ValueError(f"Unsupported checksum version: {version}")
 
+    # Validate chunk_size if provided
+    if chunk_size is not None:
+        if not isinstance(chunk_size, int):
+            raise TypeError("chunk_size must be an integer")
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be a positive integer")
+
     # Create hash object with selected algorithm
     hash_obj = hashlib.new(algorithm)
 
