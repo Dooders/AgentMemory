@@ -31,6 +31,31 @@ class MemoryError(Exception):
     pass
 
 
+# Memory-specific exceptions
+class MemoryRetrievalError(MemoryError):
+    """Error occurred while retrieving memory."""
+
+    pass
+
+
+class MemoryStorageError(MemoryError):
+    """Error occurred while storing memory."""
+
+    pass
+
+
+class MemoryUpdateError(MemoryError):
+    """Error occurred while updating memory."""
+
+    pass
+
+
+class MemoryValidationError(MemoryError):
+    """Error occurred while validating memory."""
+
+    pass
+
+
 # Tier-specific exceptions
 class STMError(MemoryError):
     """Error in Short-Term Memory operations."""

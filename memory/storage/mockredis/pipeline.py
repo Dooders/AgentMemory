@@ -150,13 +150,14 @@ class Pipeline:
                 return None
                 
             # Execute all commands
-            result = [cmd() for cmd in self.commands]
+            results = [cmd() for cmd in self.commands]
             
             # Reset state after execution
             self.commands = []
             self.reset_transaction_state()
             
-            return result
+            # Return True if all commands succeeded (no None or False results)
+            return all(result is not None and result is not False for result in results)
         except Exception as e:
             # Clear commands on exception
             self.commands = []

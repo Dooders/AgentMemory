@@ -340,9 +340,7 @@ class RedisIMStore:
             metadata = memory_entry.get("metadata", {})
             if "checksum" not in metadata:
                 if not isinstance(content, (dict, list)):
-                    content = str(
-                        content
-                    )  # Convert non-dict/non-list content to string
+                    content = str(content)  # Convert non-dict/non-list content to string
                 metadata["checksum"] = generate_checksum(content)
 
             # Store metadata as JSON
@@ -352,107 +350,68 @@ class RedisIMStore:
             hash_values["compression_level"] = str(metadata.get("compression_level", 1))
             hash_values["importance_score"] = str(metadata.get("importance_score", 0.0))
             hash_values["retrieval_count"] = str(metadata.get("retrieval_count", 0))
-            hash_values["creation_time"] = str(metadata.get("creation_time", timestamp))
-            if "checksum" in metadata:
-                hash_values["checksum"] = metadata["checksum"]
 
-            # Store embedding as JSON if it exists
-            embedding = memory_entry.get("embedding")
-            if embedding is not None:
-                hash_values["embedding"] = json.dumps(embedding)
-
-            # Store step_number if it exists
-            step_number = memory_entry.get("step_number")
-            if step_number is not None:
-                hash_values["step_number"] = str(step_number)
-
-            # Store memory_type if it exists
-            memory_type = memory_entry.get("memory_type")
-            if memory_type is not None:
-                hash_values["memory_type"] = memory_type
-
-            # Set up keys
+            # Construct keys
             key = self._get_memory_key(agent_id, memory_id)
             agent_memories_key = self._get_agent_memories_key(agent_id)
             timeline_key = self._get_timeline_key(agent_id)
             importance_key = self._get_importance_key(agent_id)
-            importance = float(hash_values["importance_score"])
+            importance = float(metadata.get("importance_score", 0.0))
 
             if self._lua_scripting_available:
-                # Define Lua script for atomic memory storage and index updates
-                store_script = """
-                    local memory_key = KEYS[1]
-                    local memories_key = KEYS[2]
-                    local timeline_key = KEYS[3]
-                    local importance_key = KEYS[4]
-                    
-                    local hash_json = ARGV[1]
-                    local memory_id = ARGV[2]
-                    local timestamp = ARGV[3]
-                    local importance = ARGV[4]
-                    local ttl = ARGV[5]
-                    
-                    -- Parse hash values
-                    local hash_values = cjson.decode(hash_json)
-                    
-                    -- Store hash
-                    for k, v in pairs(hash_values) do
-                        redis.call('HSET', memory_key, k, v)
-                    end
-                    
-                    -- Add to indices
-                    redis.call('ZADD', memories_key, timestamp, memory_id)
-                    redis.call('ZADD', timeline_key, timestamp, memory_id)
-                    redis.call('ZADD', importance_key, importance, memory_id)
-                    
-                    -- Set TTL on all keys
-                    redis.call('EXPIRE', memory_key, ttl)
-                    redis.call('EXPIRE', memories_key, ttl)
-                    redis.call('EXPIRE', timeline_key, ttl)
-                    redis.call('EXPIRE', importance_key, ttl)
-                    
-                    return 1
-                """
-
-                # Execute the Lua script
-                result = self.redis.eval(
-                    store_script,
-                    4,  # Number of keys
-                    key,
-                    agent_memories_key,
-                    timeline_key,
-                    importance_key,
-                    json.dumps(hash_values),
-                    memory_id,
-                    str(timestamp),
-                    str(importance),
-                    str(self.config.ttl),
-                )
-                return result == 1
-            else:
-                # Fallback to pipeline implementation for compatibility
                 try:
-                    pipe = self.redis.pipeline()
+                    # Define Lua script for atomic memory storage and index updates
+                    store_script = """
+                        local memory_key = KEYS[1]
+                        local memories_key = KEYS[2]
+                        local timeline_key = KEYS[3]
+                        local importance_key = KEYS[4]
+                        
+                        local hash_json = ARGV[1]
+                        local memory_id = ARGV[2]
+                        local timestamp = ARGV[3]
+                        local importance = ARGV[4]
+                        local ttl = ARGV[5]
+                        
+                        -- Parse hash values
+                        local hash_values = cjson.decode(hash_json)
+                        
+                        -- Store hash
+                        for k, v in pairs(hash_values) do
+                            redis.call('HSET', memory_key, k, v)
+                        end
+                        
+                        -- Add to indices
+                        redis.call('ZADD', memories_key, timestamp, memory_id)
+                        redis.call('ZADD', timeline_key, timestamp, memory_id)
+                        redis.call('ZADD', importance_key, importance, memory_id)
+                        
+                        -- Set TTL on all keys
+                        redis.call('EXPIRE', memory_key, ttl)
+                        redis.call('EXPIRE', memories_key, ttl)
+                        redis.call('EXPIRE', timeline_key, ttl)
+                        redis.call('EXPIRE', importance_key, ttl)
+                        
+                        return 1
+                    """
 
-                    # Store the memory entry as a hash
-                    pipe.hset(key, mapping=hash_values)
-                    pipe.expire(key, self.config.ttl)
-
-                    # Add to agent's memory list
-                    pipe.zadd(agent_memories_key, {memory_id: timestamp})
-                    pipe.expire(agent_memories_key, self.config.ttl)
-
-                    # Add to timeline index for chronological retrieval
-                    pipe.zadd(timeline_key, {memory_id: timestamp})
-                    pipe.expire(timeline_key, self.config.ttl)
-
-                    # Add to importance index for importance-based retrieval
-                    pipe.zadd(importance_key, {memory_id: importance})
-                    pipe.expire(importance_key, self.config.ttl)
-
-                    # Execute all commands as a single atomic operation
-                    pipe.execute()
-                    return True
+                    # Execute the Lua script
+                    result = self.redis.eval(
+                        store_script,
+                        4,  # Number of keys
+                        key,
+                        agent_memories_key,
+                        timeline_key,
+                        importance_key,
+                        json.dumps(hash_values),
+                        memory_id,
+                        str(timestamp),
+                        str(importance),
+                        str(self.config.ttl),
+                    )
+                    return result == 1
+                except (RedisUnavailableError, RedisTimeoutError):
+                    raise  # propagate
                 except redis.RedisError as e:
                     logger.exception(
                         "Redis error when storing memory entry %s: %s",
@@ -469,16 +428,92 @@ class RedisIMStore:
                     return False
                 except Exception as e:
                     logger.exception(
-                        "Unexpected error storing memory entry %s", memory_id
+                        "Unexpected error storing memory entry %s: %s",
+                        memory_id,
+                        str(e),
                     )
                     return False
-
-        except (RedisUnavailableError, RedisTimeoutError):
-            # Let these propagate up for retry handling
+            else:
+                try:
+                    pipe = self.redis.pipeline()
+                    pipe.hset(key, mapping=hash_values)
+                    pipe.expire(key, self.config.ttl)
+                    pipe.zadd(agent_memories_key, {memory_id: timestamp})
+                    pipe.expire(agent_memories_key, self.config.ttl)
+                    pipe.zadd(timeline_key, {memory_id: timestamp})
+                    pipe.expire(timeline_key, self.config.ttl)
+                    pipe.zadd(importance_key, {memory_id: importance})
+                    pipe.expire(importance_key, self.config.ttl)
+                    results = pipe.execute()
+                    if results is None or any(r is None or r is False for r in results):
+                        logger.error(
+                            "One or more pipeline commands failed for memory %s",
+                            memory_id
+                        )
+                        return False
+                    stored = self.redis.hgetall(key)
+                    if not stored or len(stored) == 0:
+                        logger.error(
+                            "Memory entry %s was not properly stored in Redis",
+                            memory_id
+                        )
+                        return False
+                    if not self.redis.zscore(agent_memories_key, memory_id):
+                        logger.error(
+                            "Memory entry %s was not added to agent's memory list",
+                            memory_id
+                        )
+                        return False
+                    return True
+                except (RedisUnavailableError, RedisTimeoutError):
+                    raise  # propagate
+                except redis.RedisError as e:
+                    logger.exception(
+                        "Redis error when storing memory entry %s: %s",
+                        memory_id,
+                        str(e),
+                    )
+                    return False
+                except json.JSONDecodeError as e:
+                    logger.exception(
+                        "JSON encoding error when storing memory entry %s: %s",
+                        memory_id,
+                        str(e),
+                    )
+                    return False
+                except Exception as e:
+                    logger.exception(
+                        "Unexpected error storing memory entry %s: %s",
+                        memory_id,
+                        str(e),
+                    )
+                    return False
+        except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.exception(
+                "Redis unavailable/timeout when storing memory entry %s: %s",
+                memory_id,
+                str(e),
+            )
             raise
+        except redis.RedisError as e:
+            logger.exception(
+                "Redis error when storing memory entry %s: %s",
+                memory_id,
+                str(e),
+            )
+            return False
+        except json.JSONDecodeError as e:
+            logger.exception(
+                "JSON encoding error when storing memory entry %s: %s",
+                memory_id,
+                str(e),
+            )
+            return False
         except Exception as e:
             logger.exception(
-                "Critical error in _store_memory_entry for memory_id %s", memory_id
+                "Unexpected error storing memory entry %s: %s",
+                memory_id,
+                str(e),
             )
             return False
 
