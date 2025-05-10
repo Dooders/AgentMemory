@@ -102,6 +102,9 @@ class TestMockRedisIntegration:
 
         # Create the store with MockRedis
         store = RedisIMStore(config)
+        
+        # Force fallback to pipeline implementation since MockRedis doesn't support Lua
+        store._lua_scripting_available = False
 
         # Create and store a memory
         memory = create_im_test_memory()

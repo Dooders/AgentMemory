@@ -10,8 +10,9 @@ from typing import Any, Dict, Generator, List, Optional, Set
 
 import redis
 
-from .serialization import MemorySerializer, deserialize_memory, serialize_memory
 from memory.storage.mockredis import MockRedis
+
+from .serialization import MemorySerializer, deserialize_memory, serialize_memory
 
 logger = logging.getLogger(__name__)
 
@@ -274,10 +275,10 @@ class RedisBatchProcessor:
         try:
             # Execute the pipeline
             results = self.pipeline.execute()
-            
+
             # Reset for next batch (without creating a new pipeline)
             self.commands = []
-            
+
             return results
         except Exception as e:
             logger.error("Failed to execute Redis batch: %s", str(e))
@@ -325,9 +326,7 @@ def redis_memory_scan(
             if data:
                 yield deserialize_memory_entry(data)
         except Exception as e:
-            logger.warning(
-                "Failed to deserialize memory at key %s: %s", key, str(e)
-            )
+            logger.warning("Failed to deserialize memory at key %s: %s", key, str(e))
 
 
 def redis_create_index(
@@ -366,7 +365,7 @@ def redis_create_index(
             schema_args,
             definition={
                 "prefix": [f"{prefix}:"],
-            }
+            },
         )
 
         return True
@@ -412,7 +411,7 @@ def get_redis_info(redis_client: redis.Redis) -> Dict[str, Any]:
     """
     try:
         info = redis_client.info()
-        
+
         # Extract and process relevant information
         result = {
             "version": info.get("redis_version", "unknown"),
