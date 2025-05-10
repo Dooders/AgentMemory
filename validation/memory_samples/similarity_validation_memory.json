@@ -1,0 +1,459 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "test-agent-similarity-search": {
+      "agent_id": "test-agent-similarity-search",
+      "memories": [
+        {
+          "memory_id": "test-agent-similarity-search-1",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 1,
+          "timestamp": 1686816000,
+          "content": {
+            "content": "The machine learning model achieved 95% accuracy on the test dataset after training for 100 epochs.",
+            "metadata": {
+              "type": "experiment",
+              "importance": "high",
+              "tags": ["ml", "training", "accuracy"],
+              "metrics": {
+                "accuracy": 0.95,
+                "epochs": 100
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1686816000,
+            "last_access_time": 1686816000,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "experiment",
+            "current_tier": "stm",
+            "checksum": "a1b2c3d4e5f6g7h8i9j0"
+          },
+          "type": "experiment",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-2",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 2,
+          "timestamp": 1686902400,
+          "content": {
+            "content": "Neural network training completed with 92% validation accuracy using the new architecture.",
+            "metadata": {
+              "type": "experiment",
+              "importance": "high",
+              "tags": ["neural-network", "training", "validation"],
+              "metrics": {
+                "accuracy": 0.92,
+                "architecture": "new"
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1686902400,
+            "last_access_time": 1686902400,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 0,
+            "memory_type": "experiment",
+            "current_tier": "stm",
+            "checksum": "b2c3d4e5f6g7h8i9j0k1"
+          },
+          "type": "experiment",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-3",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 3,
+          "timestamp": 1687075200,
+          "content": {
+            "content": "The data preprocessing pipeline successfully handled 1 million records with no errors.",
+            "metadata": {
+              "type": "process",
+              "importance": "medium",
+              "tags": ["data", "preprocessing", "pipeline"],
+              "metrics": {
+                "records_processed": 1000000,
+                "error_rate": 0
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687075200,
+            "last_access_time": 1687075200,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "process",
+            "current_tier": "stm",
+            "checksum": "c3d4e5f6g7h8i9j0k1l2"
+          },
+          "type": "process",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-4",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 4,
+          "timestamp": 1687161600,
+          "content": {
+            "content": "The API endpoint successfully processed 5000 requests per second during load testing.",
+            "metadata": {
+              "type": "performance",
+              "importance": "high",
+              "tags": ["api", "performance", "testing"],
+              "metrics": {
+                "requests_per_second": 5000,
+                "error_rate": 0.001
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687161600,
+            "last_access_time": 1687161600,
+            "compression_level": 0,
+            "importance_score": 0.95,
+            "retrieval_count": 0,
+            "memory_type": "performance",
+            "current_tier": "stm",
+            "checksum": "d4e5f6g7h8i9j0k1l2m3"
+          },
+          "type": "performance",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-5",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 5,
+          "timestamp": 1687248000,
+          "content": {
+            "content": "The database migration completed successfully, transferring 10TB of data with no data loss.",
+            "metadata": {
+              "type": "operation",
+              "importance": "high",
+              "tags": ["database", "migration", "data"],
+              "metrics": {
+                "data_transferred": "10TB",
+                "success_rate": 1.0
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687248000,
+            "last_access_time": 1687248000,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "operation",
+            "current_tier": "stm",
+            "checksum": "e5f6g7h8i9j0k1l2m3n4"
+          },
+          "type": "operation",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-6",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 6,
+          "timestamp": 1685520000,
+          "content": {
+            "content": "The deep learning model achieved 98% accuracy on image classification tasks.",
+            "metadata": {
+              "type": "experiment",
+              "importance": "high",
+              "tags": ["deep-learning", "classification", "accuracy"],
+              "metrics": {
+                "accuracy": 0.98,
+                "task": "image-classification"
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1685520000,
+            "last_access_time": 1685606400,
+            "compression_level": 1,
+            "importance_score": 0.95,
+            "retrieval_count": 3,
+            "memory_type": "experiment",
+            "current_tier": "im",
+            "checksum": "f6g7h8i9j0k1l2m3n4o5"
+          },
+          "type": "experiment",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-7",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 7,
+          "timestamp": 1685606400,
+          "content": {
+            "content": "The natural language processing model achieved 90% accuracy on sentiment analysis.",
+            "metadata": {
+              "type": "experiment",
+              "importance": "high",
+              "tags": ["nlp", "sentiment-analysis", "accuracy"],
+              "metrics": {
+                "accuracy": 0.90,
+                "task": "sentiment-analysis"
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1685606400,
+            "last_access_time": 1685606400,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 0,
+            "memory_type": "experiment",
+            "current_tier": "stm",
+            "checksum": "g7h8i9j0k1l2m3n4o5p6"
+          },
+          "type": "experiment",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-8",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 8,
+          "timestamp": 1687334400,
+          "content": {
+            "content": "The reinforcement learning agent achieved 85% success rate in the navigation task after 1000 episodes.",
+            "metadata": {
+              "type": "experiment",
+              "importance": "high",
+              "tags": ["rl", "navigation", "training"],
+              "metrics": {
+                "success_rate": 0.85,
+                "episodes": 1000,
+                "task": "navigation"
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687334400,
+            "last_access_time": 1687334400,
+            "compression_level": 0,
+            "importance_score": 0.88,
+            "retrieval_count": 0,
+            "memory_type": "experiment",
+            "current_tier": "stm",
+            "checksum": "h8i9j0k1l2m3n4o5p6q7"
+          },
+          "type": "experiment",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-9",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 9,
+          "timestamp": 1687420800,
+          "content": {
+            "content": "The data augmentation pipeline increased the training dataset size by 5x while maintaining data quality.",
+            "metadata": {
+              "type": "process",
+              "importance": "medium",
+              "tags": ["data", "augmentation", "training"],
+              "metrics": {
+                "expansion_factor": 5,
+                "quality_score": 0.95
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687420800,
+            "last_access_time": 1687420800,
+            "compression_level": 0,
+            "importance_score": 0.75,
+            "retrieval_count": 0,
+            "memory_type": "process",
+            "current_tier": "stm",
+            "checksum": "i9j0k1l2m3n4o5p6q7r8"
+          },
+          "type": "process",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-10",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 10,
+          "timestamp": 1687507200,
+          "content": {
+            "content": "The model deployment pipeline successfully rolled out the new version to 1000 production instances.",
+            "metadata": {
+              "type": "operation",
+              "importance": "high",
+              "tags": ["deployment", "production", "rollout"],
+              "metrics": {
+                "instances_updated": 1000,
+                "success_rate": 0.99,
+                "rollback_required": false
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687507200,
+            "last_access_time": 1687507200,
+            "compression_level": 0,
+            "importance_score": 0.92,
+            "retrieval_count": 0,
+            "memory_type": "operation",
+            "current_tier": "stm",
+            "checksum": "j0k1l2m3n4o5p6q7r8s9"
+          },
+          "type": "operation",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-11",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 11,
+          "timestamp": 1687593600,
+          "content": {
+            "content": "The anomaly detection system identified 15 potential security threats in the last 24 hours.",
+            "metadata": {
+              "type": "monitoring",
+              "importance": "high",
+              "tags": ["security", "anomaly", "detection"],
+              "metrics": {
+                "threats_detected": 15,
+                "time_window": "24h",
+                "false_positive_rate": 0.05
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687593600,
+            "last_access_time": 1687593600,
+            "compression_level": 0,
+            "importance_score": 0.95,
+            "retrieval_count": 0,
+            "memory_type": "monitoring",
+            "current_tier": "stm",
+            "checksum": "k1l2m3n4o5p6q7r8s9t0"
+          },
+          "type": "monitoring",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-12",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 12,
+          "timestamp": 1687680000,
+          "content": {
+            "content": "The model optimization reduced inference time by 40% while maintaining accuracy within 1% margin.",
+            "metadata": {
+              "type": "optimization",
+              "importance": "high",
+              "tags": ["performance", "optimization", "inference"],
+              "metrics": {
+                "speed_improvement": 0.40,
+                "accuracy_loss": 0.01,
+                "memory_reduction": 0.25
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687680000,
+            "last_access_time": 1687680000,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "optimization",
+            "current_tier": "stm",
+            "checksum": "l2m3n4o5p6q7r8s9t0u1"
+          },
+          "type": "optimization",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-13",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 13,
+          "timestamp": 1687766400,
+          "content": {
+            "content": "The A/B testing framework completed analysis of 1M user interactions across 5 variants.",
+            "metadata": {
+              "type": "experiment",
+              "importance": "medium",
+              "tags": ["ab-testing", "analysis", "user-experience"],
+              "metrics": {
+                "users": 1000000,
+                "variants": 5,
+                "confidence_level": 0.95
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687766400,
+            "last_access_time": 1687766400,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "retrieval_count": 0,
+            "memory_type": "experiment",
+            "current_tier": "stm",
+            "checksum": "m3n4o5p6q7r8s9t0u1v2"
+          },
+          "type": "experiment",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-similarity-search-14",
+          "agent_id": "test-agent-similarity-search",
+          "step_number": 14,
+          "timestamp": 1687852800,
+          "content": {
+            "content": "The data validation pipeline detected and corrected 5000 data quality issues in the production dataset.",
+            "metadata": {
+              "type": "process",
+              "importance": "high",
+              "tags": ["data", "validation", "quality"],
+              "metrics": {
+                "issues_found": 5000,
+                "correction_rate": 0.98,
+                "processing_time": "2h"
+              }
+            }
+          },
+          "metadata": {
+            "creation_time": 1687852800,
+            "last_access_time": 1687852800,
+            "compression_level": 0,
+            "importance_score": 0.85,
+            "retrieval_count": 0,
+            "memory_type": "process",
+            "current_tier": "stm",
+            "checksum": "n4o5p6q7r8s9t0u1v2w3"
+          },
+          "type": "process",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 
