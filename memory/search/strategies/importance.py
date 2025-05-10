@@ -244,10 +244,13 @@ class ImportanceStrategy(SearchStrategy):
         logger.debug(f"Memory metadata: {metadata}")
 
         for key, filter_value in metadata_filter.items():
-            # Handle nested paths
-            memory_value = get_nested_value(
-                metadata, key
-            )  # Changed from memory to metadata
+            # First check if this is a direct metadata field
+            if "." not in key and key in metadata:
+                memory_value = metadata.get(key)
+            else:
+                # Handle nested paths or content.metadata paths
+                memory_value = get_nested_value(memory, key)
+
             logger.debug(
                 f"Checking key {key}: memory_value={memory_value}, filter_value={filter_value}"
             )

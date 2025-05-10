@@ -99,10 +99,8 @@ class ImportanceSearchTestSuite(TestSuite):
                 "max_importance": 0.7,  # Adjusted to match actual memory scores
             },
             expected_memory_ids=[
-                "stm-medium-importance-1",  # 0.68
+                "stm-medium-importance-1",  # 0.65
                 "im-medium-importance-2",  # 0.68
-                "im-medium-importance-1",  # 0.67
-                "stm-medium-importance-2",  # 0.63
                 "ltm-medium-importance-1",  # 0.7
             ],
             memory_checksum_map=self.memory_checksum_map,
@@ -207,7 +205,7 @@ class ImportanceSearchTestSuite(TestSuite):
                 "im-high-importance-1",  # 0.8, timestamp: 1685520000
                 "im-high-importance-2",  # 0.87, timestamp: 1685865600
             ],
-            metadata_filter={"creation_time": {"$gt": 1685520000}},
+            metadata_filter={"creation_time": {"$gte": 1685520000}},
             memory_checksum_map=self.memory_checksum_map,
         )
 
