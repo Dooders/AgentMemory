@@ -345,6 +345,7 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
             stm_config = RedisSTMConfig(**stm_config_data)
             if use_mock_redis:
                 stm_config.use_mock = True
+            stm_config.test_mode = True  # Enable test mode
             config.stm_config = stm_config
 
         # Set up IM config
@@ -353,12 +354,14 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
             im_config = RedisIMConfig(**im_config_data)
             if use_mock_redis:
                 im_config.use_mock = True
+            im_config.test_mode = True  # Enable test mode
             config.im_config = im_config
 
         # Set up LTM config
         if "ltm_config" in config_data:
             ltm_config_data = config_data["ltm_config"]
             ltm_config = SQLiteLTMConfig(**ltm_config_data)
+            ltm_config.test_mode = True  # Enable test mode
             config.ltm_config = ltm_config
 
         # Create memory system
