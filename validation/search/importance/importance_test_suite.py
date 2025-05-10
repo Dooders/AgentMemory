@@ -205,7 +205,7 @@ class ImportanceSearchTestSuite(TestSuite):
                 "im-high-importance-1",  # 0.8, timestamp: 1685520000
                 "im-high-importance-2",  # 0.87, timestamp: 1685865600
             ],
-            metadata_filter={"metadata.creation_time": {"$gt": 1685520000}},
+            metadata_filter={"creation_time": {"$gt": 1685520000}},
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -261,6 +261,7 @@ class ImportanceSearchTestSuite(TestSuite):
                 "stm-low-importance-1",  # 0.25
             ],
             sort_order="desc",
+            limit=20,  # Set limit higher than number of memories to ensure all are returned
             memory_checksum_map=self.memory_checksum_map,
         )
 

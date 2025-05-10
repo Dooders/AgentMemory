@@ -238,12 +238,60 @@ class ImportanceStrategy(SearchStrategy):
 
         # Get the metadata dictionary
         metadata = memory.get("metadata", {})
+        logger.debug(
+            f"Checking metadata filter for memory {memory.get('memory_id')}: {metadata_filter}"
+        )
+        logger.debug(f"Memory metadata: {metadata}")
 
         for key, filter_value in metadata_filter.items():
             # Handle nested paths
-            memory_value = get_nested_value(metadata, key)
+            memory_value = memory.get(key)  # Look in memory dictionary first
             if memory_value is None:
+                memory_value = metadata.get(key)  # Then look in metadata dictionary
+            logger.debug(
+                f"Checking key {key}: memory_value={memory_value}, filter_value={filter_value}"
+            )
+            if memory_value is None:
+                logger.debug(
+                    f"Memory {memory.get('memory_id')} failed metadata check: {key} not found"
+                )
                 return False
+
+            # Handle numeric comparisons for timestamps and other numeric fields
+            if isinstance(filter_value, dict) and any(
+                op in filter_value for op in ["$gt", "$lt", "$gte", "$lte"]
+            ):
+                for op, value in filter_value.items():
+                    try:
+                        memory_value = float(memory_value)
+                        value = float(value)
+                        logger.debug(f"Comparing {memory_value} {op} {value}")
+                        if op == "$gt" and not memory_value > value:
+                            logger.debug(
+                                f"Memory {memory.get('memory_id')} failed metadata check: {memory_value} not > {value}"
+                            )
+                            return False
+                        elif op == "$lt" and not memory_value < value:
+                            logger.debug(
+                                f"Memory {memory.get('memory_id')} failed metadata check: {memory_value} not < {value}"
+                            )
+                            return False
+                        elif op == "$gte" and not memory_value >= value:
+                            logger.debug(
+                                f"Memory {memory.get('memory_id')} failed metadata check: {memory_value} not >= {value}"
+                            )
+                            return False
+                        elif op == "$lte" and not memory_value <= value:
+                            logger.debug(
+                                f"Memory {memory.get('memory_id')} failed metadata check: {memory_value} not <= {value}"
+                            )
+                            return False
+                    except (ValueError, TypeError):
+                        logger.debug(
+                            f"Memory {memory.get('memory_id')} failed metadata check: invalid numeric comparison"
+                        )
+                        return False
+                continue
 
             # Special case for 'tags' which is often a list
             if key.endswith(".tags"):
@@ -251,18 +299,27 @@ class ImportanceStrategy(SearchStrategy):
                     continue
                 elif memory_value == filter_value:
                     continue
+                logger.debug(
+                    f"Memory {memory.get('memory_id')} failed metadata check: tags not found"
+                )
                 return False
 
             # Special case for 'type'
             elif key.endswith(".type"):
                 if memory_value == filter_value:
                     continue
+                logger.debug(
+                    f"Memory {memory.get('memory_id')} failed metadata check: type not found"
+                )
                 return False
 
             # For other list metadata values, check membership
             elif isinstance(memory_value, list):
                 if filter_value in memory_value:
                     continue
+                logger.debug(
+                    f"Memory {memory.get('memory_id')} failed metadata check: value not in list"
+                )
                 return False
 
             # For dict metadata values, check keys and values
@@ -272,13 +329,20 @@ class ImportanceStrategy(SearchStrategy):
                     or filter_value in memory_value.values()
                 ):
                     continue
+                logger.debug(
+                    f"Memory {memory.get('memory_id')} failed metadata check: value not in dict"
+                )
                 return False
 
             # For direct equality comparison
             elif memory_value == filter_value:
                 continue
             else:
+                logger.debug(
+                    f"Memory {memory.get('memory_id')} failed metadata check: no match"
+                )
                 return False
 
         # All filter criteria matched
+        logger.debug(f"Memory {memory.get('memory_id')} passed all metadata filters")
         return True
