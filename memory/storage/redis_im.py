@@ -413,26 +413,23 @@ class RedisIMStore:
                 except (RedisUnavailableError, RedisTimeoutError):
                     raise  # propagate
                 except redis.RedisError as e:
-                    logger.exception(
-                        "Redis error when storing memory entry %s: %s",
+                    return self._handle_exception(
+                        e,
                         memory_id,
-                        str(e),
+                        "Redis error when storing memory entry",
                     )
-                    return False
                 except json.JSONDecodeError as e:
-                    logger.exception(
-                        "JSON encoding error when storing memory entry %s: %s",
+                    return self._handle_exception(
+                        e,
                         memory_id,
-                        str(e),
+                        "JSON encoding error when storing memory entry",
                     )
-                    return False
                 except Exception as e:
-                    logger.exception(
-                        "Unexpected error storing memory entry %s: %s",
+                    return self._handle_exception(
+                        e,
                         memory_id,
-                        str(e),
+                        "Unexpected error storing memory entry",
                     )
-                    return False
             else:
                 try:
                     pipe = self.redis.pipeline()
