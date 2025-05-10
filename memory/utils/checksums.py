@@ -112,6 +112,9 @@ def generate_checksum(
         # Sort keys to ensure consistent serialization
         serialized = json.dumps(content_to_hash, sort_keys=True)
 
+        # Add version prefix to V2 checksums
+        hash_obj.update(b"v2:")
+        
         # Process in chunks if specified
         if chunk_size:
             for i in range(0, len(serialized), chunk_size):
