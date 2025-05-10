@@ -467,15 +467,25 @@ class RedisIMStore:
                         return False
                     if not self.redis.zscore(agent_memories_key, memory_id):
                         logger.error(
-                            "Memory entry %s was not added to agent's memory list",
+                            "Memory entry %s was not properly indexed in memories set",
+                            memory_id,
+                        )
+                        return False
+                    if not self.redis.zscore(timeline_key, memory_id):
+                        logger.error(
+                            "Memory entry %s was not properly indexed in timeline set",
+                            memory_id,
+                        )
+                        return False
+                    if not self.redis.zscore(importance_key, memory_id):
+                        logger.error(
+                            "Memory entry %s was not properly indexed in importance set",
                             memory_id,
                         )
                         return False
                     return True
                 except (RedisUnavailableError, RedisTimeoutError) as e:
-                    logger.debug(
-                        f"Caught Redis error in pipeline block: {type(e).__name__}"
-                    )
+                    logger.debug(f"Caught Redis error in pipeline block: {type(e).__name__}")
                     raise  # propagate these errors
                 except redis.RedisError as e:
                     logger.exception(
