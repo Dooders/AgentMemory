@@ -100,9 +100,14 @@ def generate_checksum(
         if include_metadata:
             content_to_hash = memory_content
         else:
-            content_to_hash = memory_content.get(
-                "content", memory_content.get("contents", {})
-            )
+            # Check if this is a memory entry with content/contents field
+            if "content" in memory_content or "contents" in memory_content:
+                content_to_hash = memory_content.get(
+                    "content", memory_content.get("contents", {})
+                )
+            else:
+                # Direct dictionary input
+                content_to_hash = memory_content
 
         # Sort keys to ensure consistent serialization
         serialized = json.dumps(content_to_hash, sort_keys=True)

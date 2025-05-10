@@ -23,9 +23,7 @@ from memory.utils.error_handling import (
 @pytest.fixture
 def mock_redis_client():
     """Create a mock Redis client for testing."""
-    with mock.patch(
-        "memory.storage.redis_client.ResilientRedisClient"
-    ) as mock_client:
+    with mock.patch("memory.storage.redis_client.ResilientRedisClient") as mock_client:
         # Configure the mock to return success for store operations
         mock_client.return_value.store_with_retry.return_value = True
         mock_client.return_value.set.return_value = True
@@ -120,7 +118,7 @@ def im_store(mock_redis_client):
         db=1,
         namespace="test_memory:im",
         ttl=604800,  # 7 days
-        test_mode=True  # Enable test mode to prevent importance score updates
+        test_mode=True,  # Enable test mode to prevent importance score updates
     )
     store = RedisIMStore(config)
     store.redis = mock_redis_client
@@ -231,8 +229,32 @@ def test_store_memory_entry(im_store):
         "metadata": {"compression_level": 1, "importance_score": 0.8},
     }
 
+    # Enable Lua scripting for this test
+    im_store._lua_scripting_available = True
+
+    # Mock generate_checksum to always return a dummy value
+    import memory.storage.redis_im as redis_im_mod
+
+    redis_im_mod.generate_checksum = mock.MagicMock(return_value="dummy-checksum")
+
     # Mock eval method
     im_store.redis.eval = mock.MagicMock(return_value=1)
+
+    # Mock hgetall to return the stored data
+    im_store.redis.hgetall = mock.MagicMock(
+        return_value={
+            "memory_id": "test-memory-1",
+            "content": "This is a test memory",
+            "timestamp": "1234567890.0",
+            "metadata": json.dumps({"compression_level": 1, "importance_score": 0.8}),
+            "compression_level": "1",
+            "importance_score": "0.8",
+            "retrieval_count": "0",
+        }
+    )
+
+    # Mock zscore to return a score
+    im_store.redis.zscore = mock.MagicMock(return_value=1234567890.0)
 
     result = im_store._store_memory_entry("agent1", memory_entry)
 
@@ -277,7 +299,7 @@ def test_store_memory_entry_redis_error(im_store):
     im_store.redis.eval = mock.MagicMock(side_effect=Exception("Redis error"))
     # Disable Lua scripting to test fallback
     im_store._lua_scripting_available = False
-    
+
     # Mock pipeline to throw an exception when execute is called
     mock_pipeline = mock.MagicMock()
     mock_pipeline.execute.side_effect = Exception("Redis pipeline error")
@@ -297,8 +319,15 @@ def test_store_memory_entry_redis_timeout(im_store):
         "metadata": {"compression_level": 1},
     }
 
-    # Mock eval and make it raise a timeout error
+    # Mock all Redis operations that might be called
     im_store.redis.eval = mock.MagicMock(side_effect=RedisTimeoutError("Redis timeout"))
+    im_store.redis.pipeline = mock.MagicMock()
+    im_store.redis.hgetall = mock.MagicMock(return_value={})
+    im_store.redis.zscore = mock.MagicMock(return_value=None)
+    im_store.redis.hset = mock.MagicMock(return_value=True)
+    im_store.redis.zadd = mock.MagicMock(return_value=1)
+    im_store.redis.expire = mock.MagicMock(return_value=True)
+
     # Ensure Lua scripting is enabled for this test
     im_store._lua_scripting_available = True
 
@@ -341,9 +370,7 @@ def test_get_memory(im_store):
     assert memory["content"] == "Test memory 1"
 
     # Verify hgetall was called with correct key
-    im_store.redis.hgetall.assert_called_with(
-        "test_memory:im:agent1:memory:memory1"
-    )
+    im_store.redis.hgetall.assert_called_with("test_memory:im:agent1:memory:memory1")
 
     # Verify eval was called for update metadata
     im_store.redis.eval.assert_called_once()
