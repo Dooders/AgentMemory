@@ -97,6 +97,10 @@ class Pipeline:
         self.commands.append(lambda: self.redis.zcard(*args, **kwargs))
         return self
 
+    def zscore(self, *args, **kwargs):
+        self.commands.append(lambda: self.redis.zscore(*args, **kwargs))
+        return self
+
     # Additional Hash Operations
     def hmset(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.hmset(*args, **kwargs))
@@ -117,6 +121,10 @@ class Pipeline:
 
     def exists(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.exists(*args, **kwargs))
+        return self
+
+    def type(self, *args, **kwargs):
+        self.commands.append(lambda: self.redis.type(*args, **kwargs))
         return self
 
     # Lua script operations
@@ -156,8 +164,8 @@ class Pipeline:
             self.commands = []
             self.reset_transaction_state()
 
-            # Return True if all commands succeeded (no None or False results)
-            return all(result is not None and result is not False for result in results)
+            # Return the list of results (not just a boolean)
+            return results
         except Exception as e:
             # Clear commands on exception
             self.commands = []
