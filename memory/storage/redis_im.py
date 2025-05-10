@@ -340,7 +340,9 @@ class RedisIMStore:
             metadata = memory_entry.get("metadata", {})
             if "checksum" not in metadata:
                 if not isinstance(content, (dict, list)):
-                    content = str(content)  # Convert non-dict/non-list content to string
+                    content = str(
+                        content
+                    )  # Convert non-dict/non-list content to string
                 metadata["checksum"] = generate_checksum(content)
 
             # Store metadata as JSON
@@ -396,6 +398,7 @@ class RedisIMStore:
                     """
 
                     # Execute the Lua script
+                    logger.debug("About to execute Redis eval")
                     result = self.redis.eval(
                         store_script,
                         4,  # Number of keys
@@ -409,27 +412,34 @@ class RedisIMStore:
                         str(importance),
                         str(self.config.ttl),
                     )
+                    logger.debug("Redis eval completed successfully")
                     return result == 1
-                except (RedisUnavailableError, RedisTimeoutError):
-                    raise  # propagate
+                except (RedisUnavailableError, RedisTimeoutError) as e:
+                    logger.debug(
+                        f"Caught Redis error in inner block: {type(e).__name__}"
+                    )
+                    raise  # propagate these errors
                 except redis.RedisError as e:
-                    return self._handle_exception(
-                        e,
+                    logger.exception(
+                        "Redis error when storing memory entry %s: %s",
                         memory_id,
-                        "Redis error when storing memory entry",
+                        str(e),
                     )
+                    return False
                 except json.JSONDecodeError as e:
-                    return self._handle_exception(
-                        e,
+                    logger.exception(
+                        "JSON encoding error when storing memory entry %s: %s",
                         memory_id,
-                        "JSON encoding error when storing memory entry",
+                        str(e),
                     )
+                    return False
                 except Exception as e:
-                    return self._handle_exception(
-                        e,
+                    logger.exception(
+                        "Unexpected error storing memory entry %s: %s",
                         memory_id,
-                        "Unexpected error storing memory entry",
+                        str(e),
                     )
+                    return False
             else:
                 try:
                     pipe = self.redis.pipeline()
@@ -445,25 +455,28 @@ class RedisIMStore:
                     if results is None or any(r is None or r is False for r in results):
                         logger.error(
                             "One or more pipeline commands failed for memory %s",
-                            memory_id
+                            memory_id,
                         )
                         return False
                     stored = self.redis.hgetall(key)
                     if not stored or len(stored) == 0:
                         logger.error(
                             "Memory entry %s was not properly stored in Redis",
-                            memory_id
+                            memory_id,
                         )
                         return False
                     if not self.redis.zscore(agent_memories_key, memory_id):
                         logger.error(
                             "Memory entry %s was not added to agent's memory list",
-                            memory_id
+                            memory_id,
                         )
                         return False
                     return True
-                except (RedisUnavailableError, RedisTimeoutError):
-                    raise  # propagate
+                except (RedisUnavailableError, RedisTimeoutError) as e:
+                    logger.debug(
+                        f"Caught Redis error in pipeline block: {type(e).__name__}"
+                    )
+                    raise  # propagate these errors
                 except redis.RedisError as e:
                     logger.exception(
                         "Redis error when storing memory entry %s: %s",
@@ -486,12 +499,13 @@ class RedisIMStore:
                     )
                     return False
         except (RedisUnavailableError, RedisTimeoutError) as e:
+            logger.debug(f"Caught Redis error in outer block: {type(e).__name__}")
             logger.exception(
                 "Redis unavailable/timeout when storing memory entry %s: %s",
                 memory_id,
                 str(e),
             )
-            raise
+            raise  # propagate these errors
         except redis.RedisError as e:
             logger.exception(
                 "Redis error when storing memory entry %s: %s",
