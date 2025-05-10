@@ -155,7 +155,6 @@ class TimeWindowStrategy(SearchStrategy):
                     continue
 
                 # Extract timestamp based on timestamp_field
-                timestamp_str = None
                 if timestamp_field == "metadata.timestamp":
                     timestamp_str = memory.get("metadata", {}).get("timestamp")
                 else:
