@@ -1,0 +1,360 @@
+{
+  "config": {
+    "logging_level": "INFO",
+    "cleanup_interval": 100,
+    "enable_memory_hooks": false,
+    "stm_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 0,
+      "namespace": "agent-stm",
+      "use_mock": true
+    },
+    "im_config": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "db": 1,
+      "namespace": "agent-im",
+      "use_mock": true
+    },
+    "ltm_config": {
+      "db_path": "memory.db",
+      "compression_level": 2,
+      "batch_size": 20
+    }
+  },
+  "agents": {
+    "test-agent-window-search": {
+      "agent_id": "test-agent-window-search",
+      "memories": [
+        {
+          "memory_id": "test-agent-window-search-recent-1",
+          "agent_id": "test-agent-window-search",
+          "step_number": 1,
+          "timestamp": 1721232000,
+          "content": {
+            "content": "Created a new feature for the authentication system.",
+            "metadata": {
+              "type": "task",
+              "importance": "medium",
+              "tags": ["development", "auth", "feature"],
+              "timestamp": "2024-07-17T10:00:00Z",
+              "source": "self"
+            }
+          },
+          "metadata": {
+            "creation_time": 1721232000,
+            "last_access_time": 1721232000,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "timestamp": "2024-07-17T10:00:00Z",
+            "checksum": "5a2f580e517d8c2e2c77fbc027d3f1a7a3e5e10c2b6b498d32efbd351d7a73d8"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-recent-2",
+          "agent_id": "test-agent-window-search",
+          "step_number": 2,
+          "timestamp": 1721235600,
+          "content": {
+            "content": "Meeting with the dev team about API documentation.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "api", "documentation"],
+              "timestamp": "2024-07-17T11:00:00Z",
+              "participants": ["Alice", "Bob", "Charlie"],
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1721235600,
+            "last_access_time": 1721235600,
+            "compression_level": 0,
+            "importance_score": 0.8,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "timestamp": "2024-07-17T11:00:00Z",
+            "checksum": "8c9d6e8af1c6f8b9e6d21e3a45f3a9c7b8a4f1c3e5d7a9f1e3c5d7a9f1e3c5d7a"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-recent-3",
+          "agent_id": "test-agent-window-search",
+          "step_number": 3,
+          "timestamp": 1721239200,
+          "content": {
+            "content": "Fixed critical bug in authentication middleware.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["bugfix", "critical", "auth"],
+              "timestamp": "2024-07-17T12:00:00Z",
+              "source": "ticket"
+            }
+          },
+          "metadata": {
+            "creation_time": 1721239200,
+            "last_access_time": 1721239200,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "timestamp": "2024-07-17T12:00:00Z",
+            "checksum": "1e9e265e75c2ef678dfd0de0ab5c801f845daa48a90a48bb02ee85148ccc3470"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-same-day-1",
+          "agent_id": "test-agent-window-search",
+          "step_number": 4,
+          "timestamp": 1721203200,
+          "content": {
+            "content": "Started sprint planning meeting for next two weeks.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "medium",
+              "tags": ["meeting", "planning", "sprint"],
+              "timestamp": "2024-07-17T02:00:00Z",
+              "participants": ["Team"],
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1721203200,
+            "last_access_time": 1721203200,
+            "compression_level": 0,
+            "importance_score": 0.7,
+            "retrieval_count": 0,
+            "memory_type": "interaction",
+            "current_tier": "stm",
+            "timestamp": "2024-07-17T02:00:00Z",
+            "checksum": "496d09718bbc8ae669dffdd782ed5b849fdbb1a57e3f7d07e61807b10e650092"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-yesterday-1",
+          "agent_id": "test-agent-window-search",
+          "step_number": 5,
+          "timestamp": 1721149200,
+          "content": {
+            "content": "Completed code review for authentication feature.",
+            "metadata": {
+              "type": "task",
+              "importance": "medium",
+              "tags": ["review", "code", "auth"],
+              "timestamp": "2024-07-16T11:00:00Z",
+              "source": "github"
+            }
+          },
+          "metadata": {
+            "creation_time": 1721149200,
+            "last_access_time": 1721152800,
+            "compression_level": 0,
+            "importance_score": 0.6,
+            "retrieval_count": 1,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "timestamp": "2024-07-16T11:00:00Z",
+            "checksum": "ffa0ee60ebaec5574358a02d1857823e948519244e366757235bf755c888a87f"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-lastweek-1",
+          "agent_id": "test-agent-window-search",
+          "step_number": 6,
+          "timestamp": 1720717200,
+          "content": {
+            "content": "Weekly team meeting discussing project roadmap.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "weekly", "roadmap"],
+              "timestamp": "2024-07-11T14:00:00Z",
+              "participants": ["Full Team"],
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1720717200,
+            "last_access_time": 1720803600,
+            "compression_level": 1,
+            "importance_score": 0.8,
+            "retrieval_count": 3,
+            "memory_type": "interaction",
+            "current_tier": "im",
+            "timestamp": "2024-07-11T14:00:00Z",
+            "checksum": "1d23b6683acd8c3863cb2f2010fe3df2c3e69a2d94c7c4757a291d4872066cfd"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-lastweek-2",
+          "agent_id": "test-agent-window-search",
+          "step_number": 7,
+          "timestamp": 1720803600,
+          "content": {
+            "content": "Implemented new security measures for user authentication.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["implementation", "security", "auth"],
+              "timestamp": "2024-07-12T14:00:00Z",
+              "source": "self"
+            }
+          },
+          "metadata": {
+            "creation_time": 1720803600,
+            "last_access_time": 1720890000,
+            "compression_level": 1,
+            "importance_score": 0.85,
+            "retrieval_count": 2,
+            "memory_type": "action",
+            "current_tier": "im",
+            "timestamp": "2024-07-12T14:00:00Z",
+            "checksum": "169c452e368fd62e3c0cf5ce7731769ed46ab6ae73e5048e0c3a7caaa66fba46"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-lastmonth-1",
+          "agent_id": "test-agent-window-search",
+          "step_number": 8,
+          "timestamp": 1718470800,
+          "content": {
+            "content": "Monthly planning meeting for July projects.",
+            "metadata": {
+              "type": "meeting",
+              "importance": "high",
+              "tags": ["meeting", "monthly", "planning"],
+              "timestamp": "2024-06-15T14:00:00Z",
+              "participants": ["Management", "Team Leads"],
+              "source": "calendar"
+            }
+          },
+          "metadata": {
+            "creation_time": 1718470800,
+            "last_access_time": 1719680400,
+            "compression_level": 2,
+            "importance_score": 0.9,
+            "retrieval_count": 5,
+            "memory_type": "interaction",
+            "current_tier": "ltm",
+            "timestamp": "2024-06-15T14:00:00Z",
+            "checksum": "9214ebc2d11877665b32771bd3c080414d9519b435ec3f6c19cc5f337bb0ba90"
+          },
+          "type": "interaction",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-lastmonth-2",
+          "agent_id": "test-agent-window-search",
+          "step_number": 9,
+          "timestamp": 1719076800,
+          "content": {
+            "content": "Created initial prototype for new authentication system.",
+            "metadata": {
+              "type": "task",
+              "importance": "high",
+              "tags": ["prototype", "development", "auth"],
+              "timestamp": "2024-06-22T14:00:00Z",
+              "source": "self"
+            }
+          },
+          "metadata": {
+            "creation_time": 1719076800,
+            "last_access_time": 1719680400,
+            "compression_level": 2,
+            "importance_score": 0.85,
+            "retrieval_count": 4,
+            "memory_type": "action",
+            "current_tier": "ltm",
+            "timestamp": "2024-06-22T14:00:00Z",
+            "checksum": "f3c73b06d6399ed30ea9d9ad7c711a86dd58154809cc05497f8955425ec6dc67"
+          },
+          "type": "action",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-custom-timestamp-1",
+          "agent_id": "test-agent-window-search",
+          "step_number": 10,
+          "timestamp": 1721242800,
+          "content": {
+            "content": "Security review of new authentication system completed.",
+            "metadata": {
+              "type": "review",
+              "importance": "high",
+              "tags": ["security", "review", "auth"],
+              "custom_date": "2024-07-17T13:00:00Z",
+              "source": "security-team"
+            }
+          },
+          "metadata": {
+            "creation_time": 1721242800,
+            "last_access_time": 1721242800,
+            "compression_level": 0,
+            "importance_score": 0.9,
+            "retrieval_count": 0,
+            "memory_type": "generic",
+            "current_tier": "stm",
+            "timestamp": "2024-07-17T13:00:00Z",
+            "checksum": "ad2e7c963751beb1ebc1c9b84ecb09ec3ccdef14f276cd14bbebad12d0f9b0df"
+          },
+          "type": "generic",
+          "embeddings": {}
+        },
+        {
+          "memory_id": "test-agent-window-search-recent-nested-1",
+          "agent_id": "test-agent-window-search",
+          "step_number": 11,
+          "timestamp": 1721246400,
+          "content": {
+            "content": "Performance testing of the authentication API.",
+            "metadata": {
+              "type": "task",
+              "importance": "medium",
+              "tags": ["testing", "performance", "api"],
+              "details": {
+                "task_info": {
+                  "started_at": "2024-07-17T14:00:00Z"
+                }
+              },
+              "source": "devops"
+            }
+          },
+          "metadata": {
+            "creation_time": 1721246400,
+            "last_access_time": 1721246400,
+            "compression_level": 0,
+            "importance_score": 0.65,
+            "retrieval_count": 0,
+            "memory_type": "action",
+            "current_tier": "stm",
+            "timestamp": "2024-07-17T14:00:00Z",
+            "checksum": "b5e6f972a93651cb6734e4eeff16c743a7e3f7bd2f3b2b2e67b4e4a6c3d4f8a9"
+          },
+          "type": "action",
+          "embeddings": {}
+        }
+      ]
+    }
+  }
+} 

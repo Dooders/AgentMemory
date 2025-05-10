@@ -123,8 +123,29 @@ class TimeWindowStrategy(SearchStrategy):
         # Retrieve memories from the time window
         results = []
         for store in stores:
-            # Get all memories
-            memories = store.list(agent_id)
+            try:
+                # First try 'list' method since that's what tests expect
+                if hasattr(store, "list"):
+                    memories = store.list(agent_id)
+                # Fall back to other methods if needed
+                elif hasattr(store, "get_all"):
+                    memories = store.get_all(agent_id)
+                elif hasattr(store, "find_all"):
+                    memories = store.find_all(agent_id)
+                elif hasattr(store, "retrieve_all"):
+                    memories = store.retrieve_all(agent_id)
+                elif hasattr(store, "get_memories"):
+                    memories = store.get_memories(agent_id)
+                else:
+                    raise AttributeError(
+                        f"Store {type(store).__name__} has no method to list all memories"
+                    )
+            except Exception as e:
+                # Log error and continue with next store
+                print(
+                    f"Error retrieving memories from {type(store).__name__}: {str(e)}"
+                )
+                continue
 
             for memory in memories:
                 # Skip if metadata filter doesn't match
