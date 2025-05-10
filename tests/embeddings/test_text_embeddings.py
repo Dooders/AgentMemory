@@ -247,6 +247,84 @@ class TestTextEmbeddingEngine:
         assert len(result) == 768
         mock_model.encode.assert_called_once()
 
+    def test_encode_with_negative_weights(self):
+        """Test encoding with negative context weights."""
+        engine = TextEmbeddingEngine()
+        data = {"name": "test", "value": 123}
+        context_weights = {"name": -1.0, "value": -2.0}
+        result = engine.encode(data, context_weights=context_weights)
+        assert isinstance(result, list)
+        assert len(result) == 768
+
+    def test_encode_nested_structures(self):
+        """Test encoding with deeply nested data structures."""
+        engine = TextEmbeddingEngine()
+        data = {"level1": {"level2": {"level3": {"value": "deeply nested"}}}}
+        result = engine.encode(data)
+        assert isinstance(result, list)
+        assert len(result) == 768
+
+    def test_encode_large_data(self):
+        """Test encoding with large data structures."""
+        engine = TextEmbeddingEngine()
+        data = {
+            "items": ["item" + str(i) for i in range(100)],
+            "metadata": {f"key{i}": f"value{i}" for i in range(50)},
+        }
+        result = engine.encode(data)
+        assert isinstance(result, list)
+        assert len(result) == 768
+
+    def test_encode_special_characters(self):
+        """Test encoding with special characters and unicode."""
+        engine = TextEmbeddingEngine()
+        data = {
+            "text": "Special chars: !@#$%^&*()",
+            "unicode": "Unicode: 你好世界",
+            "emoji": "Emoji: 😀🎮🎲",
+        }
+        result = engine.encode(data)
+        assert isinstance(result, list)
+        assert len(result) == 768
+
+    def test_encode_multiple_context_weights(self):
+        """Test encoding with multiple overlapping context weights."""
+        engine = TextEmbeddingEngine()
+        data = {
+            "position": {"location": "kitchen", "x": 10, "y": 20},
+            "inventory": ["apple", "knife"],
+            "health": 100,
+            "status": "active",
+        }
+        context_weights = {
+            "position": 2.0,
+            "inventory": 1.5,
+            "health": 1.0,
+            "status": 0.5,
+        }
+        result = engine.encode(data, context_weights=context_weights)
+        assert isinstance(result, list)
+        assert len(result) == 768
+
+    def test_encode_invalid_model_output(self):
+        """Test handling of invalid model output."""
+        engine = TextEmbeddingEngine()
+        with patch.object(mock_model, "encode", side_effect=Exception("Model error")):
+            with pytest.raises(Exception):
+                engine.encode("test")
+
+    def test_tier_specific_encoding_with_weights(self):
+        """Test tier-specific encoding methods with context weights."""
+        engine = TextEmbeddingEngine()
+        data = {"content": "test"}
+        weights = {"content": 1.5}
+
+        # Test each tier with weights
+        for method in [engine.encode_stm, engine.encode_im, engine.encode_ltm]:
+            result = method(data, context_weights=weights)
+            assert isinstance(result, list)
+            assert len(result) == 768
+
 
 if __name__ == "__main__":
     pytest.main(["-xvs", __file__])
