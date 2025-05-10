@@ -68,24 +68,24 @@ def create_memory_system(
     """
     # Delete the existing LTM database file if it exists to ensure a clean start
     if clear_db:
-        # Get absolute path and print it for debugging
+        # Get absolute path and log it for debugging
         absolute_db_path = os.path.abspath(db_path)
-        print(f"Checking for database file at: {absolute_db_path}")
+        logging.info(f"Checking for database file at: {absolute_db_path}")
 
         if os.path.exists(absolute_db_path):
-            print(f"Database file exists. Attempting to delete it.")
+            logging.info(f"Database file exists. Attempting to delete it.")
             # Close any open connections
             try:
                 conn = sqlite3.connect(absolute_db_path)
                 conn.close()
-                print("Closed any existing database connections")
+                logging.info("Closed any existing database connections")
             except Exception as e:
-                print(f"Note: Could not connect to database: {e}")
+                logging.warning(f"Note: Could not connect to database: {e}")
 
             # On Windows, using a different approach for file deletion
             if os.name == "nt":  # Windows
                 try:
-                    print("Using Windows-specific deletion method")
+                    logging.info("Using Windows-specific deletion method")
                     # Force delete using del command
                     subprocess.run(
                         [
