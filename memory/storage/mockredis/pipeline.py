@@ -24,13 +24,13 @@ class Pipeline:
         """
         if self.transaction_mode:
             raise ValueError("WATCH can only be called before MULTI")
-            
+
         self.watched_keys.update(keys)
-        
+
         # Store original values for comparison during exec
         for key in keys:
             self.original_watched_values[key] = self.redis.get(key)
-            
+
         return self
 
     def unwatch(self):
@@ -80,62 +80,70 @@ class Pipeline:
     def zadd(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.zadd(*args, **kwargs))
         return self
-    
+
     def zrange(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.zrange(*args, **kwargs))
         return self
-    
+
     def zrangebyscore(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.zrangebyscore(*args, **kwargs))
         return self
-    
+
     def zrem(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.zrem(*args, **kwargs))
         return self
-    
+
     def zcard(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.zcard(*args, **kwargs))
         return self
-    
+
+    def zscore(self, *args, **kwargs):
+        self.commands.append(lambda: self.redis.zscore(*args, **kwargs))
+        return self
+
     # Additional Hash Operations
     def hmset(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.hmset(*args, **kwargs))
         return self
-    
+
     def hset_dict(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.hset_dict(*args, **kwargs))
         return self
-    
+
     def hdel(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.hdel(*args, **kwargs))
         return self
-    
+
     # Additional String Operations
     def expire(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.expire(*args, **kwargs))
         return self
-    
+
     def exists(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.exists(*args, **kwargs))
+        return self
+
+    def type(self, *args, **kwargs):
+        self.commands.append(lambda: self.redis.type(*args, **kwargs))
         return self
 
     # Lua script operations
     def eval(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.eval(*args, **kwargs))
         return self
-        
+
     def evalsha(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.evalsha(*args, **kwargs))
         return self
-        
+
     def script_load(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.script_load(*args, **kwargs))
         return self
-        
+
     def script_exists(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.script_exists(*args, **kwargs))
         return self
-        
+
     def script_flush(self, *args, **kwargs):
         self.commands.append(lambda: self.redis.script_flush(*args, **kwargs))
         return self
@@ -148,16 +156,16 @@ class Pipeline:
                 self.reset_transaction_state()
                 self.commands.clear()
                 return None
-                
+
             # Execute all commands
             results = [cmd_result for cmd_result in (cmd() for cmd in self.commands)]
-            
+
             # Reset state after execution
             self.commands = []
             self.reset_transaction_state()
-            
-            # Return True if all commands succeeded (no None or False results)
-            return all(result is not None and result is not False for result in results)
+
+            # Return the list of results (not just a boolean)
+            return results
         except Exception as e:
             # Clear commands on exception
             self.commands = []
