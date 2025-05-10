@@ -150,7 +150,7 @@ class Pipeline:
                 return None
                 
             # Execute all commands
-            results = [cmd() for cmd in self.commands]
+            results = [cmd_result for cmd_result in (cmd() for cmd in self.commands)]
             
             # Reset state after execution
             self.commands = []
