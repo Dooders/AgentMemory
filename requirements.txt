@@ -33,12 +33,6 @@ pandas
 psutil
 memory_profiler
 
-# OpenAI dependencies
-tiktoken
-openai
-openai-agents
-openai-voice
-
 # Additional needed dependencies
 redis[hiredis]
 markdown
