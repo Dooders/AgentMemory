@@ -428,35 +428,3 @@ def create_memory_system(
         print(f"Error checking SQLite database: {e}")
 
     return memory_system
-
-
-def generate_random_state(agent_id: str, step: int) -> Dict[str, Any]:
-    """Generate a random agent state for testing.
-
-    Args:
-        agent_id: ID of the agent
-        step: Current time step
-
-    Returns:
-        Randomly generated state dictionary
-    """
-    import random
-
-    return {
-        "agent_id": agent_id,
-        "step": step,
-        "position": {
-            "x": random.uniform(-100, 100),
-            "y": random.uniform(-100, 100),
-            "z": random.uniform(-50, 50),
-        },
-        "health": random.randint(50, 100),
-        "energy": random.randint(30, 100),
-        "inventory": {
-            "items": [
-                {"name": f"item_{i}", "count": random.randint(1, 5)}
-                for i in range(random.randint(1, 5))
-            ]
-        },
-        "status": random.choice(["exploring", "resting", "fighting", "trading"]),
-    }
