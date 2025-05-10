@@ -252,17 +252,10 @@ class MockRedis:
                     self.store[name][k] = v
                 return count
 
-            # Handle traditional form: hset(name, key, value)
-            else:
-                if key is None:
-                    raise ValueError(
-                        "Either 'key' and 'value' or 'mapping' must be specified"
-                    )
-
-                # Handle common JSON fields
-                if key in ["content", "metadata", "embedding"] and isinstance(
-                    value, str
-                ):
+            # Handle key-value form: hset(name, key, value)
+            if key is not None:
+                # Handle common JSON fields by ensuring they're properly parsed
+                if key in ["content", "metadata", "embedding"] and isinstance(value, str):
                     try:
                         value = json.loads(value)
                     except (json.JSONDecodeError, TypeError):
@@ -282,9 +275,13 @@ class MockRedis:
                         pass
 
                 # Count only newly added fields
-                result = 0 if key in self.store[name] else 1
+                if key not in self.store[name]:
+                    self.store[name][key] = value
+                    return 1
                 self.store[name][key] = value
-                return result
+                return 0
+
+            return 0
 
     def hget(self, name, key):
         with self.lock:

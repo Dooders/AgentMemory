@@ -12,6 +12,8 @@ from typing import Dict, List, Set
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
+from memory.embeddings.text_embeddings import TextEmbeddingEngine
+from memory.embeddings.vector_store import VectorStore
 from memory.search.strategies.similarity import SimilaritySearchStrategy
 from validation.framework.test_suite import TestSuite
 
@@ -50,10 +52,26 @@ class SimilaritySearchTestSuite(TestSuite):
             "test-agent-similarity-search-14": "n4o5p6q7r8s9t0u1v2w3",
         }
 
-        # Initialize base class
+        # Create required dependencies for SimilaritySearchStrategy
+        self.vector_store = VectorStore()
+        self.embedding_engine = TextEmbeddingEngine(
+            model_name="all-MiniLM-L6-v2"
+        )  # Using a smaller model for testing
+
+        # Create a strategy factory function that will be used by the test runner
+        def create_strategy(stm_store, im_store, ltm_store):
+            return SimilaritySearchStrategy(
+                vector_store=self.vector_store,
+                embedding_engine=self.embedding_engine,
+                stm_store=stm_store,
+                im_store=im_store,
+                ltm_store=ltm_store,
+            )
+
+        # Initialize base class with the strategy factory
         super().__init__(
             strategy_name=STRATEGY_NAME,
-            strategy_class=SimilaritySearchStrategy,
+            strategy_class=create_strategy,  # Pass the factory function instead of the class
             agent_id=AGENT_ID,
             memory_sample_path=MEMORY_SAMPLE,
             memory_checksum_map=MEMORY_CHECKSUMS,
