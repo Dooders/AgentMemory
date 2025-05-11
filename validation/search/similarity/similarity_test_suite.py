@@ -60,6 +60,7 @@ class SimilaritySearchTestSuite(TestSuite):
         )  # Using a smaller model for testing
 
         # Create a strategy factory function that will be used by the test runner
+        #! pass the memory system to the strategy
         def create_strategy(stm_store, im_store, ltm_store):
             return SimilaritySearchStrategy(
                 vector_store=self.vector_store,

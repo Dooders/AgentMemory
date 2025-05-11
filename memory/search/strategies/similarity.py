@@ -36,7 +36,6 @@ class SimilaritySearchStrategy(SearchStrategy):
         stm_store: RedisSTMStore,
         im_store: RedisIMStore,
         ltm_store: SQLiteLTMStore,
-        config: MemoryConfig,
     ):
         """Initialize the similarity search strategy.
 
@@ -46,14 +45,12 @@ class SimilaritySearchStrategy(SearchStrategy):
             stm_store: Short-Term Memory store
             im_store: Intermediate Memory store
             ltm_store: Long-Term Memory store
-            config: Memory configuration
         """
         self.vector_store = vector_store
         self.embedding_engine = embedding_engine
         self.stm_store = stm_store
         self.im_store = im_store
         self.ltm_store = ltm_store
-        self.config = config
 
     def name(self) -> str:
         """Return the name of the search strategy.
