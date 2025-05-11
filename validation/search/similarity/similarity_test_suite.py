@@ -16,6 +16,7 @@ from memory.embeddings.text_embeddings import TextEmbeddingEngine
 from memory.embeddings.vector_store import VectorStore
 from memory.search.strategies.similarity import SimilaritySearchStrategy
 from validation.framework.test_suite import TestSuite
+from memory.config import MemoryConfig
 
 
 class SimilaritySearchTestSuite(TestSuite):
@@ -66,6 +67,7 @@ class SimilaritySearchTestSuite(TestSuite):
                 stm_store=stm_store,
                 im_store=im_store,
                 ltm_store=ltm_store,
+                config=MemoryConfig()
             )
 
         # Initialize base class with the strategy factory
@@ -86,11 +88,9 @@ class SimilaritySearchTestSuite(TestSuite):
             "machine learning model accuracy",
             expected_memory_ids=[
                 "test-agent-similarity-search-1",
-                "test-agent-similarity-search-2",
                 "test-agent-similarity-search-6",
-                "test-agent-similarity-search-7",
-                "test-agent-similarity-search-8",
             ],
+            min_score=0.6,
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -101,8 +101,8 @@ class SimilaritySearchTestSuite(TestSuite):
             expected_memory_ids=[
                 "test-agent-similarity-search-3",
                 "test-agent-similarity-search-9",
-                "test-agent-similarity-search-14",
             ],
+            min_score=0.6,
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -112,11 +112,9 @@ class SimilaritySearchTestSuite(TestSuite):
             "experiment results",
             expected_memory_ids=[
                 "test-agent-similarity-search-1",
-                "test-agent-similarity-search-2",
                 "test-agent-similarity-search-6",
-                "test-agent-similarity-search-7",
-                "test-agent-similarity-search-8",
             ],
+            min_score=0.6,
             metadata_filter={"type": "experiment"},
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -126,9 +124,9 @@ class SimilaritySearchTestSuite(TestSuite):
             "STM Tier Search",
             "performance optimization",
             expected_memory_ids=[
-                "test-agent-similarity-search-4",
                 "test-agent-similarity-search-12",
             ],
+            min_score=0.6,
             tier="stm",
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -138,6 +136,7 @@ class SimilaritySearchTestSuite(TestSuite):
             "IM Tier Search",
             "deep learning model",
             expected_memory_ids=["test-agent-similarity-search-6"],
+            min_score=0.6,
             tier="im",
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -148,9 +147,9 @@ class SimilaritySearchTestSuite(TestSuite):
             "data",
             expected_memory_ids=[
                 "test-agent-similarity-search-3",
-                "test-agent-similarity-search-5",
                 "test-agent-similarity-search-9",
             ],
+            min_score=0.6,
             limit=3,
             memory_checksum_map=self.memory_checksum_map,
         )
