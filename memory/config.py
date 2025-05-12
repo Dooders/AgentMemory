@@ -76,8 +76,12 @@ class SQLiteLTMConfig:
 
     # Whitelist settings
     whitelist_enabled: bool = True  # Whether to enable whitelist filtering
-    whitelisted_types: List[str] = field(default_factory=lambda: ["*"])  # Memory types to save, "*" means allow all
-    whitelisted_fields: List[str] = field(default_factory=lambda: ["*"])  # Fields to save for each memory entry, "*" means allow all
+    whitelisted_types: List[str] = field(
+        default_factory=lambda: ["*"]
+    )  # Memory types to save, "*" means allow all
+    whitelisted_fields: List[str] = field(
+        default_factory=lambda: ["*"]
+    )  # Fields to save for each memory entry, "*" means allow all
 
 
 @dataclass

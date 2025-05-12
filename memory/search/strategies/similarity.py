@@ -3,13 +3,8 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
-from memory.embeddings.vector_store import VectorStore
+from memory.core import AgentMemorySystem
 from memory.search.strategies.base import SearchStrategy
-from memory.storage.redis_im import RedisIMStore
-from memory.storage.redis_stm import RedisSTMStore
-from memory.storage.sqlite_ltm import SQLiteLTMStore
-from memory.config import MemoryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,34 +18,23 @@ class SimilaritySearchStrategy(SearchStrategy):
     Attributes:
         vector_store: Vector store for similarity queries
         embedding_engine: Engine for generating embeddings
-        stm_store: Short-Term Memory store
-        im_store: Intermediate Memory store
-        ltm_store: Long-Term Memory store
+        memory_system: The memory system instance
         config: Memory configuration
     """
 
-    def __init__(
-        self,
-        vector_store: VectorStore,
-        embedding_engine: AutoencoderEmbeddingEngine,
-        stm_store: RedisSTMStore,
-        im_store: RedisIMStore,
-        ltm_store: SQLiteLTMStore,
-    ):
+    # Default minimum similarity score threshold
+    DEFAULT_MIN_SCORE = 0.6
+
+    def __init__(self, memory_system: AgentMemorySystem):
         """Initialize the similarity search strategy.
 
         Args:
-            vector_store: Vector store for similarity queries
-            embedding_engine: Engine for generating embeddings
-            stm_store: Short-Term Memory store
-            im_store: Intermediate Memory store
-            ltm_store: Long-Term Memory store
+            memory_system: The memory system instance
         """
-        self.vector_store = vector_store
-        self.embedding_engine = embedding_engine
-        self.stm_store = stm_store
-        self.im_store = im_store
-        self.ltm_store = ltm_store
+        self.memory_system = memory_system
+        self.vector_store = self.memory_system.vector_store
+        self.embedding_engine = self.memory_system.embedding_engine
+        self.config = self.memory_system.config
 
     def name(self) -> str:
         """Return the name of the search strategy.
@@ -88,14 +72,14 @@ class SimilaritySearchStrategy(SearchStrategy):
             limit: Maximum number of results to return
             metadata_filter: Optional filters to apply to memory metadata
             tier: Optional memory tier to search ("stm", "im", "ltm", or None for all)
-            min_score: Minimum similarity score threshold (0.0-1.0), defaults to config value
+            min_score: Minimum similarity score threshold (0.0-1.0), defaults to DEFAULT_MIN_SCORE
             **kwargs: Additional parameters (ignored)
 
         Returns:
             List of memory entries matching the search criteria
         """
-        # Use provided min_score or fall back to config value
-        min_score = min_score if min_score is not None else self.config.min_score
+        # Use provided min_score or fall back to default
+        min_score = min_score if min_score is not None else self.DEFAULT_MIN_SCORE
 
         logger.debug(
             "Starting similarity search for agent %s with query type %s, limit %d, min_score %.2f",
@@ -113,6 +97,9 @@ class SimilaritySearchStrategy(SearchStrategy):
         # Process all tiers or only the specified one
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
         logger.debug("Searching memory tiers: %s", tiers_to_search)
+
+        # Get the memory agent
+        memory_agent = self.memory_system.get_memory_agent(agent_id)
 
         for current_tier in tiers_to_search:
             # Skip if tier is not supported
@@ -139,7 +126,9 @@ class SimilaritySearchStrategy(SearchStrategy):
             )
 
             # Find similar vectors
-            logger.debug("Calling vector_store.find_similar_memories for tier %s", current_tier)
+            logger.debug(
+                "Calling vector_store.find_similar_memories for tier %s", current_tier
+            )
             similar_vectors = self.vector_store.find_similar_memories(
                 query_vector,
                 tier=current_tier,
@@ -187,13 +176,15 @@ class SimilaritySearchStrategy(SearchStrategy):
                 memory = None
 
                 # Look up in the appropriate store
-                logger.debug("Fetching memory %s from %s store", memory_id, current_tier)
+                logger.debug(
+                    "Fetching memory %s from %s store", memory_id, current_tier
+                )
                 if current_tier == "stm":
-                    memory = self.stm_store.get(agent_id, memory_id)
+                    memory = memory_agent.stm_store.get(agent_id, memory_id)
                 elif current_tier == "im":
-                    memory = self.im_store.get(agent_id, memory_id)
+                    memory = memory_agent.im_store.get(agent_id, memory_id)
                 else:  # ltm
-                    memory = self.ltm_store.get(agent_id, memory_id)
+                    memory = memory_agent.ltm_store.get(memory_id)
 
                 logger.debug("Memory store returned: %s", memory)
 
@@ -280,16 +271,22 @@ class SimilaritySearchStrategy(SearchStrategy):
 
         # If query is a dictionary, encode it based on tier
         if isinstance(query, dict):
-            logger.debug("Encoding dictionary query for tier %s. Query dict: %s", tier, query)
+            logger.debug(
+                "Encoding dictionary query for tier %s. Query dict: %s", tier, query
+            )
             if tier == "stm":
                 vector = self.embedding_engine.encode_stm(query)
             elif tier == "im":
                 vector = self.embedding_engine.encode_im(query)
             elif tier == "ltm":
                 vector = self.embedding_engine.encode_ltm(query)
-            
+
             if vector is not None:
-                logger.debug("Successfully generated vector of length %d: %s", len(vector), vector)
+                logger.debug(
+                    "Successfully generated vector of length %d: %s",
+                    len(vector),
+                    vector,
+                )
             else:
                 logger.warning("Failed to generate vector for tier %s", tier)
             return vector

@@ -71,11 +71,7 @@ class ValidationTestRunner:
 
         # Get agent and create strategy
         self.agent = self.memory_system.get_memory_agent(agent_id)
-        self.strategy = strategy_class(
-            stm_store=self.agent.stm_store,
-            im_store=self.agent.im_store,
-            ltm_store=self.agent.ltm_store
-        )
+        self.strategy = strategy_class(self.memory_system)
 
         # Print strategy info
         log_print(self.logger, f"Testing search strategy: {self.strategy.name()}")
