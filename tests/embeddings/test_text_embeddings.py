@@ -309,7 +309,7 @@ class TestTextEmbeddingEngine:
     def test_encode_invalid_model_output(self):
         """Test handling of invalid model output."""
         engine = TextEmbeddingEngine()
-        with patch.object(mock_model, "encode", side_effect=Exception("Model error")):
+        with patch.object(engine.model, "encode", side_effect=Exception("Model error")):
             with pytest.raises(Exception):
                 engine.encode("test")
 
