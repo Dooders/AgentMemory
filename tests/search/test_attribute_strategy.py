@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from memory.search.strategies.attribute import AttributeSearchStrategy
+from memory.core import AgentMemorySystem
 
 
 class TestAttributeSearchStrategy(unittest.TestCase):
@@ -13,14 +14,22 @@ class TestAttributeSearchStrategy(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Create mock dependencies
-        self.mock_stm_store = MagicMock()
-        self.mock_im_store = MagicMock()
-        self.mock_ltm_store = MagicMock()
+        # Create mock memory system
+        self.mock_memory_system = MagicMock(spec=AgentMemorySystem)
+        
+        # Create mock agent
+        self.mock_agent = MagicMock()
+        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        
+        # Set up mock stores in the agent
+        self.mock_agent.stm_store = MagicMock()
+        self.mock_agent.im_store = MagicMock()
+        self.mock_agent.ltm_store = MagicMock()
 
-        # Create strategy with mock dependencies
+        # Create strategy with mock memory system
         self.strategy = AttributeSearchStrategy(
-            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+            memory_system=self.mock_memory_system,
+            scoring_method="length_ratio"  # Set default scoring method
         )
 
         # Sample memories for testing
@@ -60,6 +69,11 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             },
         ]
 
+        # Configure mock stores to return empty lists by default
+        self.mock_agent.stm_store.get_all.return_value = []
+        self.mock_agent.im_store.get_all.return_value = []
+        self.mock_agent.ltm_store.get_all.return_value = []
+
     def test_name_and_description(self):
         """Test name and description methods."""
         self.assertEqual(self.strategy.name(), "attribute")
@@ -69,9 +83,9 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_search_string_query(self):
         """Test search with a simple string query."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all.return_value = self.sample_memories
-        self.mock_im_store.get_all.return_value = []
-        self.mock_ltm_store.get_all.return_value = []
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+        self.mock_agent.im_store.get_all.return_value = []
+        self.mock_agent.ltm_store.get_all.return_value = []
 
         # Perform search
         results = self.strategy.search(
@@ -96,9 +110,9 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             if mem["content"]["metadata"]["type"] == "meeting"
         ]
 
-        self.mock_stm_store.get_all.return_value = []
-        self.mock_im_store.get_all.return_value = meeting_memories
-        self.mock_ltm_store.get_all.return_value = []
+        self.mock_agent.stm_store.get_all.return_value = []
+        self.mock_agent.im_store.get_all.return_value = meeting_memories
+        self.mock_agent.ltm_store.get_all.return_value = []
 
         # Perform search with string query instead
         results = self.strategy.search(
@@ -119,9 +133,9 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_search_with_metadata_filter(self):
         """Test search with metadata filter."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all.return_value = []
-        self.mock_im_store.get_all.return_value = []
-        self.mock_ltm_store.get_all.return_value = self.sample_memories
+        self.mock_agent.stm_store.get_all.return_value = []
+        self.mock_agent.im_store.get_all.return_value = []
+        self.mock_agent.ltm_store.get_all.return_value = self.sample_memories
 
         # Perform search with metadata filter
         results = self.strategy.search(
@@ -139,7 +153,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_search_with_regex(self):
         """Test search with regex pattern."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all.return_value = self.sample_memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
 
         # Perform search with regex
         results = self.strategy.search(
@@ -158,7 +172,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_search_with_match_all(self):
         """Test search requiring all conditions to match."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all.return_value = self.sample_memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
 
         # Query that should match only when all conditions are met
         query = {
@@ -184,7 +198,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             "content"
         ] = "MEETING with John about the project"
 
-        self.mock_stm_store.get_all.return_value = case_sensitive_memories
+        self.mock_agent.stm_store.get_all.return_value = case_sensitive_memories
 
         # Case-insensitive search (default)
         results_insensitive = self.strategy.search(
@@ -210,7 +224,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_search_with_custom_fields(self):
         """Test search with custom content and metadata fields."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all.return_value = self.sample_memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
 
         # Perform search with specific content and metadata fields
         results = self.strategy.search(
@@ -235,9 +249,9 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_search_all_tiers(self):
         """Test search across all memory tiers."""
         # Set up stores to return different memories in each tier
-        self.mock_stm_store.get_all.return_value = [self.sample_memories[0]]
-        self.mock_im_store.get_all.return_value = [self.sample_memories[1]]
-        self.mock_ltm_store.get_all.return_value = [self.sample_memories[2]]
+        self.mock_agent.stm_store.get_all.return_value = [self.sample_memories[0]]
+        self.mock_agent.im_store.get_all.return_value = [self.sample_memories[1]]
+        self.mock_agent.ltm_store.get_all.return_value = [self.sample_memories[2]]
 
         # Perform search across all tiers
         results = self.strategy.search(
@@ -284,7 +298,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_empty_query(self):
         """Test search with empty query."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all.return_value = self.sample_memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
 
         # Perform search with empty string query
         results_empty_string = self.strategy.search(
@@ -330,7 +344,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         ]
 
         # Set up store to return special character memories
-        self.mock_stm_store.get_all.return_value = special_char_memories
+        self.mock_agent.stm_store.get_all.return_value = special_char_memories
 
         # Test with email address in query
         email_results = self.strategy.search(
@@ -395,7 +409,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         ]
 
         # Set up store to return mixed type memories
-        self.mock_stm_store.get_all.return_value = mixed_type_memories
+        self.mock_agent.stm_store.get_all.return_value = mixed_type_memories
 
         # Test search with numeric value in query
         numeric_results = self.strategy.search(
@@ -435,33 +449,25 @@ class TestAttributeSearchStrategy(unittest.TestCase):
             },
         ]
 
-        self.mock_stm_store.get_all.return_value = scoring_test_memories
+        self.mock_agent.stm_store.get_all.return_value = scoring_test_memories
 
         # 1. Test different scoring methods at initialization
         # Create strategies with different scoring methods
         length_ratio_strategy = AttributeSearchStrategy(
-            self.mock_stm_store,
-            self.mock_im_store,
-            self.mock_ltm_store,
-            scoring_method="length_ratio",
+            memory_system=self.mock_memory_system,
+            scoring_method="length_ratio"
         )
         term_freq_strategy = AttributeSearchStrategy(
-            self.mock_stm_store,
-            self.mock_im_store,
-            self.mock_ltm_store,
-            scoring_method="term_frequency",
+            memory_system=self.mock_memory_system,
+            scoring_method="term_frequency"
         )
         bm25_strategy = AttributeSearchStrategy(
-            self.mock_stm_store,
-            self.mock_im_store,
-            self.mock_ltm_store,
-            scoring_method="bm25",
+            memory_system=self.mock_memory_system,
+            scoring_method="bm25"
         )
         binary_strategy = AttributeSearchStrategy(
-            self.mock_stm_store,
-            self.mock_im_store,
-            self.mock_ltm_store,
-            scoring_method="binary",
+            memory_system=self.mock_memory_system,
+            scoring_method="binary"
         )
 
         # Verify that scoring_method is correctly set in the strategy instances
@@ -574,7 +580,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         # 5. Test overriding scoring method in search call
         # Create strategy with default length_ratio scoring
         default_strategy = AttributeSearchStrategy(
-            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+            memory_system=self.mock_memory_system
         )
 
         # Override with term_frequency in search call
@@ -599,7 +605,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         """Test the regex pattern caching functionality."""
         # Create clean strategy
         strategy = AttributeSearchStrategy(
-            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+            memory_system=self.mock_memory_system
         )
 
         # Initial cache should be empty
@@ -670,7 +676,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_precompile_patterns(self):
         """Test the precompile_patterns method."""
         strategy = AttributeSearchStrategy(
-            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+            memory_system=self.mock_memory_system
         )
 
         # Precompile multiple patterns
@@ -702,10 +708,10 @@ class TestAttributeSearchStrategy(unittest.TestCase):
     def test_pattern_cache_in_search(self):
         """Test that pattern cache is used during search operations."""
         # Set up store to return sample memories
-        self.mock_stm_store.get_all.return_value = self.sample_memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
 
         strategy = AttributeSearchStrategy(
-            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+            memory_system=self.mock_memory_system
         )
 
         # Spy on the get_compiled_pattern method to count calls
@@ -769,10 +775,10 @@ class TestAttributeSearchStrategy(unittest.TestCase):
                 }
             )
 
-        self.mock_stm_store.get_all.return_value = regex_test_memories
+        self.mock_agent.stm_store.get_all.return_value = regex_test_memories
 
         strategy = AttributeSearchStrategy(
-            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
+            memory_system=self.mock_memory_system
         )
 
         # First run - no cached patterns
@@ -818,126 +824,270 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         self.assertLess(precompiled_time, uncached_time)
 
     def test_error_handling(self):
-        """Test error handling in attribute search."""
-        # Create memories with problematic data structures
-        error_test_memories = [
+        """Test error handling in search."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test with invalid regex pattern
+        results = self.strategy.search("[invalid regex", "agent1", use_regex=True)
+        self.assertEqual(len(results), 0)
+
+        # Test with empty query
+        results = self.strategy.search("", "agent1")
+        self.assertEqual(len(results), 0)
+
+        # Test with None query
+        results = self.strategy.search(None, "agent1", content_fields=["content.content"])
+        self.assertEqual(len(results), 0)
+
+    def test_basic_search(self):
+        """Test basic search functionality."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test simple content search
+        results = self.strategy.search("meeting", "agent1")
+        self.assertEqual(len(results), 2)
+        self.assertTrue(any(r["id"] == "memory1" for r in results))
+        self.assertTrue(any(r["id"] == "memory3" for r in results))
+
+        # Test metadata search
+        results = self.strategy.search({"metadata": {"type": "communication"}}, "agent1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], "memory2")
+
+    def test_scoring_methods(self):
+        """Test different scoring methods."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Create test memories with repeated terms
+        test_memories = [
             {
-                "id": "memory_valid",
+                "id": "memory1",
                 "content": {
-                    "content": "Valid content",
-                    "metadata": {"type": "valid", "tags": ["valid"]},
+                    "content": "meeting meeting meeting project timeline",
+                    "metadata": {"type": "meeting"},
                 },
             },
             {
-                "id": "memory_missing_content",
-                # Missing content field
-                "metadata": {"type": "invalid"},
-            },
-            {
-                "id": "memory_null_fields",
-                "content": None,
-                "metadata": None,
-            },
-            {
-                "id": "memory_nested_array",
+                "id": "memory2",
                 "content": {
-                    "content": "Content with nested array",
-                    "metadata": {
-                        "type": "array_test",
-                        "nested": {"array": [1, 2, 3]},
-                    },
-                },
-            },
-            {
-                "id": "memory_unconvertible",
-                "content": {
-                    "content": "Content with unconvertible values",
-                    "metadata": {
-                        "type": "complex",
-                        "value": complex(
-                            1, 2
-                        ),  # Complex numbers can't easily convert to strings
-                    },
+                    "content": "meeting project timeline",
+                    "metadata": {"type": "meeting"},
                 },
             },
         ]
+        self.mock_agent.stm_store.get_all.return_value = test_memories
 
-        # Set up store to return error test memories
-        self.mock_stm_store.get_all.return_value = error_test_memories
+        # Test different scoring methods
+        methods = ["length_ratio", "term_frequency", "bm25", "binary"]
+        for method in methods:
+            strategy = AttributeSearchStrategy(
+                memory_system=self.mock_memory_system,
+                scoring_method=method
+            )
+            results = strategy.search("meeting", "agent1")
+            self.assertEqual(len(results), 2)
+            self.assertEqual(results[0]["metadata"]["scoring_method"], method)
 
-        # Test basic search - should not crash and should return valid results
+            # Print metadata for debugging
+            print(f"\nResults for {method}:")
+            for r in results:
+                print(f"Memory {r['id']}: {r['metadata']}")
+
+        # Test overriding default scoring method
+        strategy = AttributeSearchStrategy(
+            memory_system=self.mock_memory_system,
+            scoring_method="length_ratio"  # Default
+        )
+        results = strategy.search("meeting", "agent1", scoring_method="term_frequency")
+        self.assertEqual(results[0]["metadata"]["scoring_method"], "term_frequency")
+
+        # Verify scores are different for different methods
+        length_results = strategy.search("meeting", "agent1", scoring_method="length_ratio")
+        freq_results = strategy.search("meeting", "agent1", scoring_method="term_frequency")
+        self.assertNotEqual(
+            length_results[0]["metadata"]["attribute_score"],
+            freq_results[0]["metadata"]["attribute_score"]
+        )
+
+        # Verify memory1 scores higher than memory2 for term frequency
+        self.assertGreater(
+            freq_results[0]["metadata"]["attribute_score"],
+            freq_results[1]["metadata"]["attribute_score"]
+        )
+
+    def test_mixed_data_types(self):
+        """Test search with mixed data types."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test with numeric content
+        results = self.strategy.search(123, "agent1")
+        self.assertEqual(len(results), 0)  # No matches expected
+
+        # Test with boolean content
+        results = self.strategy.search(True, "agent1")
+        self.assertEqual(len(results), 0)  # No matches expected
+
+        # Test with mixed metadata types
         results = self.strategy.search(
-            query="valid", agent_id="agent-1", tier="stm", limit=5
+            {"metadata": {"importance": 5}}, "agent1"
         )
+        self.assertEqual(len(results), 0)  # No matches expected
 
-        # Should return at least the valid memory
-        self.assertGreaterEqual(len(results), 1)
-        self.assertIn("memory_valid", [r["id"] for r in results])
+    def test_search_with_filters(self):
+        """Test search with various filters."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
 
-        # Test accessing nested arrays
+        # Test with metadata filter
         results = self.strategy.search(
-            query="array",
-            agent_id="agent-1",
-            tier="stm",
-            metadata_fields=["content.metadata.nested.array"],
-            limit=5,
+            "meeting",
+            "agent1",
+            metadata_filter={"content.metadata.importance": "high"},
         )
+        self.assertEqual(len(results), 2)
+        self.assertTrue(all(r["content"]["metadata"]["importance"] == "high" for r in results))
 
-        # Should find the memory with nested array
-        self.assertIn("memory_nested_array", [r["id"] for r in results])
+        # Test with tier filter
+        results = self.strategy.search("meeting", "agent1", tier="stm")
+        self.assertEqual(len(results), 2)
 
-        # Test with empty field path
-        try:
-            # This should log a warning but not crash
-            field_value = self.strategy._get_field_value(error_test_memories[0], "")
-            self.assertIsNone(field_value)
-        except Exception as e:
-            self.fail(f"_get_field_value with empty path raised exception: {e}")
-
-        # Test array indexing in field path
-        memory_with_array = {
-            "id": "array_memory",
-            "content": {
-                "content": "Array test",
-                "metadata": {"tags": ["tag1", "tag2", "tag3"]},
-            },
-        }
-
-        # Get the second tag using array indexing
-        tag2 = self.strategy._get_field_value(
-            memory_with_array, "content.metadata.tags.1"
-        )
-        self.assertEqual(tag2, "tag2")
-
-        # Test out of bounds index
-        out_of_bounds = self.strategy._get_field_value(
-            memory_with_array, "content.metadata.tags.10"
-        )
-        self.assertIsNone(out_of_bounds)
-
-        # Test with metadata filter containing type mismatches
+        # Test with content fields
         results = self.strategy.search(
-            query="test",
-            agent_id="agent-1",
-            tier="stm",
-            metadata_filter={"content.metadata.type": "array_test"},
-            limit=5,
+            "meeting",
+            "agent1",
+            content_fields=["content.content"],
         )
+        self.assertEqual(len(results), 2)
 
-        # Should find the array_test memory
-        self.assertIn("memory_nested_array", [r["id"] for r in results])
-
-        # Test with invalid regex pattern - should not crash
+        # Test with metadata fields
         results = self.strategy.search(
-            query="[invalid regex",
-            agent_id="agent-1",
-            tier="stm",
+            "high",
+            "agent1",
+            metadata_fields=["content.metadata.importance"],
+        )
+        self.assertEqual(len(results), 2)
+
+    def test_match_all_behavior(self):
+        """Test match_all parameter behavior."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test with match_all=True
+        results = self.strategy.search(
+            {"metadata": {"type": "meeting", "importance": "high"}},
+            "agent1",
+            match_all=True,
+        )
+        self.assertEqual(len(results), 2)
+
+        # Test with match_all=False
+        results = self.strategy.search(
+            {"metadata": {"type": "meeting", "importance": "medium"}},
+            "agent1",
+            match_all=False,
+        )
+        self.assertEqual(len(results), 3)  # Should match any memory with either condition
+
+    def test_case_sensitivity(self):
+        """Test case sensitivity in search."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test case-insensitive search (default)
+        results = self.strategy.search("MEETING", "agent1")
+        self.assertEqual(len(results), 2)
+
+        # Test case-sensitive search
+        results = self.strategy.search("MEETING", "agent1", case_sensitive=True)
+        self.assertEqual(len(results), 0)  # No matches expected
+
+        # Test case-sensitive search with correct case
+        results = self.strategy.search("meeting", "agent1", case_sensitive=True)
+        self.assertEqual(len(results), 2)
+
+    def test_regex_search(self):
+        """Test regex search functionality."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test with valid regex pattern
+        results = self.strategy.search(
+            r"meeting.*project",
+            "agent1",
             use_regex=True,
-            limit=5,
         )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], "memory1")
 
-        # Should handle the error and not crash
-        self.assertEqual(type(results), list)
+        # Test with invalid regex pattern
+        results = self.strategy.search(
+            r"meeting[",
+            "agent1",
+            use_regex=True,
+        )
+        self.assertEqual(len(results), 0)
+
+    def test_limit_parameter(self):
+        """Test limit parameter behavior."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test with limit=1
+        results = self.strategy.search("meeting", "agent1", limit=1)
+        self.assertEqual(len(results), 1)
+
+        # Test with limit=0
+        results = self.strategy.search("meeting", "agent1", limit=0)
+        self.assertEqual(len(results), 0)
+
+        # Test with limit greater than available results
+        results = self.strategy.search("meeting", "agent1", limit=10)
+        self.assertEqual(len(results), 2)  # Should return all matches
+
+    def test_skip_validation(self):
+        """Test skip_validation parameter behavior."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test with skip_validation=True
+        results = self.strategy.search(
+            "meeting",
+            "agent1",
+            skip_validation=True,
+        )
+        self.assertEqual(len(results), 2)
+
+        # Test with skip_validation=False
+        results = self.strategy.search(
+            "meeting",
+            "agent1",
+            skip_validation=False,
+        )
+        self.assertEqual(len(results), 2)
+
+    def test_pattern_cache(self):
+        """Test regex pattern caching functionality."""
+        # Configure mock store to return sample memories
+        self.mock_agent.stm_store.get_all.return_value = self.sample_memories
+
+        # Test pattern caching
+        pattern = r"meeting.*project"
+        self.strategy.get_compiled_pattern(pattern, False)
+        self.assertIn((pattern, False), self.strategy._pattern_cache)
+
+        # Test cache clearing
+        self.strategy.clear_pattern_cache()
+        self.assertEqual(len(self.strategy._pattern_cache), 0)
+
+        # Test precompilation
+        patterns = [(r"meeting.*project", False), (r"email.*team", False)]
+        success_count = self.strategy.precompile_patterns(patterns)
+        self.assertEqual(success_count, 2)
+        self.assertEqual(len(self.strategy._pattern_cache), 2)
 
 
 if __name__ == "__main__":

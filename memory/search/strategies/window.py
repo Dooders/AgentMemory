@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
-from .base import SearchStrategy
 from memory.core import AgentMemorySystem
+
+from .base import SearchStrategy
 
 
 class TimeWindowStrategy(SearchStrategy):
@@ -116,10 +117,10 @@ class TimeWindowStrategy(SearchStrategy):
         results = []
         for store in stores:
             try:
-                if hasattr(store, "list"):
-                    memories = store.list(agent_id)
-                elif hasattr(store, "get_all"):
+                if hasattr(store, "get_all"):
                     memories = store.get_all(agent_id)
+                elif hasattr(store, "list"):
+                    memories = store.list(agent_id)
                 elif hasattr(store, "find_all"):
                     memories = store.find_all(agent_id)
                 elif hasattr(store, "retrieve_all"):
