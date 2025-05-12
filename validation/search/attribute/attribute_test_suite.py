@@ -350,16 +350,12 @@ class AttributeSearchTestSuite(TestSuite):
         # Test specialized strategy instances
         # Note: We need to create new strategy instances with different scoring methods
         term_freq_strategy = AttributeSearchStrategy(
-            self.runner.agent.stm_store,
-            self.runner.agent.im_store,
-            self.runner.agent.ltm_store,
+            self.runner.memory_system,
             scoring_method="term_frequency",
         )
 
         bm25_strategy = AttributeSearchStrategy(
-            self.runner.agent.stm_store,
-            self.runner.agent.im_store,
-            self.runner.agent.ltm_store,
+            self.runner.memory_system,
             scoring_method="bm25",
         )
 

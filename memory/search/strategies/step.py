@@ -15,7 +15,7 @@ config = MemoryConfig()
 search_model = SearchModel(config)
 
 # Create and register the step-based strategy
-step_strategy = StepBasedSearchStrategy(stm_store, im_store, ltm_store)
+step_strategy = StepBasedSearchStrategy(memory_system)
 search_model.register_strategy(step_strategy)
 
 # Search for memories within a step range
@@ -43,9 +43,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from memory.search.strategies.base import SearchStrategy
-from memory.storage.redis_im import RedisIMStore
-from memory.storage.redis_stm import RedisSTMStore
-from memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
 
@@ -58,27 +56,19 @@ class StepBasedSearchStrategy(SearchStrategy):
     of an agent through simulation steps is more meaningful than real-world time.
 
     Attributes:
-        stm_store: Short-Term Memory store
-        im_store: Intermediate Memory store
-        ltm_store: Long-Term Memory store
+        memory_system: The memory system instance
     """
 
     def __init__(
         self,
-        stm_store: RedisSTMStore,
-        im_store: RedisIMStore,
-        ltm_store: SQLiteLTMStore,
+        memory_system: AgentMemorySystem,
     ):
         """Initialize the step-based search strategy.
 
         Args:
-            stm_store: Short-Term Memory store
-            im_store: Intermediate Memory store
-            ltm_store: Long-Term Memory store
+            memory_system: The memory system instance
         """
-        self.stm_store = stm_store
-        self.im_store = im_store
-        self.ltm_store = ltm_store
+        self.memory_system = memory_system
 
     def name(self) -> str:
         """Return the name of the search strategy.
@@ -128,56 +118,38 @@ class StepBasedSearchStrategy(SearchStrategy):
         Returns:
             List of memory entries matching the search criteria
         """
-        # Initialize results
         results = []
-
-        # Process query to extract step parameters
         step_params = self._process_query(
             query, start_step, end_step, reference_step, step_range
         )
-
-        # Process all tiers or only the specified one
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
-
+        agent = self.memory_system.get_memory_agent(agent_id)
         for current_tier in tiers_to_search:
-            # Skip if tier is not supported
             if current_tier not in ["stm", "im", "ltm"]:
                 logger.warning("Unsupported memory tier: %s", current_tier)
                 continue
-
-            # Get all memories for the agent in this tier
             tier_memories = []
             if current_tier == "stm":
-                tier_memories = self.stm_store.get_all(agent_id)
+                tier_memories = agent.stm_store.get_all(agent_id)
             elif current_tier == "im":
-                tier_memories = self.im_store.get_all(agent_id)
+                tier_memories = agent.im_store.get_all(agent_id)
             else:  # ltm
-                tier_memories = self.ltm_store.get_all(agent_id)
-
-            # Filter memories by step range and metadata
+                tier_memories = agent.ltm_store.get_all(agent_id)
             filtered_memories = self._filter_memories(
                 tier_memories,
                 step_params,
                 metadata_filter,
             )
-
-            # Score memories based on step proximity
             scored_memories = self._score_memories(
                 filtered_memories,
                 step_params,
                 step_weight,
                 current_tier,
             )
-
-            # Add to results
             results.extend(scored_memories)
-
-        # Sort by step score (descending)
         results.sort(
             key=lambda x: x.get("metadata", {}).get("step_score", 0.0), reverse=True
         )
-
-        # Limit final results
         return results[:limit]
 
     def _process_query(
