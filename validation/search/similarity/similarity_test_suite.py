@@ -56,7 +56,7 @@ class SimilaritySearchTestSuite(TestSuite):
         # Initialize base class with the strategy factory
         super().__init__(
             strategy_name=STRATEGY_NAME,
-            strategy_class=SimilaritySearchStrategy,  # Pass the factory function instead of the class
+            strategy_class=SimilaritySearchStrategy,  # Pass the strategy class directly
             agent_id=AGENT_ID,
             memory_sample_path=MEMORY_SAMPLE,
             memory_checksum_map=MEMORY_CHECKSUMS,
