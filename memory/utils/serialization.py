@@ -425,30 +425,25 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                 # Create a deep copy to avoid reference issues
                 memory_copy = copy.deepcopy(memory)
 
-                # Store memory in appropriate store and vector store
+                # Store memory in the appropriate store based on the tier
                 if tier == "stm":
                     logger.debug(f"Storing memory in STM store with type {memory_type}")
                     memory_agent.stm_store.store(agent_id, memory_copy)
-                    if "embeddings" in memory_copy:
-                        vector_store.store_memory_vectors(memory_copy)
                 elif tier == "im":
                     logger.debug(f"Storing memory in IM store with type {memory_type}")
                     memory_agent.im_store.store(agent_id, memory_copy)
-                    if "embeddings" in memory_copy:
-                        vector_store.store_memory_vectors(memory_copy)
                 elif tier == "ltm":
                     logger.debug(f"Storing memory in LTM store with type {memory_type}")
                     memory_agent.ltm_store.store(memory_copy)
-                    if "embeddings" in memory_copy:
-                        vector_store.store_memory_vectors(memory_copy)
                 else:
                     # Default to STM if tier is unknown
                     logger.warning(f"Unknown tier '{tier}', storing in STM")
                     logger.debug(f"Storing memory in STM store with type {memory_type}")
                     memory_agent.stm_store.store(agent_id, memory_copy)
-                    if "embeddings" in memory_copy:
-                        vector_store.store_memory_vectors(memory_copy)
 
+                # Store memory vectors if embeddings exist
+                if "embeddings" in memory_copy:
+                    vector_store.store_memory_vectors(memory_copy)
         logger.info(f"Memory system loaded from {filepath}")
         return memory_system
 
