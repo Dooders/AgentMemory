@@ -6,9 +6,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from memory.search.strategies.base import SearchStrategy
-from memory.storage.redis_im import RedisIMStore
-from memory.storage.redis_stm import RedisSTMStore
-from memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
 
@@ -20,41 +18,27 @@ class AttributeSearchStrategy(SearchStrategy):
     metadata fields, allowing for flexible filtering and querying of memories.
 
     Attributes:
-        stm_store: Short-Term Memory store
-        im_store: Intermediate Memory store
-        ltm_store: Long-Term Memory store
+        memory_system: The memory system instance
         scoring_method: Method used for scoring matches (default "length_ratio")
         _pattern_cache: Cache for compiled regex patterns
     """
 
     def __init__(
         self,
-        stm_store: RedisSTMStore,
-        im_store: RedisIMStore,
-        ltm_store: SQLiteLTMStore,
+        memory_system: AgentMemorySystem,
         scoring_method: str = "length_ratio",
         skip_validation: bool = True,
     ):
         """Initialize the attribute search strategy.
 
         Args:
-            stm_store: Short-Term Memory store
-            im_store: Intermediate Memory store
-            ltm_store: Long-Term Memory store
+            memory_system: The memory system instance
             scoring_method: Method used for scoring matches
-                Options:
-                - "length_ratio": Score based on ratio of query length to field length
-                - "term_frequency": Score based on term frequency
-                - "bm25": Score based on BM25 ranking algorithm
-                - "binary": Simple binary scoring (1.0 for match, 0.0 for no match)
             skip_validation: Whether to skip checksum validation when retrieving memories
         """
-        self.stm_store = stm_store
-        self.im_store = im_store
-        self.ltm_store = ltm_store
+        self.memory_system = memory_system
         self.scoring_method = scoring_method
         self.skip_validation = skip_validation
-        # Initialize pattern cache dictionary: (pattern_str, is_case_sensitive) -> compiled_pattern
         self._pattern_cache = {}
 
     def name(self) -> str:
@@ -180,19 +164,10 @@ class AttributeSearchStrategy(SearchStrategy):
 
         # Determine whether to skip validation
         should_skip_validation = self.skip_validation if skip_validation is None else skip_validation
-
-        # Handle empty query case
-        if (isinstance(query, str) and not query) or (
-            isinstance(query, dict) and not query
-        ):
+        if (isinstance(query, str) and not query) or (isinstance(query, dict) and not query):
             logger.debug("Empty query provided, returning empty results")
             return []
-
-        # Process query into a standardized format
-        logger.debug(
-            f"Processing query: {query} with content_fields={content_fields}, metadata_fields={metadata_fields}"
-        )
-
+        logger.debug(f"Processing query: {query} with content_fields={content_fields}, metadata_fields={metadata_fields}")
         query_conditions = self._process_query(
             query, content_fields, metadata_fields, case_sensitive, use_regex
         )
@@ -204,12 +179,8 @@ class AttributeSearchStrategy(SearchStrategy):
 
         # Use provided scoring method or fallback to instance default
         current_scoring_method = scoring_method or self.scoring_method
-        logger.debug(
-            f"Using scoring method: {current_scoring_method} (instance default: {self.scoring_method})"
-        )
-
+        agent = self.memory_system.get_memory_agent(agent_id)
         for current_tier in tiers_to_search:
-            # Skip if tier is not supported
             if current_tier not in ["stm", "im", "ltm"]:
                 logger.warning("Unsupported memory tier: %s", current_tier)
                 continue
@@ -217,22 +188,17 @@ class AttributeSearchStrategy(SearchStrategy):
             # Get all memories for the agent in this tier
             tier_memories = []
             if current_tier == "stm":
-                tier_memories = self.stm_store.get_all(agent_id, skip_validation=should_skip_validation)
+                tier_memories = agent.stm_store.get_all(agent_id, skip_validation=should_skip_validation)
             elif current_tier == "im":
-                tier_memories = self.im_store.get_all(agent_id, skip_validation=should_skip_validation)
+                tier_memories = agent.im_store.get_all(agent_id, skip_validation=should_skip_validation)
             else:  # ltm
-                # No skip_validation parameter for LTM store (it doesn't do checksum validation)
-                tier_memories = self.ltm_store.get_all(agent_id)
-
-            # Filter memories by query conditions and metadata
+                tier_memories = agent.ltm_store.get_all(agent_id)
             filtered_memories = self._filter_memories(
                 tier_memories,
                 query_conditions,
                 metadata_filter,
                 match_all,
             )
-
-            # Score memories based on match quality
             scored_memories = self._score_memories(
                 filtered_memories,
                 query_conditions,
@@ -240,17 +206,11 @@ class AttributeSearchStrategy(SearchStrategy):
                 current_tier,
                 current_scoring_method,
             )
-
-            # Add to results
             results.extend(scored_memories)
-
-        # Sort by attribute score (descending)
         results.sort(
             key=lambda x: x.get("metadata", {}).get("attribute_score", 0.0),
             reverse=True,
         )
-
-        # Limit final results
         return results[:limit]
 
     def _process_query(
