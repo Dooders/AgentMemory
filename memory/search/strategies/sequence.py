@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
 from .base import SearchStrategy
+from memory.core import AgentMemorySystem
 
 
 class NarrativeSequenceStrategy(SearchStrategy):
@@ -10,18 +11,16 @@ class NarrativeSequenceStrategy(SearchStrategy):
     to form a contextual narrative.
     """
 
-    def __init__(self, stm_store, im_store, ltm_store):
+    def __init__(self, memory_system: AgentMemorySystem):
         """
         Initialize the narrative sequence strategy.
 
         Args:
-            stm_store: Short-term memory store
-            im_store: Intermediate memory store
-            ltm_store: Long-term memory store
+            memory_system: The memory system containing the stores
         """
-        self.stm_store = stm_store
-        self.im_store = im_store
-        self.ltm_store = ltm_store
+        self.stm_store = memory_system.stm_store
+        self.im_store = memory_system.im_store
+        self.ltm_store = memory_system.ltm_store
 
     def name(self) -> str:
         """Return the name of the strategy."""

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
 from .base import SearchStrategy
+from memory.core import AgentMemorySystem
 
 
 class TimeWindowStrategy(SearchStrategy):
@@ -10,18 +11,14 @@ class TimeWindowStrategy(SearchStrategy):
     such as the last N minutes or between specific timestamps.
     """
 
-    def __init__(self, stm_store, im_store, ltm_store):
+    def __init__(self, memory_system: AgentMemorySystem):
         """
         Initialize the time window strategy.
 
         Args:
-            stm_store: Short-term memory store
-            im_store: Intermediate memory store
-            ltm_store: Long-term memory store
+            memory_system: The memory system instance
         """
-        self.stm_store = stm_store
-        self.im_store = im_store
-        self.ltm_store = ltm_store
+        self.memory_system = memory_system
 
     def name(self) -> str:
         """Return the name of the strategy."""
@@ -30,6 +27,16 @@ class TimeWindowStrategy(SearchStrategy):
     def description(self) -> str:
         """Return the description of the strategy."""
         return "Retrieves memories from a specific time window (e.g., last N minutes)"
+
+    def _get_stores_for_tier(self, agent, tier):
+        if tier == "stm":
+            return [agent.stm_store]
+        elif tier == "im":
+            return [agent.im_store]
+        elif tier == "ltm":
+            return [agent.ltm_store]
+        else:
+            return [agent.stm_store, agent.im_store, agent.ltm_store]
 
     def search(
         self,
@@ -63,29 +70,20 @@ class TimeWindowStrategy(SearchStrategy):
         Raises:
             ValueError: If time parameters are invalid or conflicting
         """
-        # Get timestamp field to use
+        agent = self.memory_system.get_memory_agent(agent_id)
         timestamp_field = query.get("timestamp_field", "metadata.timestamp")
-
-        # Detect conflicting time parameters
         time_params = sum(
             1 for p in ["last_minutes", "last_hours", "last_days"] if p in query
         )
         has_range = "start_time" in query and "end_time" in query
-
         if time_params > 1:
             raise ValueError(
                 "Can only specify one of: last_minutes, last_hours, last_days"
             )
-
         if time_params > 0 and has_range:
             raise ValueError("Cannot specify both time range and last_X parameters")
-
-        # Calculate start and end times based on query parameters
         now = datetime.now()
-
-        # Flag to track if we should use inclusive or exclusive start time comparison
         inclusive_start = False
-
         if "last_minutes" in query:
             minutes = query["last_minutes"]
             if minutes <= 0:
@@ -108,26 +106,18 @@ class TimeWindowStrategy(SearchStrategy):
             try:
                 start_time = self._parse_datetime(query["start_time"])
                 end_time = self._parse_datetime(query["end_time"])
-                # When explicit time range is provided, use inclusive start
                 inclusive_start = True
             except ValueError:
                 raise ValueError(f"Invalid time format in query")
         else:
-            # Default to last 30 minutes
             start_time = now - timedelta(minutes=30)
             end_time = now
-
-        # Get stores for the specified tier
-        stores = self._get_stores_for_tier(tier)
-
-        # Retrieve memories from the time window
+        stores = self._get_stores_for_tier(agent, tier)
         results = []
         for store in stores:
             try:
-                # First try 'list' method since that's what tests expect
                 if hasattr(store, "list"):
                     memories = store.list(agent_id)
-                # Fall back to other methods if needed
                 elif hasattr(store, "get_all"):
                     memories = store.get_all(agent_id)
                 elif hasattr(store, "find_all"):
@@ -141,20 +131,15 @@ class TimeWindowStrategy(SearchStrategy):
                         f"Store {type(store).__name__} has no method to list all memories"
                     )
             except Exception as e:
-                # Log error and continue with next store
                 print(
                     f"Error retrieving memories from {type(store).__name__}: {str(e)}"
                 )
                 continue
-
             for memory in memories:
-                # Skip if metadata filter doesn't match
                 if metadata_filter and not self._matches_metadata_filters(
                     memory, metadata_filter
                 ):
                     continue
-
-                # Extract timestamp based on timestamp_field
                 if timestamp_field == "metadata.timestamp":
                     timestamp_str = memory.get("metadata", {}).get("timestamp")
                 else:
@@ -167,36 +152,23 @@ class TimeWindowStrategy(SearchStrategy):
                             obj = None
                             break
                     timestamp_str = obj
-
-                # Skip items with missing timestamp
                 if not timestamp_str:
                     continue
-
-                # Compare timestamps - different behavior based on query type
                 try:
-                    # Parse the timestamp to datetime for accurate comparison
                     memory_time = datetime.fromisoformat(
                         timestamp_str.replace("Z", "+00:00")
                     )
-
-                    # Check if the memory is within the time window
                     if inclusive_start:
-                        # Include memories exactly at the start time (for explicit time ranges)
                         if start_time <= memory_time <= end_time:
                             results.append(memory)
                     else:
-                        # Exclude memories exactly at the start time (for last_X queries)
                         if start_time < memory_time <= end_time:
                             results.append(memory)
                 except (ValueError, TypeError):
-                    # Skip items with invalid timestamp format
                     continue
-
-        # Sort by timestamp (most recent first)
         results.sort(
             key=lambda x: x.get("metadata", {}).get("timestamp", ""), reverse=True
         )
-
         return results[:limit]
 
     def _parse_datetime(self, dt_str):
@@ -205,17 +177,6 @@ class TimeWindowStrategy(SearchStrategy):
             return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
         except ValueError:
             raise ValueError(f"Invalid datetime format: {dt_str}")
-
-    def _get_stores_for_tier(self, tier):
-        """Get the appropriate memory stores based on the specified tier."""
-        if tier == "stm":
-            return [self.stm_store]
-        elif tier == "im":
-            return [self.im_store]
-        elif tier == "ltm":
-            return [self.ltm_store]
-        else:
-            return [self.stm_store, self.im_store, self.ltm_store]
 
     def _matches_metadata_filters(self, memory, metadata_filter):
         """Check if a memory matches the specified metadata filters."""

@@ -6,9 +6,7 @@ from datetime import datetime
 import math
 
 from memory.search.strategies.base import SearchStrategy
-from memory.storage.redis_im import RedisIMStore
-from memory.storage.redis_stm import RedisSTMStore
-from memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.core import AgentMemorySystem
 
 logger = logging.getLogger(__name__)
 
@@ -20,27 +18,19 @@ class TemporalSearchStrategy(SearchStrategy):
     creation time, last accessed time, or time references within the memory content.
     
     Attributes:
-        stm_store: Short-Term Memory store
-        im_store: Intermediate Memory store
-        ltm_store: Long-Term Memory store
+        memory_system: The memory system instance
     """
     
     def __init__(
         self,
-        stm_store: RedisSTMStore,
-        im_store: RedisIMStore,
-        ltm_store: SQLiteLTMStore,
+        memory_system: AgentMemorySystem,
     ):
         """Initialize the temporal search strategy.
         
         Args:
-            stm_store: Short-Term Memory store
-            im_store: Intermediate Memory store
-            ltm_store: Long-Term Memory store
+            memory_system: The memory system instance
         """
-        self.stm_store = stm_store
-        self.im_store = im_store
-        self.ltm_store = ltm_store
+        self.memory_system = memory_system
     
     def name(self) -> str:
         """Return the name of the search strategy.
@@ -73,69 +63,37 @@ class TemporalSearchStrategy(SearchStrategy):
         step_weight: float = 1.0,
         **kwargs
     ) -> List[Dict[str, Any]]:
-        """Search for memories based on temporal attributes.
-        
-        Args:
-            query: Search query (can be a date/time string or a dictionary with temporal filters)
-            agent_id: ID of the agent whose memories to search
-            limit: Maximum number of results to return
-            metadata_filter: Optional filters to apply to memory metadata
-            tier: Optional memory tier to search ("stm", "im", "ltm", or None for all)
-            start_time: Optional start time for range queries
-            end_time: Optional end time for range queries
-            start_step: Optional start simulation step for range queries
-            end_step: Optional end simulation step for range queries
-            recency_weight: Weight to apply to recency in scoring (higher values favor newer memories)
-            step_weight: Weight to apply to simulation step closeness (higher values prioritize memories from similar steps)
-            **kwargs: Additional parameters (ignored)
-            
-        Returns:
-            List of memory entries matching the search criteria
-        """
-        # Initialize results
         results = []
-        
-        # Process query to extract temporal parameters
         temporal_params = self._process_query(query, start_time, end_time, start_step, end_step)
-        
-        # Process all tiers or only the specified one
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
-        
+        agent = self.memory_system.get_memory_agent(agent_id)
         for current_tier in tiers_to_search:
-            # Skip if tier is not supported
             if current_tier not in ["stm", "im", "ltm"]:
                 logger.warning("Unsupported memory tier: %s", current_tier)
                 continue
-            
-            # Get all memories for the agent in this tier
             tier_memories = []
             if current_tier == "stm":
-                tier_memories = self.stm_store.get_all(agent_id)
+                tier_memories = agent.stm_store.get_all(agent_id)
             elif current_tier == "im":
-                tier_memories = self.im_store.get_all(agent_id)
+                tier_memories = agent.im_store.get_all(agent_id)
             else:  # ltm
                 try:
-                    # Use a more direct approach for LTM timerange queries if possible
                     if temporal_params.get("start_time_timestamp") is not None and temporal_params.get("end_time_timestamp") is not None:
-                        tier_memories = self.ltm_store.get_by_timerange(
+                        tier_memories = agent.ltm_store.get_by_timerange(
                             start_time=temporal_params["start_time_timestamp"],
                             end_time=temporal_params["end_time_timestamp"],
-                            limit=limit * 2  # Get more for scoring
+                            limit=limit * 2
                         )
                     else:
-                        tier_memories = self.ltm_store.get_all(agent_id)
+                        tier_memories = agent.ltm_store.get_all(agent_id)
                 except Exception as e:
                     logger.warning(f"Error retrieving LTM memories: {e}")
                     tier_memories = []
-            
-            # Filter memories by time range and metadata
             filtered_memories = self._filter_memories(
                 tier_memories,
                 temporal_params,
                 metadata_filter,
             )
-            
-            # Score memories based on temporal relevance
             scored_memories = self._score_memories(
                 filtered_memories,
                 temporal_params,
@@ -143,17 +101,11 @@ class TemporalSearchStrategy(SearchStrategy):
                 step_weight,
                 current_tier,
             )
-            
-            # Add to results
             results.extend(scored_memories)
-        
-        # Sort by temporal score (descending)
         results.sort(
             key=lambda x: x.get("metadata", {}).get("temporal_score", 0.0),
             reverse=True
         )
-        
-        # Limit final results
         return results[:limit]
     
     def _process_query(

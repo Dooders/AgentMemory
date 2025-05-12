@@ -12,6 +12,8 @@ import logging
 import pickle
 from typing import Any, Dict, List
 
+from memory.embeddings.text_embeddings import TextEmbeddingEngine
+
 logger = logging.getLogger(__name__)
 
 
@@ -313,6 +315,7 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
         SQLiteLTMConfig,
     )
     from memory.core import AgentMemorySystem
+    from memory.embeddings.vector_store import VectorStore
     from memory.schema import validate_memory_system_json
 
     logger = logging.getLogger(__name__)
@@ -364,8 +367,23 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
             ltm_config.test_mode = True  # Enable test mode
             config.ltm_config = ltm_config
 
+        # Initialize vector store with dimensions from autoencoder config
+        vector_store = VectorStore(
+            redis_client=(
+                None if use_mock_redis else config.stm_config.connection_params
+            ),
+            stm_dimension=config.autoencoder_config.stm_dim,
+            im_dimension=config.autoencoder_config.im_dim,
+            ltm_dimension=config.autoencoder_config.ltm_dim,
+            namespace=config.stm_config.namespace,
+        )
+
         # Create memory system
         memory_system = AgentMemorySystem(config)
+        memory_system.vector_store = vector_store
+        memory_system.embedding_engine = TextEmbeddingEngine(
+            model_name="all-MiniLM-L6-v2"
+        )
 
         # Load agents and their memories
         for agent_id, agent_data in data.get("agents", {}).items():
@@ -404,13 +422,10 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                 logger.debug(f"Memory ID: {memory.get('memory_id', 'unknown')}")
                 logger.debug(f"Memory metadata: {memory.get('metadata', {})}")
 
-                # Instead of creating a new memory entry that would generate a new memory_id,
-                # directly store the complete memory object with its original memory_id
-
                 # Create a deep copy to avoid reference issues
                 memory_copy = copy.deepcopy(memory)
 
-                # Determine which store to use based on tier
+                # Store memory in the appropriate store based on the tier
                 if tier == "stm":
                     logger.debug(f"Storing memory in STM store with type {memory_type}")
                     memory_agent.stm_store.store(agent_id, memory_copy)
@@ -426,6 +441,9 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                     logger.debug(f"Storing memory in STM store with type {memory_type}")
                     memory_agent.stm_store.store(agent_id, memory_copy)
 
+                # Store memory vectors if embeddings exist
+                if "embeddings" in memory_copy:
+                    vector_store.store_memory_vectors(memory_copy)
         logger.info(f"Memory system loaded from {filepath}")
         return memory_system
 

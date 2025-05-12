@@ -61,8 +61,8 @@ class ValidationTestRunner:
             logging_level=logging_level,
             memory_file=memory_sample_path,
             use_mock_redis=use_mock_redis,
-            use_embeddings=True,  # Enable embeddings for vector store
-            embedding_type="text",  # Use text embeddings
+            use_embeddings=False,  # Disable embeddings for attribute search
+            embedding_type="text",  # This won't be used since embeddings are disabled
         )
 
         if not self.memory_system:
@@ -71,9 +71,7 @@ class ValidationTestRunner:
 
         # Get agent and create strategy
         self.agent = self.memory_system.get_memory_agent(agent_id)
-        self.strategy = strategy_class(
-            self.agent.stm_store, self.agent.im_store, self.agent.ltm_store
-        )
+        self.strategy = strategy_class(self.memory_system)
 
         # Print strategy info
         log_print(self.logger, f"Testing search strategy: {self.strategy.name()}")

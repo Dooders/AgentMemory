@@ -70,7 +70,8 @@ MEMORY_SYSTEM_SCHEMA = {
                         "retrieval_count": {"type": ["integer", "null"]},
                         "memory_type": {
                             "type": "string",
-                            "enum": ["state", "interaction", "action", "generic"],
+                            "pattern": "^[a-zA-Z0-9_]+$",
+                            "description": "Type of memory (e.g. state, interaction, action, generic, or custom types)",
                         },
                         "current_tier": {
                             "type": "string",
@@ -81,12 +82,16 @@ MEMORY_SYSTEM_SCHEMA = {
                 },
                 "type": {
                     "type": "string",
-                    "enum": ["state", "interaction", "action", "generic"],
+                    "pattern": "^[a-zA-Z0-9_]+$",
+                    "description": "Type of memory (e.g. state, interaction, action, generic, or custom types)",
                 },
                 "embeddings": {
                     "type": "object",
                     "properties": {
-                        "full_vector": {"type": ["array", "null"], "items": {"type": "number"}},
+                        "full_vector": {
+                            "type": ["array", "null"],
+                            "items": {"type": "number"},
+                        },
                         "compressed_vector": {
                             "type": ["array", "null"],
                             "items": {"type": "number"},
@@ -125,6 +130,7 @@ def validate_memory_system_json(data: Dict[str, Any]) -> bool:
         logger.error(f"Error validating memory system JSON: {e}")
         print(f"UNEXPECTED ERROR: {e}")
         import traceback
+
         print(traceback.format_exc())
         return False
 

@@ -26,12 +26,12 @@ sqlite3-plus
 pytest
 pytest-asyncio 
 
+# Visualization and analysis
 matplotlib
 numpy
-tiktoken
-openai
-openai-agents
-openai-voice
+pandas
+psutil
+memory_profiler
 
 # Additional needed dependencies
 redis[hiredis]

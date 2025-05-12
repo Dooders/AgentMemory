@@ -18,14 +18,23 @@ class TestSimilaritySearchStrategy(unittest.TestCase):
         self.mock_im_store = MagicMock()
         self.mock_ltm_store = MagicMock()
         
-        # Create strategy with mock dependencies
-        self.strategy = SimilaritySearchStrategy(
-            self.mock_vector_store,
-            self.mock_embedding_engine,
-            self.mock_stm_store,
-            self.mock_im_store,
-            self.mock_ltm_store
-        )
+        # Create mock memory system
+        self.mock_memory_system = MagicMock()
+        self.mock_memory_system.vector_store = self.mock_vector_store
+        self.mock_memory_system.embedding_engine = self.mock_embedding_engine
+        self.mock_memory_system.config = {}
+        
+        # Create mock memory agent
+        self.mock_memory_agent = MagicMock()
+        self.mock_memory_agent.stm_store = self.mock_stm_store
+        self.mock_memory_agent.im_store = self.mock_im_store
+        self.mock_memory_agent.ltm_store = self.mock_ltm_store
+        
+        # Set up memory system to return mock agent
+        self.mock_memory_system.get_memory_agent.return_value = self.mock_memory_agent
+        
+        # Create strategy with mock memory system
+        self.strategy = SimilaritySearchStrategy(self.mock_memory_system)
     
     def test_name_and_description(self):
         """Test name and description methods."""
@@ -112,10 +121,10 @@ class TestSimilaritySearchStrategy(unittest.TestCase):
             {"id": "memory3", "score": 0.8}
         ]
         
-        self.mock_stm_store.get.side_effect = lambda id: {
+        self.mock_stm_store.get.side_effect = lambda agent_id, memory_id: {
             "memory1": {"id": "memory1", "content": "content 1", "metadata": {}},
             "memory3": {"id": "memory3", "content": "content 3", "metadata": {}}
-        }.get(id)
+        }.get(memory_id)
         
         # Perform search with min_score
         results = self.strategy.search(
@@ -222,11 +231,11 @@ class TestSimilaritySearchStrategy(unittest.TestCase):
         ]
         
         # Set up memory store get method
-        self.mock_stm_store.get.side_effect = lambda id: {
+        self.mock_stm_store.get.side_effect = lambda agent_id, memory_id: {
             "memory1": {"id": "memory1", "content": "content 1", "metadata": {}},
             "memory2": {"id": "memory2", "content": "content 2", "metadata": {}},
             "memory3": {"id": "memory3", "content": "content 3", "metadata": {}}
-        }.get(id)
+        }.get(memory_id)
         
         # Perform search
         results = self.strategy.search(

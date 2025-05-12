@@ -579,16 +579,25 @@ class ResilientRedisClient:
         """Get the number of members in a sorted set.
 
         Args:
-            name: Name of sorted set
+            name: Name of the sorted set
 
         Returns:
-            Cardinality of set
-
-        Raises:
-            RedisTimeoutError: If operation times out
-            RedisUnavailableError: If Redis is unavailable
+            Number of members in the sorted set
         """
         return self.client.zcard(name)
+
+    @resilient_operation("zscore")
+    def zscore(self, name: str, value: str) -> Optional[float]:
+        """Get the score of a member in a sorted set.
+
+        Args:
+            name: Name of the sorted set
+            value: Member to get score for
+
+        Returns:
+            Score of the member if it exists, None otherwise
+        """
+        return self.client.zscore(name, value)
 
     @resilient_operation("scan_iter")
     def scan_iter(self, match: Optional[str] = None, count: int = 10) -> list:
