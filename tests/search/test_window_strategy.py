@@ -213,21 +213,23 @@ class TestTimeWindowStrategy(unittest.TestCase):
             },
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        self.mock_stm_store.list.side_effect = lambda *args, **kwargs: memories
 
-        # Search for memories from the last 3 days
-        results = self.strategy.search(
-            query={"last_days": 3}, agent_id="agent-1", tier="stm", limit=5
-        )
+        with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat.side_effect = lambda s: datetime.fromisoformat(s)
+            # Search for memories from the last 3 days
+            results = self.strategy.search(
+                query={"last_days": 3}, agent_id="agent-1", tier="stm", limit=5
+            )
 
-        # Should return 3 memories from the last 3 days
-        self.assertEqual(len(results), 3)
-        result_ids = [r["id"] for r in results]
-        self.assertIn("mem1", result_ids)
-        self.assertIn("mem2", result_ids)
-        self.assertIn("mem3", result_ids)
-        self.assertNotIn("mem4", result_ids)
+            # Should return 3 memories from the last 3 days
+            self.assertEqual(len(results), 3)
+            result_ids = [r["id"] for r in results]
+            self.assertIn("mem1", result_ids)
+            self.assertIn("mem2", result_ids)
+            self.assertIn("mem3", result_ids)
+            self.assertNotIn("mem4", result_ids)
 
     def test_search_with_metadata_filter(self):
         """Test search with time window and metadata filter combined."""
@@ -257,21 +259,23 @@ class TestTimeWindowStrategy(unittest.TestCase):
             },
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_im_store.list.return_value = memories
+        self.mock_im_store.list.side_effect = lambda *args, **kwargs: memories
 
-        # Search for important memories from the last 2 hours
-        results = self.strategy.search(
-            query={"last_hours": 2},
-            agent_id="agent-1",
-            tier="im",
-            metadata_filter={"type": "important"},
-            limit=5,
-        )
+        with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat.side_effect = lambda s: datetime.fromisoformat(s)
+            # Search for important memories from the last 2 hours
+            results = self.strategy.search(
+                query={"last_hours": 2},
+                agent_id="agent-1",
+                tier="im",
+                metadata_filter={"type": "important"},
+                limit=5,
+            )
 
-        # Should only return mem1 (important and within last 2 hours)
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], "mem1")
+            # Should only return mem1 (important and within last 2 hours)
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0]["id"], "mem1")
 
     def test_custom_timestamp_field(self):
         """Test search with a custom timestamp field."""
@@ -297,20 +301,22 @@ class TestTimeWindowStrategy(unittest.TestCase):
             },
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_ltm_store.list.return_value = memories
+        self.mock_ltm_store.list.side_effect = lambda *args, **kwargs: memories
 
-        # Search with custom timestamp field
-        results = self.strategy.search(
-            query={"last_hours": 1, "timestamp_field": "metadata.created_at"},
-            agent_id="agent-1",
-            tier="ltm",
-            limit=5,
-        )
+        with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat.side_effect = lambda s: datetime.fromisoformat(s)
+            # Search with custom timestamp field
+            results = self.strategy.search(
+                query={"last_hours": 1, "timestamp_field": "metadata.created_at"},
+                agent_id="agent-1",
+                tier="ltm",
+                limit=5,
+            )
 
-        # Should only return mem1 (within last hour)
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], "mem1")
+            # Should only return mem1 (within last hour)
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0]["id"], "mem1")
 
     def test_missing_timestamp(self):
         """Test handling of memories with missing timestamp field."""
@@ -329,28 +335,30 @@ class TestTimeWindowStrategy(unittest.TestCase):
                 "content": "Also with timestamp",
                 "metadata": {"timestamp": one_hour_ago.isoformat()},
             },
-            {"id": "mem3", "content": "Missing timestamp", "metadata": {}},
+            {"id": "mem3", "content": "Missing timestamp", "metadata": {}} ,
         ]
 
-        # Configure mock to return all memories for listing
-        self.mock_stm_store.list.return_value = memories
+        self.mock_stm_store.list.side_effect = lambda *args, **kwargs: memories
 
-        # Search for memories from the last 2 hours
-        results = self.strategy.search(
-            query={"last_hours": 2}, agent_id="agent-1", tier="stm", limit=5
-        )
+        with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
+            mock_dt.now.return_value = now
+            mock_dt.fromisoformat.side_effect = lambda s: datetime.fromisoformat(s)
+            # Search for memories from the last 2 hours
+            results = self.strategy.search(
+                query={"last_hours": 2}, agent_id="agent-1", tier="stm", limit=5
+            )
 
-        # Should only return memories with valid timestamps in range
-        self.assertEqual(len(results), 2)
-        result_ids = [r["id"] for r in results]
-        self.assertIn("mem1", result_ids)
-        self.assertIn("mem2", result_ids)
-        self.assertNotIn("mem3", result_ids)
+            # Should only return memories with valid timestamps in range
+            self.assertEqual(len(results), 2)
+            result_ids = [r["id"] for r in results]
+            self.assertIn("mem1", result_ids)
+            self.assertIn("mem2", result_ids)
+            self.assertNotIn("mem3", result_ids)
 
     def test_invalid_time_format(self):
         """Test handling of invalid time format."""
         # Configure mock to return memories
-        self.mock_stm_store.list.return_value = []
+        self.mock_stm_store.list.side_effect = lambda *args, **kwargs: []
 
         # Test with invalid time format
         with self.assertRaises(ValueError):
@@ -366,7 +374,7 @@ class TestTimeWindowStrategy(unittest.TestCase):
     def test_invalid_query_parameters(self):
         """Test handling of invalid or conflicting query parameters."""
         # Configure mock to return memories
-        self.mock_im_store.list.return_value = []
+        self.mock_im_store.list.side_effect = lambda *args, **kwargs: []
 
         # Test with conflicting time parameters
         with self.assertRaises(ValueError):

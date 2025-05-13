@@ -56,70 +56,21 @@ def test_load_attribute_validation_memory(cleanup_memory_system):
     logger = logging.getLogger()
 
     # Check if file exists
-    logger.info(f"Testing file path: {ATTRIBUTE_VALIDATION_SAMPLE}")
-    logger.info(f"File exists: {ATTRIBUTE_VALIDATION_SAMPLE.exists()}")
+    assert ATTRIBUTE_VALIDATION_SAMPLE.exists(), f"Test file not found: {ATTRIBUTE_VALIDATION_SAMPLE}"
 
-    # Read the file contents
+    # Load and validate JSON data
     with open(ATTRIBUTE_VALIDATION_SAMPLE, "r", encoding="utf-8") as f:
-        file_content = f.read()
-        logger.info(f"File content length: {len(file_content)}")
-        logger.info(f"File content first 100 chars: {file_content[:100]}")
-        logger.info(f"File content last 100 chars: {file_content[-100:]}")
-
-    # Validate JSON before loading
-    try:
-        with open(ATTRIBUTE_VALIDATION_SAMPLE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            logger.info("Successfully loaded JSON data for pre-validation")
-
-            # Check schema validation
-            is_valid = validate_memory_system_json(data)
-            logger.info(f"Pre-validation schema validation result: {is_valid}")
-
-            if not is_valid:
-                logger.error("Pre-validation schema validation failed")
-    except Exception as e:
-        logger.error(f"Error during pre-validation: {e}")
+        data = json.load(f)
+        assert validate_memory_system_json(data), "JSON data failed schema validation"
 
     # Load the memory system from the JSON file
-    logger.info("Attempting to load memory system from JSON")
-    try:
-        memory_system = AgentMemorySystem.load_from_json(
-            str(ATTRIBUTE_VALIDATION_SAMPLE), use_mock_redis=True
-        )
-        logger.info(f"Load result: {memory_system is not None}")
-    except Exception as e:
-        logger.error(f"Exception during load_from_json: {e}")
-        import traceback
-
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        memory_system = None
-
-    if memory_system is None:
-        logger.error("Memory system load returned None")
-
-        # Try to open and validate the file manually to see what's wrong
-        try:
-            with open(ATTRIBUTE_VALIDATION_SAMPLE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                logger.info("Successfully loaded JSON data")
-
-                # Check schema validation
-                is_valid = validate_memory_system_json(data)
-                logger.info(f"Schema validation result: {is_valid}")
-
-                if not is_valid:
-                    logger.error("Schema validation failed")
-        except Exception as e:
-            logger.error(f"Error loading or validating JSON: {e}")
-
-    # Verify the memory system was created
-    assert (
-        memory_system is not None
-    ), "Failed to load memory system from attribute validation JSON"
+    memory_system = AgentMemorySystem.load_from_json(
+        str(ATTRIBUTE_VALIDATION_SAMPLE), use_mock_redis=True
+    )
+    assert memory_system is not None, "Failed to load memory system from JSON"
 
     # Verify the agent was created
-    assert "test-agent-attribute-search" in memory_system.agents
+    assert "test-agent-attribute-search" in memory_system.agents, "Expected agent not found"
     agent = memory_system.get_memory_agent("test-agent-attribute-search")
 
     # Get all memories to check content attributes
@@ -132,13 +83,8 @@ def test_load_attribute_validation_memory(cleanup_memory_system):
 
     # Check that memories have the expected content structure
     for memory in all_memories:
-        assert (
-            "content" in memory
-        ), f"Memory {memory.get('memory_id')} missing content field"
-        assert (
-            "metadata" in memory
-        ), f"Memory {memory.get('memory_id')} missing metadata field"
-
+        assert "content" in memory, f"Memory {memory.get('memory_id')} missing content field"
+        assert "metadata" in memory, f"Memory {memory.get('memory_id')} missing metadata field"
 
 def test_memory_content_preservation(cleanup_memory_system):
     """Test that memory content is preserved when loading from JSON."""

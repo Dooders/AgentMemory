@@ -371,8 +371,10 @@ class TestMemorySystemSerialization(unittest.TestCase):
     @patch("memory.config.AutoencoderConfig")
     @patch("memory.embeddings.vector_store.VectorStore")
     @patch("memory.embeddings.text_embeddings.TextEmbeddingEngine")
+    @patch("memory.embeddings.text_embeddings.SentenceTransformer")
     def test_load_memory_system_from_json(
         self,
+        mock_sentence_transformer,
         mock_embedding_engine,
         mock_vector_store,
         mock_autoencoder_config,
@@ -512,17 +514,28 @@ class TestMemorySystemSerialization(unittest.TestCase):
         # Set the autoencoder config on the memory config
         mock_memory_config.return_value.autoencoder_config = mock_autoencoder
 
+        # Mock SentenceTransformer
+        mock_sentence_transformer.return_value = MagicMock()
+
         # Call the function
         with patch("builtins.open", mock_open(read_data=json.dumps(test_data))):
             with patch("logging.Logger.error") as mock_logger:
-                result = load_memory_system_from_json(self.test_filepath)
-                if result is None:
-                    # Print the error message that was logged
-                    error_calls = mock_logger.call_args_list
-                    for call in error_calls:
-                        print(f"Error logged: {call[0][0]}")
-                        if len(call[0]) > 1:
-                            print(f"Error args: {call[0][1]}")
+                with patch("logging.Logger.info") as mock_info_logger:
+                    result = load_memory_system_from_json(self.test_filepath)
+                    if result is None:
+                        # Print the error message that was logged
+                        error_calls = mock_logger.call_args_list
+                        for call in error_calls:
+                            print(f"Error logged: {call[0][0]}")
+                            if len(call[0]) > 1:
+                                print(f"Error args: {call[0][1]}")
+
+                        # Print info logs
+                        info_calls = mock_info_logger.call_args_list
+                        for call in info_calls:
+                            print(f"Info logged: {call[0][0]}")
+                            if len(call[0]) > 1:
+                                print(f"Info args: {call[0][1]}")
 
         # Check the result
         self.assertIsNotNone(result)
