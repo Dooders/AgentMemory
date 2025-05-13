@@ -18,14 +18,22 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         self.mock_im_store = MagicMock()
         self.mock_ltm_store = MagicMock()
 
-        # Create strategy with mock dependencies
-        self.strategy = ExampleMatchingStrategy(
-            self.mock_vector_store,
-            self.mock_embedding_engine,
-            self.mock_stm_store,
-            self.mock_im_store,
-            self.mock_ltm_store,
-        )
+        # Create mock memory system
+        self.mock_memory_system = MagicMock()
+        self.mock_memory_system.vector_store = self.mock_vector_store
+        self.mock_memory_system.embedding_engine = self.mock_embedding_engine
+        
+        # Create mock memory agent
+        self.mock_agent = MagicMock()
+        self.mock_agent.stm_store = self.mock_stm_store
+        self.mock_agent.im_store = self.mock_im_store
+        self.mock_agent.ltm_store = self.mock_ltm_store
+        
+        # Configure memory system to return mock agent
+        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+
+        # Create strategy with mock memory system
+        self.strategy = ExampleMatchingStrategy(self.mock_memory_system)
 
     def test_name_and_description(self):
         """Test name and description methods."""
@@ -330,7 +338,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
     def test_get_store_for_tier_default(self):
         """Test _get_store_for_tier when tier is None (default case)."""
         # Get store with None tier
-        store = self.strategy._get_store_for_tier(None)
+        store = self.strategy._get_store_for_tier(self.mock_agent, None)
 
         # Verify default store is stm_store
         self.assertEqual(store, self.mock_stm_store)

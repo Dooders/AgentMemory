@@ -25,13 +25,11 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def cleanup_memory_system():
     """Reset the AgentMemorySystem singleton before and after each test."""
-    # Reset before test
     AgentMemorySystem._instance = None
     yield
-    # Reset after test
     AgentMemorySystem._instance = None
 
 
@@ -281,6 +279,14 @@ def test_save_and_load_roundtrip(cleanup_memory_system):
 
         # Load the memory system back from the file
         loaded_system = AgentMemorySystem.load_from_json(filepath, use_mock_redis=True)
+        logger.info(f"Load result: {loaded_system}")
+        if loaded_system is None:
+            logger.error("Failed to load memory system, checking what went wrong...")
+            try:
+                AgentMemorySystem._instance = None
+                AgentMemorySystem.load_from_json(filepath, use_mock_redis=True)
+            except Exception as e:
+                logger.error(f"Error during load: {e}")
         assert loaded_system is not None, "Failed to load memory system"
 
         # Verify the agent exists in the loaded system
@@ -418,6 +424,14 @@ def test_save_with_complex_memory_content(cleanup_memory_system):
         # Optional: Load back and verify complex content was preserved
         AgentMemorySystem._instance = None
         loaded_system = AgentMemorySystem.load_from_json(filepath, use_mock_redis=True)
+        print(f"Load result: {loaded_system}")
+        if loaded_system is None:
+            print("Failed to load memory system, checking what went wrong...")
+            try:
+                AgentMemorySystem._instance = None
+                AgentMemorySystem.load_from_json(filepath, use_mock_redis=True)
+            except Exception as e:
+                print(f"Error during load: {e}")
         assert loaded_system is not None, "Failed to load memory system"
 
     finally:

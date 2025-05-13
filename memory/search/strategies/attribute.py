@@ -164,9 +164,12 @@ class AttributeSearchStrategy(SearchStrategy):
 
         # Determine whether to skip validation
         should_skip_validation = self.skip_validation if skip_validation is None else skip_validation
-        if (isinstance(query, str) and not query) or (isinstance(query, dict) and not query):
-            logger.debug("Empty query provided, returning empty results")
+
+        # Handle None or empty queries
+        if query is None or (isinstance(query, str) and not query) or (isinstance(query, dict) and not query):
+            logger.debug("None or empty query provided, returning empty results")
             return []
+
         logger.debug(f"Processing query: {query} with content_fields={content_fields}, metadata_fields={metadata_fields}")
         query_conditions = self._process_query(
             query, content_fields, metadata_fields, case_sensitive, use_regex

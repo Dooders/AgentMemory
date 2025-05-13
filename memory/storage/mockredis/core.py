@@ -215,7 +215,7 @@ class MockRedis:
             mapping: Dictionary of field-value pairs (when using mapping syntax)
 
         Returns:
-            Number of fields that were added
+            Number of fields that were added (1 for new field, 0 for existing field)
         """
         with self.lock:
             # Create the hash if it doesn't exist
@@ -274,7 +274,7 @@ class MockRedis:
                     except (ValueError, TypeError):
                         pass
 
-                # Count only newly added fields
+                # Return 1 for new field, 0 for existing field
                 if key not in self.store[name]:
                     self.store[name][key] = value
                     return 1
@@ -1430,6 +1430,13 @@ class MockRedis:
         try:
             # Call the store function and return its result
             result = store_func(agent_id, state_data)
+            
+            # If result is None or contains None values, consider it a failure
+            if result is None:
+                return False
+            if isinstance(result, list) and None in result:
+                return False
+                
             return result
         except Exception as e:
             logger.error(f"Error in store_with_retry: {str(e)}")

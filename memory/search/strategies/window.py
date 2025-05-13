@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta
+import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from .base import SearchStrategy
 from memory.core import AgentMemorySystem
+
+from .base import SearchStrategy
 
 
 class TimeWindowStrategy(SearchStrategy):
@@ -82,25 +83,25 @@ class TimeWindowStrategy(SearchStrategy):
             )
         if time_params > 0 and has_range:
             raise ValueError("Cannot specify both time range and last_X parameters")
-        now = datetime.now()
+        now = datetime.datetime.now()
         inclusive_start = False
         if "last_minutes" in query:
             minutes = query["last_minutes"]
             if minutes <= 0:
                 raise ValueError("Time window must be positive")
-            start_time = now - timedelta(minutes=minutes)
+            start_time = now - datetime.timedelta(minutes=minutes)
             end_time = now
         elif "last_hours" in query:
             hours = query["last_hours"]
             if hours <= 0:
                 raise ValueError("Time window must be positive")
-            start_time = now - timedelta(hours=hours)
+            start_time = now - datetime.timedelta(hours=hours)
             end_time = now
         elif "last_days" in query:
             days = query["last_days"]
             if days <= 0:
                 raise ValueError("Time window must be positive")
-            start_time = now - timedelta(days=days)
+            start_time = now - datetime.timedelta(days=days)
             end_time = now
         elif has_range:
             try:
@@ -110,16 +111,16 @@ class TimeWindowStrategy(SearchStrategy):
             except ValueError:
                 raise ValueError(f"Invalid time format in query")
         else:
-            start_time = now - timedelta(minutes=30)
+            start_time = now - datetime.timedelta(minutes=30)
             end_time = now
         stores = self._get_stores_for_tier(agent, tier)
         results = []
         for store in stores:
             try:
-                if hasattr(store, "list"):
-                    memories = store.list(agent_id)
-                elif hasattr(store, "get_all"):
+                if hasattr(store, "get_all"):
                     memories = store.get_all(agent_id)
+                elif hasattr(store, "list"):
+                    memories = store.list(agent_id)
                 elif hasattr(store, "find_all"):
                     memories = store.find_all(agent_id)
                 elif hasattr(store, "retrieve_all"):
@@ -140,22 +141,13 @@ class TimeWindowStrategy(SearchStrategy):
                     memory, metadata_filter
                 ):
                     continue
-                if timestamp_field == "metadata.timestamp":
-                    timestamp_str = memory.get("metadata", {}).get("timestamp")
-                else:
-                    parts = timestamp_field.split(".")
-                    obj = memory
-                    for part in parts:
-                        if isinstance(obj, dict):
-                            obj = obj.get(part, {})
-                        else:
-                            obj = None
-                            break
-                    timestamp_str = obj
+
+                # Get timestamp from memory
+                timestamp_str = self._extract_timestamp(memory, timestamp_field)
                 if not timestamp_str:
                     continue
                 try:
-                    memory_time = datetime.fromisoformat(
+                    memory_time = datetime.datetime.fromisoformat(
                         timestamp_str.replace("Z", "+00:00")
                     )
                     if inclusive_start:
@@ -167,14 +159,14 @@ class TimeWindowStrategy(SearchStrategy):
                 except (ValueError, TypeError):
                     continue
         results.sort(
-            key=lambda x: x.get("metadata", {}).get("timestamp", ""), reverse=True
+            key=lambda x: self._extract_timestamp(x, timestamp_field) or "", reverse=True
         )
         return results[:limit]
 
     def _parse_datetime(self, dt_str):
         """Parse a datetime string to a datetime object."""
         try:
-            return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+            return datetime.datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
         except ValueError:
             raise ValueError(f"Invalid datetime format: {dt_str}")
 
@@ -189,3 +181,19 @@ class TimeWindowStrategy(SearchStrategy):
                 return False
 
         return True
+
+    def _extract_timestamp(self, memory, timestamp_field):
+        """Extract the timestamp string from a memory using the given field."""
+        if timestamp_field == "metadata.timestamp":
+            return memory.get("metadata", {}).get("timestamp")
+        parts = timestamp_field.split(".")
+        obj = memory
+        for part in parts:
+            if isinstance(obj, dict):
+                obj = obj.get(part)
+                if obj is None:
+                    break
+            else:
+                obj = None
+                break
+        return obj

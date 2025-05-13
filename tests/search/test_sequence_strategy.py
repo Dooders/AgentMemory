@@ -17,10 +17,14 @@ class TestNarrativeSequenceStrategy(unittest.TestCase):
         self.mock_im_store = MagicMock()
         self.mock_ltm_store = MagicMock()
 
-        # Create strategy with mock dependencies
-        self.strategy = NarrativeSequenceStrategy(
-            self.mock_stm_store, self.mock_im_store, self.mock_ltm_store
-        )
+        # Create mock memory system
+        self.mock_memory_system = MagicMock()
+        self.mock_memory_system.stm_store = self.mock_stm_store
+        self.mock_memory_system.im_store = self.mock_im_store
+        self.mock_memory_system.ltm_store = self.mock_ltm_store
+
+        # Create strategy with mock memory system
+        self.strategy = NarrativeSequenceStrategy(self.mock_memory_system)
 
     def test_name_and_description(self):
         """Test name and description methods."""
