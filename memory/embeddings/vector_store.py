@@ -241,7 +241,10 @@ class RedisVectorIndex(VectorIndex):
         try:
             # Check if index exists
             indices = self.redis.execute_command("FT._LIST")
-            if self.index_name.encode() in indices:
+            # Convert both the index name and list items to strings for comparison
+            index_name_str = str(self.index_name)
+            indices_str = [str(idx) if isinstance(idx, bytes) else idx for idx in indices]
+            if index_name_str in indices_str:
                 self._index_exists = True
                 return
 
