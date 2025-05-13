@@ -213,7 +213,8 @@ class TestTimeWindowStrategy(unittest.TestCase):
             },
         ]
 
-        self.mock_stm_store.list.side_effect = lambda *args, **kwargs: memories
+        # Update from list.side_effect to get_all.return_value to match strategy behavior
+        self.mock_stm_store.get_all.return_value = memories
 
         with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
             mock_dt.now.return_value = now
@@ -259,7 +260,8 @@ class TestTimeWindowStrategy(unittest.TestCase):
             },
         ]
 
-        self.mock_im_store.list.side_effect = lambda *args, **kwargs: memories
+        # Update from list.side_effect to get_all.return_value
+        self.mock_im_store.get_all.return_value = memories
 
         with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
             mock_dt.now.return_value = now
@@ -301,7 +303,8 @@ class TestTimeWindowStrategy(unittest.TestCase):
             },
         ]
 
-        self.mock_ltm_store.list.side_effect = lambda *args, **kwargs: memories
+        # Update from list.side_effect to get_all.return_value
+        self.mock_ltm_store.get_all.return_value = memories
 
         with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
             mock_dt.now.return_value = now
@@ -338,7 +341,8 @@ class TestTimeWindowStrategy(unittest.TestCase):
             {"id": "mem3", "content": "Missing timestamp", "metadata": {}} ,
         ]
 
-        self.mock_stm_store.list.side_effect = lambda *args, **kwargs: memories
+        # Update from list.side_effect to get_all.return_value
+        self.mock_stm_store.get_all.return_value = memories
 
         with patch("memory.search.strategies.window.datetime.datetime") as mock_dt:
             mock_dt.now.return_value = now

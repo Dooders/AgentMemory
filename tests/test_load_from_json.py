@@ -24,13 +24,11 @@ SAMPLES_DIR = Path("validation/memory_samples")
 ATTRIBUTE_VALIDATION_SAMPLE = SAMPLES_DIR / "attribute_validation_memory.json"
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def cleanup_memory_system():
     """Reset the AgentMemorySystem singleton before and after each test."""
-    # Reset before test
     AgentMemorySystem._instance = None
     yield
-    # Reset after test
     AgentMemorySystem._instance = None
 
 
@@ -67,6 +65,14 @@ def test_load_attribute_validation_memory(cleanup_memory_system):
     memory_system = AgentMemorySystem.load_from_json(
         str(ATTRIBUTE_VALIDATION_SAMPLE), use_mock_redis=True
     )
+    print(f"Load result: {memory_system}")
+    if memory_system is None:
+        print("Failed to load memory system, checking what went wrong...")
+        try:
+            AgentMemorySystem._instance = None
+            AgentMemorySystem.load_from_json(str(ATTRIBUTE_VALIDATION_SAMPLE), use_mock_redis=True)
+        except Exception as e:
+            print(f"Error during load: {e}")
     assert memory_system is not None, "Failed to load memory system from JSON"
 
     # Verify the agent was created
@@ -92,7 +98,14 @@ def test_memory_content_preservation(cleanup_memory_system):
     memory_system = AgentMemorySystem.load_from_json(
         ATTRIBUTE_VALIDATION_SAMPLE, use_mock_redis=True
     )
-
+    print(f"Load result: {memory_system}")
+    if memory_system is None:
+        print("Failed to load memory system, checking what went wrong...")
+        try:
+            AgentMemorySystem._instance = None
+            AgentMemorySystem.load_from_json(str(ATTRIBUTE_VALIDATION_SAMPLE), use_mock_redis=True)
+        except Exception as e:
+            print(f"Error during load: {e}")
     # Verify the memory system was created
     assert memory_system is not None
 
@@ -131,6 +144,14 @@ def test_reload_and_save_memory(cleanup_memory_system, tmp_path):
     memory_system1 = AgentMemorySystem.load_from_json(
         ATTRIBUTE_VALIDATION_SAMPLE, use_mock_redis=True
     )
+    print(f"Load result: {memory_system1}")
+    if memory_system1 is None:
+        print("Failed to load memory system, checking what went wrong...")
+        try:
+            AgentMemorySystem._instance = None
+            AgentMemorySystem.load_from_json(str(ATTRIBUTE_VALIDATION_SAMPLE), use_mock_redis=True)
+        except Exception as e:
+            print(f"Error during load: {e}")
     assert memory_system1 is not None
 
     # Save to a temporary file
