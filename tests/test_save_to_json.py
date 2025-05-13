@@ -279,14 +279,14 @@ def test_save_and_load_roundtrip(cleanup_memory_system):
 
         # Load the memory system back from the file
         loaded_system = AgentMemorySystem.load_from_json(filepath, use_mock_redis=True)
-        print(f"Load result: {loaded_system}")
+        logger.info(f"Load result: {loaded_system}")
         if loaded_system is None:
-            print("Failed to load memory system, checking what went wrong...")
+            logger.error("Failed to load memory system, checking what went wrong...")
             try:
                 AgentMemorySystem._instance = None
                 AgentMemorySystem.load_from_json(filepath, use_mock_redis=True)
             except Exception as e:
-                print(f"Error during load: {e}")
+                logger.error(f"Error during load: {e}")
         assert loaded_system is not None, "Failed to load memory system"
 
         # Verify the agent exists in the loaded system
