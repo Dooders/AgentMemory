@@ -268,7 +268,7 @@ class Pipeline:
             self.commands = []
             self.reset_transaction_state()
             logger.error(f"Pipeline execution error: {e}")
-            return None  # Return None instead of raising exception
+            raise  # Re-raise the exception to ensure the caller is aware of the failure
 
     def __enter__(self):
         return self
