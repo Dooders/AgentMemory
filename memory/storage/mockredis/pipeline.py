@@ -233,13 +233,28 @@ class Pipeline:
             # Execute all commands
             results = []
             for cmd in self.commands:
-                result = cmd()
-                logger.debug(f"Pipeline command: {cmd.__name__}, result: {result}")
-                # For hset, we want to consider it successful if it returns 0 or 1
-                if cmd.__name__ == 'hset' and result in (0, 1):
-                    results.append(True)
-                else:
-                    results.append(result)
+                try:
+                    result = cmd()
+                    logger.debug(f"Pipeline command: {cmd.__name__}, result: {result}")
+                    
+                    # Handle specific command return values to match Redis behavior
+                    if cmd.__name__ == 'hset':
+                        # hset returns 1 for new field, 0 for existing field
+                        results.append(1 if result == 1 else 0)
+                    elif cmd.__name__ == 'expire':
+                        # expire returns 1 if timeout was set, 0 if key doesn't exist
+                        results.append(1 if result else 0)
+                    elif cmd.__name__ == 'zadd':
+                        # zadd returns number of elements added
+                        results.append(result if result is not None else 0)
+                    elif cmd.__name__ == 'delete':
+                        # delete returns number of keys deleted
+                        results.append(result if result is not None else 0)
+                    else:
+                        results.append(result)
+                except Exception as e:
+                    logger.error(f"Pipeline command {cmd.__name__} failed: {e}")
+                    results.append(None)
 
             # Reset state after execution
             self.commands = []
@@ -253,7 +268,7 @@ class Pipeline:
             self.commands = []
             self.reset_transaction_state()
             logger.error(f"Pipeline execution error: {e}")
-            raise e
+            raise  # Re-raise the exception to ensure the caller is aware of the failure
 
     def __enter__(self):
         return self
