@@ -597,8 +597,21 @@ class VectorStore:
 
             def filter_fn(metadata):
                 for key, value in metadata_filter.items():
-                    if key not in metadata or metadata[key] != value:
-                        return False
+                    # Try direct match in top-level metadata
+                    if key in metadata and metadata[key] == value:
+                        continue
+                    
+                    # Try match in nested content.metadata
+                    if 'content' in metadata and isinstance(metadata['content'], dict):
+                        content = metadata['content']
+                        if 'metadata' in content and isinstance(content['metadata'], dict):
+                            content_metadata = content['metadata']
+                            if key in content_metadata and content_metadata[key] == value:
+                                continue
+                    
+                    # No match found for this key
+                    return False
+                # All keys matched
                 return True
 
         # Select the appropriate index based on tier
