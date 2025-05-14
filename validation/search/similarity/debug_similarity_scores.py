@@ -14,9 +14,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from memory.embeddings.text_embeddings import TextEmbeddingEngine
 from memory.embeddings.vector_store import VectorStore
 from memory.search.strategies.similarity import SimilaritySearchStrategy
-from memory.storage.redis_im import RedisIMStore
-from memory.storage.redis_stm import RedisSTMStore
-from memory.storage.sqlite_ltm import SQLiteLTMStore
 from validation.demo_utils import create_memory_system, setup_logging
 
 # Configure logging
@@ -79,12 +76,7 @@ def analyze_similarity_scores(query: str = "machine learning model accuracy"):
     
     # Create similarity search strategy
     similarity_strategy = SimilaritySearchStrategy(
-        vector_store=vector_store,
-        embedding_engine=embedding_engine,
-        stm_store=stm_store,
-        im_store=im_store,
-        ltm_store=ltm_store,
-        config=memory_system.config
+        memory_system=memory_system
     )
     
     logger.info(f"Analyzing similarity scores for query: '{query}'")
