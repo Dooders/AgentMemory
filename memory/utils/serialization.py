@@ -470,13 +470,16 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                         # Store the vector
                         vector_store.store_memory_vectors(memory_copy)
                         
-                        # Update the memory in the appropriate store with new embeddings
+                        # Determine the tier for the memory
+                        tier = memory_copy.get("tier")
                         if tier == "stm":
                             memory_agent.stm_store.store(agent_id, memory_copy)
                         elif tier == "im":
                             memory_agent.im_store.store(agent_id, memory_copy)
                         elif tier == "ltm":
                             memory_agent.ltm_store.store(memory_copy)
+                        else:
+                            logger.warning(f"Unknown tier '{tier}' for memory {memory_copy.get('memory_id')}")
                     except Exception as e:
                         logger.warning(f"Failed to generate embeddings for memory {memory_copy.get('memory_id')}: {e}")
         logger.info(f"Memory system loaded from {filepath}")
