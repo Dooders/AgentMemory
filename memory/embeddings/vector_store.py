@@ -594,11 +594,19 @@ class VectorStore:
         # Create filter function if metadata filter is provided
         filter_fn = None
         if metadata_filter:
+            logger.debug("Creating filter function for metadata filter: %s", metadata_filter)
 
             def filter_fn(metadata):
+                logger.debug("Checking metadata: %s", metadata)
                 for key, value in metadata_filter.items():
                     # Try direct match in top-level metadata
                     if key in metadata and metadata[key] == value:
+                        logger.debug("Found direct match for %s: %s", key, value)
+                        continue
+                    
+                    # Special handling for 'type' field - also check 'memory_type'
+                    if key == 'type' and 'memory_type' in metadata and metadata['memory_type'] == value:
+                        logger.debug("Found match for type in memory_type: %s", value)
                         continue
                     
                     # Try match in nested content.metadata
@@ -607,11 +615,19 @@ class VectorStore:
                         if 'metadata' in content and isinstance(content['metadata'], dict):
                             content_metadata = content['metadata']
                             if key in content_metadata and content_metadata[key] == value:
+                                logger.debug("Found nested match for %s: %s in content.metadata", key, value)
                                 continue
                     
                     # No match found for this key
+                    unmatched_keys.append((key, value))
                     return False
+                
+                if unmatched_keys:
+                    logger.debug("No matches found for the following keys and values: %s", unmatched_keys)
+                else:
+                    logger.debug("All filter criteria matched")
                 # All keys matched
+                logger.debug("All filter criteria matched")
                 return True
 
         # Select the appropriate index based on tier
