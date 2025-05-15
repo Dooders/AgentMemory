@@ -368,16 +368,23 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
             config.ltm_config = ltm_config
 
         # Initialize vector store with dimensions from autoencoder config
+        # Create Redis connection params dictionary directly instead of using connection_params attribute
+        redis_connection = None
+        if not use_mock_redis:
+            redis_connection = {
+                "host": config.stm_config.host,
+                "port": config.stm_config.port,
+                "db": config.stm_config.db,
+                "password": config.stm_config.password if hasattr(config.stm_config, "password") else None
+            }
+            
         vector_store = VectorStore(
-            redis_client=(
-                None if use_mock_redis else config.stm_config.connection_params
-            ),
+            redis_client=redis_connection,
             stm_dimension=config.autoencoder_config.stm_dim,
             im_dimension=config.autoencoder_config.im_dim,
             ltm_dimension=config.autoencoder_config.ltm_dim,
             namespace=config.stm_config.namespace,
         )
-
         # Create memory system
         memory_system = AgentMemorySystem(config)
         memory_system.vector_store = vector_store
@@ -442,8 +449,39 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                     memory_agent.stm_store.store(agent_id, memory_copy)
 
                 # Store memory vectors if embeddings exist
-                if "embeddings" in memory_copy:
+                if "embeddings" in memory_copy and memory_copy.get("embeddings"):
+                    logger.info(f"Storing embeddings for memory {memory_copy.get('memory_id')}")
                     vector_store.store_memory_vectors(memory_copy)
+                # Generate embeddings if the memory has content but no embeddings
+                #! Intended to be temporary, until embeddings are automatically generated when the memory is added
+                elif "content" in memory_copy and memory_copy.get("content"):
+                    try:
+                        logger.info(f"Generating embeddings for memory {memory_copy.get('memory_id')}")
+                        content = memory_copy.get("content", {})
+                        
+                        # Generate embeddings using the embedding engine
+                        full_vector = memory_system.embedding_engine.encode_stm(content)
+                        
+                        # Add embeddings to memory
+                        memory_copy["embeddings"] = {
+                            "full_vector": full_vector
+                        }
+                        
+                        # Store the vector
+                        vector_store.store_memory_vectors(memory_copy)
+                        
+                        # Determine the tier for the memory
+                        tier = memory_copy.get("tier")
+                        if tier == "stm":
+                            memory_agent.stm_store.store(agent_id, memory_copy)
+                        elif tier == "im":
+                            memory_agent.im_store.store(agent_id, memory_copy)
+                        elif tier == "ltm":
+                            memory_agent.ltm_store.store(memory_copy)
+                        else:
+                            logger.warning(f"Unknown tier '{tier}' for memory {memory_copy.get('memory_id')}")
+                    except Exception as e:
+                        logger.warning(f"Failed to generate embeddings for memory {memory_copy.get('memory_id')}: {e}")
         logger.info(f"Memory system loaded from {filepath}")
         return memory_system
 
