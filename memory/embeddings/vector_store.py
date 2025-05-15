@@ -598,6 +598,7 @@ class VectorStore:
 
             def filter_fn(metadata):
                 logger.debug("Checking metadata: %s", metadata)
+                unmatched_keys = []  # Initialize the list before using it
                 for key, value in metadata_filter.items():
                     # Try direct match in top-level metadata
                     if key in metadata and metadata[key] == value:
