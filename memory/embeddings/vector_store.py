@@ -619,9 +619,13 @@ class VectorStore:
                                 continue
                     
                     # No match found for this key
-                    logger.debug("No match found for %s: %s", key, value)
+                    unmatched_keys.append((key, value))
                     return False
                 
+                if unmatched_keys:
+                    logger.debug("No matches found for the following keys and values: %s", unmatched_keys)
+                else:
+                    logger.debug("All filter criteria matched")
                 # All keys matched
                 logger.debug("All filter criteria matched")
                 return True
