@@ -241,7 +241,10 @@ class RedisVectorIndex(VectorIndex):
         try:
             # Check if index exists
             indices = self.redis.execute_command("FT._LIST")
-            if self.index_name.encode() in indices:
+            # Convert both the index name and list items to strings for comparison
+            index_name_str = str(self.index_name)
+            indices_str = [str(idx) if isinstance(idx, bytes) else idx for idx in indices]
+            if index_name_str in indices_str:
                 self._index_exists = True
                 return
 
@@ -594,8 +597,21 @@ class VectorStore:
 
             def filter_fn(metadata):
                 for key, value in metadata_filter.items():
-                    if key not in metadata or metadata[key] != value:
-                        return False
+                    # Try direct match in top-level metadata
+                    if key in metadata and metadata[key] == value:
+                        continue
+                    
+                    # Try match in nested content.metadata
+                    if 'content' in metadata and isinstance(metadata['content'], dict):
+                        content = metadata['content']
+                        if 'metadata' in content and isinstance(content['metadata'], dict):
+                            content_metadata = content['metadata']
+                            if key in content_metadata and content_metadata[key] == value:
+                                continue
+                    
+                    # No match found for this key
+                    return False
+                # All keys matched
                 return True
 
         # Select the appropriate index based on tier

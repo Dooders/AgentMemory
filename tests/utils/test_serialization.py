@@ -432,6 +432,7 @@ class TestMemorySystemSerialization(unittest.TestCase):
                                 "current_tier": "stm",
                             },
                             "step_number": 1,
+                            "embeddings": {"full_vector": [0.1, 0.2, 0.3, 0.4]}
                         },
                         {
                             "memory_id": "mem_2",
@@ -447,6 +448,7 @@ class TestMemorySystemSerialization(unittest.TestCase):
                                 "current_tier": "im",
                             },
                             "step_number": 2,
+                            "embeddings": {"full_vector": [0.5, 0.6, 0.7, 0.8]}
                         },
                     ],
                 }
@@ -548,6 +550,7 @@ class TestMemorySystemSerialization(unittest.TestCase):
         mock_memory_system.get_memory_agent.assert_called_once_with("agent_1")
 
         # Verify that the stm_store.store was called for the state memory
+        # Since we've provided embeddings in the test data, it should only be called once
         self.assertEqual(mock_memory_agent.stm_store.store.call_count, 1)
 
         # Verify that the im_store.store was called for the interaction memory
