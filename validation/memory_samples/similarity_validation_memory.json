@@ -201,7 +201,7 @@
             "importance_score": 0.95,
             "retrieval_count": 3,
             "memory_type": "experiment",
-            "current_tier": "im",
+            "current_tier": "stm",
             "checksum": "f6g7h8i9j0k1l2m3n4o5"
           },
           "type": "experiment",
