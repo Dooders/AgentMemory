@@ -117,9 +117,7 @@ class SimilaritySearchTestSuite(TestSuite):
         self.runner.run_test(
             "IM Tier Search",
             "deep learning model",
-            expected_memory_ids=[
-                "test-agent-similarity-search-15"
-            ],
+            expected_memory_ids=["test-agent-similarity-search-15"],
             min_score=0.4,
             tier="im",
             memory_checksum_map=self.memory_checksum_map,
