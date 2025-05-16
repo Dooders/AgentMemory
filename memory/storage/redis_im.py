@@ -288,13 +288,14 @@ class RedisIMStore:
             return False
 
         # Verify compression level
-        compression_level = memory_entry.get("metadata", {}).get("compression_level")
-        if compression_level != 1:
-            logger.error(
-                "Invalid compression level for IM storage: %s. Expected level 1.",
-                compression_level,
-            )
-            return False
+        #! TODO: Use compression level validation
+        # compression_level = memory_entry.get("metadata", {}).get("compression_level")
+        # if compression_level != 1:
+        #     logger.error(
+        #         "Invalid compression level for IM storage: %s. Expected level 1.",
+        #         compression_level,
+        #     )
+        #     return False
 
         # Use store_with_retry for resilient storage
         return self.redis.store_with_retry(
@@ -485,7 +486,9 @@ class RedisIMStore:
                         return False
                     return True
                 except (RedisUnavailableError, RedisTimeoutError) as e:
-                    logger.debug(f"Caught Redis error in pipeline block: {type(e).__name__}")
+                    logger.debug(
+                        f"Caught Redis error in pipeline block: {type(e).__name__}"
+                    )
                     raise  # propagate these errors
                 except redis.RedisError as e:
                     logger.exception(

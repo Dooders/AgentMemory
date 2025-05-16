@@ -243,7 +243,9 @@ class RedisVectorIndex(VectorIndex):
             indices = self.redis.execute_command("FT._LIST")
             # Convert both the index name and list items to strings for comparison
             index_name_str = str(self.index_name)
-            indices_str = [str(idx) if isinstance(idx, bytes) else idx for idx in indices]
+            indices_str = [
+                str(idx) if isinstance(idx, bytes) else idx for idx in indices
+            ]
             if index_name_str in indices_str:
                 self._index_exists = True
                 return
@@ -534,11 +536,14 @@ class VectorStore:
             "Redis" if redis_client else "in-memory",
         )
 
-    def store_memory_vectors(self, memory_entry: Dict[str, Any]) -> bool:
+    def store_memory_vectors(
+        self, memory_entry: Dict[str, Any], tier: str = "stm"
+    ) -> bool:
         """Store vectors for a memory entry in appropriate indices.
 
         Args:
             memory_entry: Memory entry with embeddings
+            tier: Tier to store the vectors in ("stm", "im", or "ltm")
 
         Returns:
             True if storage was successful
@@ -553,22 +558,27 @@ class VectorStore:
 
         success = True
 
-        # Store in STM index if full vector is available
-        if "full_vector" in embeddings:
+        # Store in STM index
+        if tier == "stm":
+            logger.debug("Storing STM vector for memory %s", memory_id)
             success = success and self.stm_index.add(
                 memory_id, embeddings["full_vector"], metadata
             )
 
-        # Store in IM index if compressed vector is available
-        if "compressed_vector" in embeddings:
+        # Store in IM index
+        if tier == "im":
+            #! TODO: Use compressed vector
+            logger.debug("Storing IM vector for memory %s", memory_id)
             success = success and self.im_index.add(
-                memory_id, embeddings["compressed_vector"], metadata
+                memory_id, embeddings["full_vector"], metadata
             )
 
-        # Store in LTM index if abstract vector is available
-        if "abstract_vector" in embeddings:
+        # Store in LTM index
+        if tier == "ltm":
+            #! TODO: Use abstract vector
+            logger.debug("Storing LTM vector for memory %s", memory_id)
             success = success and self.ltm_index.add(
-                memory_id, embeddings["abstract_vector"], metadata
+                memory_id, embeddings["full_vector"], metadata
             )
 
         return success
@@ -594,36 +604,55 @@ class VectorStore:
         # Create filter function if metadata filter is provided
         filter_fn = None
         if metadata_filter:
-            logger.debug("Creating filter function for metadata filter: %s", metadata_filter)
+            logger.debug(
+                "Creating filter function for metadata filter: %s", metadata_filter
+            )
 
             def filter_fn(metadata):
                 logger.debug("Checking metadata: %s", metadata)
+                unmatched_keys = []  # Initialize the list before using it
                 for key, value in metadata_filter.items():
                     # Try direct match in top-level metadata
                     if key in metadata and metadata[key] == value:
                         logger.debug("Found direct match for %s: %s", key, value)
                         continue
-                    
+
                     # Special handling for 'type' field - also check 'memory_type'
-                    if key == 'type' and 'memory_type' in metadata and metadata['memory_type'] == value:
+                    if (
+                        key == "type"
+                        and "memory_type" in metadata
+                        and metadata["memory_type"] == value
+                    ):
                         logger.debug("Found match for type in memory_type: %s", value)
                         continue
-                    
+
                     # Try match in nested content.metadata
-                    if 'content' in metadata and isinstance(metadata['content'], dict):
-                        content = metadata['content']
-                        if 'metadata' in content and isinstance(content['metadata'], dict):
-                            content_metadata = content['metadata']
-                            if key in content_metadata and content_metadata[key] == value:
-                                logger.debug("Found nested match for %s: %s in content.metadata", key, value)
+                    if "content" in metadata and isinstance(metadata["content"], dict):
+                        content = metadata["content"]
+                        if "metadata" in content and isinstance(
+                            content["metadata"], dict
+                        ):
+                            content_metadata = content["metadata"]
+                            if (
+                                key in content_metadata
+                                and content_metadata[key] == value
+                            ):
+                                logger.debug(
+                                    "Found nested match for %s: %s in content.metadata",
+                                    key,
+                                    value,
+                                )
                                 continue
-                    
+
                     # No match found for this key
                     unmatched_keys.append((key, value))
                     return False
-                
+
                 if unmatched_keys:
-                    logger.debug("No matches found for the following keys and values: %s", unmatched_keys)
+                    logger.debug(
+                        "No matches found for the following keys and values: %s",
+                        unmatched_keys,
+                    )
                 else:
                     logger.debug("All filter criteria matched")
                 # All keys matched

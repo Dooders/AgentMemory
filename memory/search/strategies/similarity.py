@@ -111,6 +111,14 @@ class SimilaritySearchStrategy(SearchStrategy):
 
             # Generate query vector from input
             query_vector = self._generate_query_vector(query, current_tier)
+            
+            # Add detailed logging for vector generation
+            logger.debug(
+                "Query vector generation for tier %s - Input: %s, Output: %s",
+                current_tier,
+                query,
+                query_vector
+            )
 
             # Skip if vector generation failed
             if query_vector is None:
@@ -127,21 +135,30 @@ class SimilaritySearchStrategy(SearchStrategy):
 
             # Find similar vectors
             logger.debug(
-                "Calling vector_store.find_similar_memories for tier %s", current_tier
-            )
-            similar_vectors = self.vector_store.find_similar_memories(
-                query_vector,
-                tier=current_tier,
-                limit=limit * 2,  # Get extra results to allow for score filtering
-                metadata_filter=metadata_filter or {},
-            )
-
-            logger.debug(
-                "Vector store returned %d results for tier %s. Raw results: %s",
-                len(similar_vectors),
+                "About to call vector_store.find_similar_memories for tier %s with vector: %s", 
                 current_tier,
-                similar_vectors,
+                query_vector
             )
+            try:
+                similar_vectors = self.vector_store.find_similar_memories(
+                    query_vector,
+                    tier=current_tier,
+                    limit=limit * 2,  # Get extra results to allow for score filtering
+                    metadata_filter=metadata_filter or {},
+                )
+                logger.debug(
+                    "Vector store returned %d results for tier %s. Raw results with scores: %s",
+                    len(similar_vectors),
+                    current_tier,
+                    [(v["id"], v["score"]) for v in similar_vectors],
+                )
+            except Exception as e:
+                logger.error(
+                    "Error in vector_store.find_similar_memories for tier %s: %s",
+                    current_tier,
+                    str(e)
+                )
+                continue
 
             # Filter by score
             filtered_vectors = [v for v in similar_vectors if v["score"] >= min_score]
@@ -150,7 +167,7 @@ class SimilaritySearchStrategy(SearchStrategy):
                 min_score,
                 len(filtered_vectors),
                 current_tier,
-                filtered_vectors,
+                [(v["id"], v["score"]) for v in filtered_vectors],
             )
 
             # Limit results
@@ -274,22 +291,27 @@ class SimilaritySearchStrategy(SearchStrategy):
             logger.debug(
                 "Encoding dictionary query for tier %s. Query dict: %s", tier, query
             )
-            if tier == "stm":
-                vector = self.embedding_engine.encode_stm(query)
-            elif tier == "im":
-                vector = self.embedding_engine.encode_im(query)
-            elif tier == "ltm":
-                vector = self.embedding_engine.encode_ltm(query)
+            try:
+                if tier == "stm":
+                    vector = self.embedding_engine.encode_stm(query)
+                elif tier == "im":
+                    vector = self.embedding_engine.encode_im(query)
+                elif tier == "ltm":
+                    vector = self.embedding_engine.encode_ltm(query)
 
-            if vector is not None:
-                logger.debug(
-                    "Successfully generated vector of length %d: %s",
-                    len(vector),
-                    vector,
-                )
-            else:
-                logger.warning("Failed to generate vector for tier %s", tier)
-            return vector
+                if vector is not None:
+                    logger.debug(
+                        "Successfully generated vector of length %d for tier %s: %s",
+                        len(vector),
+                        tier,
+                        vector,
+                    )
+                else:
+                    logger.warning("Failed to generate vector for tier %s - encoding returned None", tier)
+                return vector
+            except Exception as e:
+                logger.error("Error generating vector for tier %s: %s", tier, str(e))
+                return None
 
         # If we get here, we couldn't generate a vector
         logger.warning("Could not generate vector for query type: %s", type(query))
