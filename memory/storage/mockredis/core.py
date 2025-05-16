@@ -996,11 +996,47 @@ class MockRedis:
                 if "_vector_idx" in index_name and has_vector_query:
                     # Simulate a vector search by returning some random keys
                     agent_prefix = index_name.split('_')[0]
+                    metadata_filter = {}  # Initialize empty metadata filter
+                    
+                    # Extract metadata filter from args if present
+                    for i in range(len(args)):
+                        if args[i].lower() == "filter":
+                            try:
+                                metadata_filter = json.loads(args[i + 2])
+                            except:
+                                pass
+                            break
+                            
                     for key in self.store.keys():
                         if isinstance(key, str) and key.startswith(f"{agent_prefix}-"):
-                            matching_keys.append(key)
-                            if len(matching_keys) >= vector_k:
-                                break
+                            # Get the memory data to check metadata
+                            memory_data = self.store.get(key)
+                            if memory_data and isinstance(memory_data, dict):
+                                # Check if memory has the required metadata
+                                metadata = memory_data.get('metadata', {})
+                                content = memory_data.get('content', {})
+                                content_metadata = content.get('metadata', {}) if isinstance(content, dict) else {}
+                                
+                                # Check if memory matches metadata filter
+                                matches_filter = True
+                                for filter_key, filter_value in metadata_filter.items():
+                                    # Check in top-level metadata
+                                    if filter_key in metadata and metadata[filter_key] == filter_value:
+                                        continue
+                                    # Check in memory_type
+                                    if filter_key == 'type' and 'memory_type' in metadata and metadata['memory_type'] == filter_value:
+                                        continue
+                                    # Check in content.metadata
+                                    if filter_key in content_metadata and content_metadata[filter_key] == filter_value:
+                                        continue
+                                    # No match found
+                                    matches_filter = False
+                                    break
+                                
+                                if matches_filter:
+                                    matching_keys.append(key)
+                                    if len(matching_keys) >= vector_k:
+                                        break
                     
                     # Simulate scores
                     scores = [random.uniform(0.5, 1.0) for _ in matching_keys]
