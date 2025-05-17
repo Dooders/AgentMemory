@@ -8,8 +8,11 @@ LOGS_DIR = os.path.join(os.getcwd(), "logs")
 print(f"Current working directory: {os.getcwd()}")
 print(f"Logs directory: {LOGS_DIR}")
 
+# Configure logging
+logger = logging.getLogger()
 
-def setup_logging(demo_name: str) -> logging.Logger:
+
+def setup_logging(demo_name: str, log_dir: str = LOGS_DIR) -> logging.Logger:
     """Set up logging to both console and file.
 
     Args:
@@ -20,11 +23,11 @@ def setup_logging(demo_name: str) -> logging.Logger:
     """
     try:
         # Create logs directory if it doesn't exist
-        os.makedirs(LOGS_DIR, exist_ok=True)
-        print(f"Created logs directory at: {LOGS_DIR}")
+        os.makedirs(log_dir, exist_ok=True)
+        print(f"Created logs directory at: {log_dir}")
 
         # Use a fixed log filename based on demo name (without timestamp)
-        log_file = os.path.join(LOGS_DIR, f"{demo_name}.log")
+        log_file = os.path.join(log_dir, f"{demo_name}.log")
         print(f"Log file will be created at: {log_file}")
 
         # Clear the existing log file if it exists
@@ -33,8 +36,7 @@ def setup_logging(demo_name: str) -> logging.Logger:
             pass
         print(f"Initialized log file: {log_file}")
 
-        # Configure logging
-        logger = logging.getLogger()
+        
         logger.setLevel(logging.DEBUG)
 
         # Clear existing handlers if any
@@ -81,3 +83,6 @@ def setup_logging(demo_name: str) -> logging.Logger:
         # Fallback to basic console logging
         logging.basicConfig(level=logging.INFO)
         return logging.getLogger()
+    
+    
+    

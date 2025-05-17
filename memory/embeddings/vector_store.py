@@ -556,26 +556,58 @@ class VectorStore:
         embeddings = memory_entry.get("embeddings", {})
         metadata = memory_entry.get("metadata", {})
 
-        def store_vector(index, memory_id: str, vector: List[float], metadata: Dict[str, Any], tier: str) -> bool:
+        def store_vector(
+            index,
+            memory_id: str,
+            vector: List[float],
+            metadata: Dict[str, Any],
+            tier: str,
+        ) -> bool:
+            """
+            Store a vector in the appropriate index.
+
+            Args:
+                index: Vector index to store in
+                memory_id: Unique identifier for the memory
+                vector: Vector to store
+                metadata: Metadata to store
+                tier: Tier to store the vector in ("stm", "im", or "ltm")
+
+            Returns:
+                True if storage was successful
+            """
             try:
                 logger.debug(f"Storing {tier.upper()} vector for memory {memory_id}")
                 return index.add(memory_id, vector, metadata)
             except Exception as e:
-                logger.error(f"Failed to store {tier.upper()} vector for memory {memory_id}: {e}")
+                logger.error(
+                    f"Failed to store {tier.upper()} vector for memory {memory_id}: {e}"
+                )
                 return False
 
         success = True
 
         # Store in appropriate index based on tier
         if tier == "stm":
-            success = store_vector(self.stm_index, memory_id, embeddings["full_vector"], metadata, "stm")
+            success = store_vector(
+                self.stm_index, memory_id, embeddings["full_vector"], metadata, "stm"
+            )
         elif tier == "im":
             #! TODO: Use compressed vector
-            success = store_vector(self.im_index, memory_id, embeddings["full_vector"], metadata, "im")
-            logger.debug(f"Result of storing IM vector: {success}")
+            logger.debug(
+                f"@@@@@@@@@@@@@@@@@@@@@@@@@ Storing IM vector for memory {memory_id}"
+            )
+            success = store_vector(
+                self.im_index, memory_id, embeddings["full_vector"], metadata, "im"
+            )
+            logger.debug(
+                f"@@@@@@@@@@@@@@@@@@@@@@@@@ Result of storing IM vector: {success}"
+            )
         elif tier == "ltm":
             #! TODO: Use abstract vector
-            success = store_vector(self.ltm_index, memory_id, embeddings["full_vector"], metadata, "ltm")
+            success = store_vector(
+                self.ltm_index, memory_id, embeddings["full_vector"], metadata, "ltm"
+            )
 
         return success
 
