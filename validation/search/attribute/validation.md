@@ -2,15 +2,14 @@
 
 ## Overview
 
-This document outlines the comprehensive validation approach used to ensure the AttributeSearchStrategy implementation is robust, efficient, and reliable. The validation strategy covers basic functionality, advanced features, edge cases, and performance characteristics.
+This document outlines the comprehensive validation approach used to ensure the AttributeSearchStrategy implementation is robust, efficient, and reliable. The validation strategy covers basic functionality, advanced features, and edge cases.
 
 ## Validation Components
 
 The validation suite for AttributeSearchStrategy consists of:
 
 1. **Functional Testing**: A comprehensive test suite that verifies correctness of various search capabilities
-2. **Performance Testing**: Metrics-driven evaluation of search performance under various conditions
-3. **Edge Case Testing**: Validation of behavior with unexpected or boundary inputs
+2. **Edge Case Testing**: Validation of behavior with unexpected or boundary inputs
 
 ## Functional Validation
 
@@ -79,15 +78,6 @@ Robustness is validated through testing of edge cases:
 - ✅ Long vs. short document handling
 - ✅ Varying document length impacts
 
-## Performance Characteristics
-
-The strategy has been performance-tested with:
-
-- ✅ Varying memory sizes
-- ✅ Different scoring methods' performance impact
-- ✅ Pattern caching effectiveness
-- ✅ Memory impact across different query types
-
 ## Validation Methodology
 
 ### Test Data
@@ -126,12 +116,11 @@ The AttributeSearchStrategy validation is comprehensive because it:
 1. **Covers all public API parameters** - Every parameter of the `search()` method is tested
 2. **Tests all scoring methods** - All implemented scoring approaches are validated
 3. **Examines edge cases** - Boundary conditions and error handling are verified
-4. **Verifies performance characteristics** - Both speed and resource usage are measured
-5. **Validates across memory tiers** - Tests span STM, IM, and LTM memory stores
-6. **Tests with realistic data** - Uses representative memory content structures
+4. **Validates across memory tiers** - Tests span STM, IM, and LTM memory stores
+5. **Tests with realistic data** - Uses representative memory content structures
 
 ## Conclusion
 
-The AttributeSearchStrategy implementation has been thoroughly validated across functional requirements, edge cases, and performance characteristics. The test suite provides confidence in the robustness of the implementation and establishes a baseline for regression testing as the codebase evolves.
+The AttributeSearchStrategy implementation has been thoroughly validated across functional requirements and edge cases. The test suite provides confidence in the robustness of the implementation and establishes a baseline for regression testing as the codebase evolves.
 
-Both the test suite and performance testing components verify that the strategy successfully handles various memory structures, search patterns, and retrieval scenarios. All tests pass with the expected results, confirming that the implementation fulfills its designed purpose effectively. 
+Both the test suite components verify that the strategy successfully handles various memory structures, search patterns, and retrieval scenarios. All tests pass with the expected results, confirming that the implementation fulfills its designed purpose effectively. 
