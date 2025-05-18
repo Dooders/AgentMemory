@@ -35,6 +35,7 @@ class SimilaritySearchStrategy(SearchStrategy):
         self.vector_store = self.memory_system.vector_store
         self.embedding_engine = self.memory_system.embedding_engine
         self.config = self.memory_system.config
+        # self.logger = self.memory_system.logger #! future use
 
     def name(self) -> str:
         """Return the name of the search strategy.
