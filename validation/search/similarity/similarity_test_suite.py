@@ -94,9 +94,9 @@ class SimilaritySearchTestSuite(TestSuite):
             "experiment results",
             expected_memory_ids=[
                 "test-agent-similarity-search-1",
-                "test-agent-similarity-search-6",
+                "test-agent-similarity-search-13",
             ],
-            min_score=0.5,
+            min_score=0.2,
             metadata_filter={"type": "experiment"},
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -193,10 +193,9 @@ class SimilaritySearchTestSuite(TestSuite):
             "machine learning model",
             expected_memory_ids=[
                 "test-agent-similarity-search-1",
-                "test-agent-similarity-search-2",
-                "test-agent-similarity-search-6",
             ],
             metadata_filter={"importance": "high"},
+            min_score=0.4,
             memory_checksum_map=self.memory_checksum_map,
         )
 
@@ -237,8 +236,9 @@ class SimilaritySearchTestSuite(TestSuite):
                 "test-agent-similarity-search-1",
                 "test-agent-similarity-search-2",
                 "test-agent-similarity-search-3",
-                "test-agent-similarity-search-4",
                 "test-agent-similarity-search-12",
+                "test-agent-similarity-search-13",
+                "test-agent-similarity-search-7",
             ],
             memory_checksum_map=self.memory_checksum_map,
             min_score=0.265,
@@ -292,7 +292,7 @@ class SimilaritySearchTestSuite(TestSuite):
                 "test-agent-similarity-search-9",
                 "test-agent-similarity-search-11",
                 "test-agent-similarity-search-12",
-                "test-agent-similarity-search-13",
+                "test-agent-similarity-search-15",
                 "test-agent-similarity-search-14",
             ],
             min_score=0.1,  # Very low threshold

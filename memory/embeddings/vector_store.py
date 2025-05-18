@@ -555,6 +555,11 @@ class VectorStore:
 
         embeddings = memory_entry.get("embeddings", {})
         metadata = memory_entry.get("metadata", {})
+        
+        # Include content data in the metadata to enable filtering on content.metadata fields
+        if "content" in memory_entry and isinstance(memory_entry["content"], dict):
+            metadata["content"] = memory_entry["content"]
+            logger.debug(f"Including content in vector metadata for memory {memory_id}")
 
         def store_vector(
             index,
@@ -674,18 +679,16 @@ class VectorStore:
 
                     # No match found for this key
                     unmatched_keys.append((key, value))
-                    return False
 
                 if unmatched_keys:
                     logger.debug(
                         "No matches found for the following keys and values: %s",
                         unmatched_keys,
                     )
+                    return False
                 else:
                     logger.debug("All filter criteria matched")
-                # All keys matched
-                logger.debug("All filter criteria matched")
-                return True
+                    return True
 
         # Select the appropriate index based on tier
         if tier == "im":
