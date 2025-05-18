@@ -112,13 +112,13 @@ class SimilaritySearchStrategy(SearchStrategy):
 
             # Generate query vector from input
             query_vector = self._generate_query_vector(query, current_tier)
-            
+
             # Add detailed logging for vector generation
             logger.debug(
                 "Query vector generation for tier %s - Input: %s, Output: %s",
                 current_tier,
                 query,
-                query_vector
+                query_vector,
             )
 
             # Skip if vector generation failed
@@ -136,9 +136,9 @@ class SimilaritySearchStrategy(SearchStrategy):
 
             # Find similar vectors
             logger.debug(
-                "About to call vector_store.find_similar_memories for tier %s with vector: %s", 
+                "About to call vector_store.find_similar_memories for tier %s with vector: %s",
                 current_tier,
-                query_vector
+                query_vector,
             )
             try:
                 similar_vectors = self.vector_store.find_similar_memories(
@@ -157,7 +157,7 @@ class SimilaritySearchStrategy(SearchStrategy):
                 logger.error(
                     "Error in vector_store.find_similar_memories for tier %s: %s",
                     current_tier,
-                    str(e)
+                    str(e),
                 )
                 continue
 
@@ -308,7 +308,10 @@ class SimilaritySearchStrategy(SearchStrategy):
                         vector,
                     )
                 else:
-                    logger.warning("Failed to generate vector for tier %s - encoding returned None", tier)
+                    logger.warning(
+                        "Failed to generate vector for tier %s - encoding returned None",
+                        tier,
+                    )
                 return vector
             except Exception as e:
                 logger.error("Error generating vector for tier %s: %s", tier, str(e))
