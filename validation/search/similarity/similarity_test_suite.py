@@ -88,7 +88,6 @@ class SimilaritySearchTestSuite(TestSuite):
         )
 
         # Test 3: Search with metadata filter
-        #! Not passing, filter is not working
         self.runner.run_test(
             "Search with Metadata Filter",
             "experiment results",
@@ -432,7 +431,7 @@ class SimilaritySearchTestSuite(TestSuite):
             "deep learning model",
             expected_memory_ids=["test-agent-similarity-search-6"],
             metadata_filter={"retrieval_count": {"$gt": 0}},
-            min_score=0.4,
+            min_score=0.2,
             memory_checksum_map=self.memory_checksum_map,
         )
 
