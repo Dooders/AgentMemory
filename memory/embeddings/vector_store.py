@@ -555,66 +555,32 @@ class VectorStore:
 
         embeddings = memory_entry.get("embeddings", {})
         metadata = memory_entry.get("metadata", {})
-        
-        # Include content data in the metadata to enable filtering on content.metadata fields
-        if "content" in memory_entry and isinstance(memory_entry["content"], dict):
-            metadata["content"] = memory_entry["content"]
-            logger.debug(f"Including content in vector metadata for memory {memory_id}")
 
-        def store_vector(
-            index,
-            memory_id: str,
-            vector: List[float],
-            metadata: Dict[str, Any],
-            tier: str,
-        ) -> bool:
-            """
-            Store a vector in the appropriate index.
+        try:
+            logger.debug(f"Storing {tier.upper()} vector for memory {memory_id}")
 
-            Args:
-                index: Vector index to store in
-                memory_id: Unique identifier for the memory
-                vector: Vector to store
-                metadata: Metadata to store
-                tier: Tier to store the vector in ("stm", "im", or "ltm")
-
-            Returns:
-                True if storage was successful
-            """
-            try:
-                logger.debug(f"Storing {tier.upper()} vector for memory {memory_id}")
-                return index.add(memory_id, vector, metadata)
-            except Exception as e:
-                logger.error(
-                    f"Failed to store {tier.upper()} vector for memory {memory_id}: {e}"
+            # Store in appropriate index based on tier
+            if tier == "stm":
+                return self.stm_index.add(
+                    memory_id, embeddings["full_vector"], metadata
                 )
+            elif tier == "im":
+                #! TODO: Use compressed vector
+                return self.im_index.add(memory_id, embeddings["full_vector"], metadata)
+            elif tier == "ltm":
+                #! TODO: Use abstract vector
+                return self.ltm_index.add(
+                    memory_id, embeddings["full_vector"], metadata
+                )
+            else:
+                logger.error(f"Invalid tier: {tier}")
                 return False
 
-        success = True
-
-        # Store in appropriate index based on tier
-        if tier == "stm":
-            success = store_vector(
-                self.stm_index, memory_id, embeddings["full_vector"], metadata, "stm"
+        except Exception as e:
+            logger.error(
+                f"Failed to store {tier.upper()} vector for memory {memory_id}: {e}"
             )
-        elif tier == "im":
-            #! TODO: Use compressed vector
-            logger.debug(
-                f"@@@@@@@@@@@@@@@@@@@@@@@@@ Storing IM vector for memory {memory_id}"
-            )
-            success = store_vector(
-                self.im_index, memory_id, embeddings["full_vector"], metadata, "im"
-            )
-            logger.debug(
-                f"@@@@@@@@@@@@@@@@@@@@@@@@@ Result of storing IM vector: {success}"
-            )
-        elif tier == "ltm":
-            #! TODO: Use abstract vector
-            success = store_vector(
-                self.ltm_index, memory_id, embeddings["full_vector"], metadata, "ltm"
-            )
-
-        return success
+            return False
 
     def find_similar_memories(
         self,
@@ -658,24 +624,6 @@ class VectorStore:
                     ):
                         logger.debug("Found match for type in memory_type: %s", value)
                         continue
-
-                    # Try match in nested content.metadata
-                    if "content" in metadata and isinstance(metadata["content"], dict):
-                        content = metadata["content"]
-                        if "metadata" in content and isinstance(
-                            content["metadata"], dict
-                        ):
-                            content_metadata = content["metadata"]
-                            if (
-                                key in content_metadata
-                                and content_metadata[key] == value
-                            ):
-                                logger.debug(
-                                    "Found nested match for %s: %s in content.metadata",
-                                    key,
-                                    value,
-                                )
-                                continue
 
                     # No match found for this key
                     unmatched_keys.append((key, value))

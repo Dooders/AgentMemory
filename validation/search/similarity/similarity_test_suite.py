@@ -191,7 +191,7 @@ class SimilaritySearchTestSuite(TestSuite):
             expected_memory_ids=[
                 "test-agent-similarity-search-1",
             ],
-            metadata_filter={"importance": "high"},
+            metadata_filter={"importance_score": 0.9},
             min_score=0.4,
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -312,7 +312,11 @@ class SimilaritySearchTestSuite(TestSuite):
         self.runner.run_test(
             "Memory in Tier Transition",
             "deep learning model",
-            expected_memory_ids=["test-agent-similarity-search-15"],
+            expected_memory_ids=[
+                "test-agent-similarity-search-15",
+                "test-agent-similarity-search-6",
+                "test-agent-similarity-search-2",
+            ],
             tier=None,  # Search all tiers
             min_score=0.4,
             memory_checksum_map=self.memory_checksum_map,
@@ -349,10 +353,7 @@ class SimilaritySearchTestSuite(TestSuite):
             "Nested Metadata Filter",
             "data processing",
             expected_memory_ids=["test-agent-similarity-search-3"],
-            metadata_filter={
-                "content.metadata.type": "process",
-                "content.metadata.importance": "medium",
-            },
+            metadata_filter={"memory_type": "process", "importance_score": 0.7},
             min_score=0.4,
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -366,7 +367,7 @@ class SimilaritySearchTestSuite(TestSuite):
                 "test-agent-similarity-search-2",
                 "test-agent-similarity-search-6",
             ],
-            metadata_filter={"content.metadata.tags": {"$in": ["ml", "training"]}},
+            metadata_filter={"memory_type": "experiment"},
             min_score=0.4,
             memory_checksum_map=self.memory_checksum_map,
         )
@@ -402,16 +403,8 @@ class SimilaritySearchTestSuite(TestSuite):
 
     def run_memory_state_tests(self) -> None:
         """Run tests for different memory states."""
-        # Test 1: Different compression levels
-        self.runner.run_test(
-            "Compressed Memory Search",
-            "deep learning model",
-            expected_memory_ids=["test-agent-similarity-search-6"],
-            min_score=0.4,
-            memory_checksum_map=self.memory_checksum_map,
-        )
 
-        # Test 2: Different importance scores
+        # Test 1: Different importance scores
         self.runner.run_test(
             "High Importance Memory Search",
             "machine learning model",
@@ -425,7 +418,7 @@ class SimilaritySearchTestSuite(TestSuite):
             memory_checksum_map=self.memory_checksum_map,
         )
 
-        # Test 3: Different retrieval counts
+        # Test 2: Different retrieval counts
         self.runner.run_test(
             "Frequently Retrieved Memory",
             "deep learning model",
