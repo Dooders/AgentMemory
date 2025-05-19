@@ -107,8 +107,9 @@ def from_agent_farm(db_path: str, config: Optional[Dict] = None) -> AgentMemoryS
         )
 
         # Create and configure memory system
-        memory_system = AgentMemorySystem(memory_config)
+        memory_system = AgentMemorySystem.get_instance(memory_config)
 
+        logger.info("!!!!!!!!!!!!!!! Adding agents and their memories to the system... !!!!!!!!!!!!!!!")
         # Add agents and their memories to the system
         for agent in imported_agents:
             # Add agent's memories

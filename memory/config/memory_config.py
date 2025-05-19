@@ -13,7 +13,7 @@ class RedisSTMConfig:
         self.db = 0  # Redis DB number
         self.namespace = "agent-stm"
         self.password = None
-        self.use_mock = False
+        self.use_mock = True
         self.test_mode = False  # Whether to run in test mode
 
         # Update with any provided values
@@ -34,7 +34,7 @@ class RedisIMConfig:
         self.db = 1  # Redis DB number
         self.namespace = "agent-im"
         self.password = None
-        self.use_mock = False
+        self.use_mock = True
         self.test_mode = False  # Whether to run in test mode
 
         # Update with any provided values
@@ -52,7 +52,7 @@ class SQLiteLTMConfig:
         self.compression_level = 1
         self.batch_size = 100
         self.table_prefix = "ltm"
-        self.use_mock = False
+        self.use_mock = True
 
         # Whitelist settings
         self.whitelist_enabled = True
