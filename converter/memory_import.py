@@ -301,8 +301,18 @@ class MemoryImporter:
         Raises:
             ValueError: If validation fails
         """
-        if not memory.id:
-            raise ValueError(f"{model_name} must have an ID")
+        # Mapping of model names to their ID fields
+        id_field_mapping = {
+            "ActionModel": "action_id",
+            "SocialInteractionModel": "interaction_id"
+        }
+        
+        # Determine the correct ID field for the model
+        id_field = id_field_mapping.get(model_name, "id")
+        
+        # Validate the presence of the ID field
+        if not getattr(memory, id_field, None):
+            raise ValueError(f"{model_name} must have a valid {id_field}")
             
         if not memory.agent_id:
             raise ValueError(f"{model_name} must have an agent ID")
