@@ -138,7 +138,9 @@ def from_agent_farm(db_path: str, config: Optional[Dict] = None) -> AgentMemoryS
 
             # Check if all memories were imported
             total_memories = sum(
-                len(agent.stm_store) + len(agent.im_store) + len(agent.ltm_store)
+                agent.stm_store.count(str(agent.agent_id)) + 
+                agent.im_store.count(str(agent.agent_id)) + 
+                agent.ltm_store.count()  # SQLiteLTMStore doesn't take agent_id
                 for agent in memory_system.agents.values()
             )
             if total_memories != len(all_memories):

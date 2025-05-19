@@ -88,7 +88,14 @@ def test_custom_memory_type_mapper():
         'CustomInteractionModel': 'interaction'
     }
     
-    mapper = MemoryTypeMapper(mapping=custom_mapping)
+    custom_required_models = {'CustomStateModel', 'CustomActionModel', 'CustomInteractionModel'}
+    custom_valid_types = {'state', 'action', 'interaction'}
+    
+    mapper = MemoryTypeMapper(
+        mapping=custom_mapping,
+        required_models=custom_required_models,
+        valid_types=custom_valid_types
+    )
     
     assert mapper.get_memory_type('CustomStateModel') == 'state'
     assert mapper.get_memory_type('CustomActionModel') == 'action'

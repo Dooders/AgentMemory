@@ -6,9 +6,9 @@ import logging
 from contextlib import contextmanager
 from typing import Generator, Optional
 
-from sqlalchemy import create_engine, func, inspect
+from sqlalchemy import create_engine, func, inspect, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
@@ -140,7 +140,6 @@ class DatabaseManager:
         if missing_tables:
             error_msg = f"Missing required tables: {missing_tables}"
             logger.error(error_msg)
-            
             if self.config.error_handling == 'fail':
                 raise ValueError(error_msg)
             return False
@@ -151,7 +150,6 @@ class DatabaseManager:
             if not columns:
                 error_msg = f"Table {table} has no columns"
                 logger.error(error_msg)
-                
                 if self.config.error_handling == 'fail':
                     raise ValueError(error_msg)
                 return False
@@ -169,9 +167,13 @@ class DatabaseManager:
         Raises:
             SQLAlchemyError: If query fails
         """
-        with self.session() as session:
-            result = session.query(func.max(SimulationStepModel.step_number)).scalar()
-            return result or 0
+        try:
+            with self.session() as session:
+                result = session.query(func.max(SimulationStepModel.step_number)).scalar()
+                return result or 0
+        except OperationalError:
+            # Table doesn't exist yet
+            return 0
             
     def get_agent_count(self) -> int:
         """
@@ -183,11 +185,16 @@ class DatabaseManager:
         Raises:
             SQLAlchemyError: If query fails
         """
-        with self.session() as session:
-            return session.query(func.count(AgentModel.agent_id)).scalar()
+        try:
+            with self.session() as session:
+                return session.query(func.count(AgentModel.agent_id)).scalar() or 0
+        except OperationalError:
+            # Table doesn't exist yet
+            return 0
             
     def close(self) -> None:
         """Close the database connection."""
         if self._engine:
             self._engine.dispose()
+            self._engine = None
             logger.info("Database connection closed") 

@@ -55,19 +55,25 @@ class MemoryTypeMapper:
     including validation and custom mapping support.
     """
     
-    def __init__(self, mapping: Optional[Dict[str, str]] = None):
+    def __init__(self, mapping: Optional[Dict[str, str]] = None, 
+                 required_models: Optional[Set[str]] = None,
+                 valid_types: Optional[Set[str]] = None):
         """
         Initialize the memory type mapper.
         
         Args:
             mapping: Optional custom mapping of model names to memory types
+            required_models: Optional set of required model names
+            valid_types: Optional set of valid memory types
         """
         self.mapping = MemoryTypeMapping(
             model_to_type=mapping or {
                 'AgentStateModel': 'state',
                 'ActionModel': 'action',
                 'SocialInteractionModel': 'interaction'
-            }
+            },
+            required_models=required_models,
+            valid_types=valid_types
         )
         
     @property

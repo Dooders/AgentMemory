@@ -4,6 +4,7 @@ Tests for the database connection manager.
 
 import os
 import pytest
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from converter.db import DatabaseManager
 from converter.config import ConverterConfig
@@ -37,7 +38,7 @@ def test_session_context_manager(db_manager):
     with db_manager.session() as session:
         assert session is not None
         # Test that session is working
-        result = session.execute("SELECT 1").scalar()
+        result = session.execute(text("SELECT 1")).scalar()
         assert result == 1
 
 def test_validate_database_missing_tables(db_manager):

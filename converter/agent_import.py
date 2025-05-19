@@ -110,7 +110,7 @@ class AgentImporter:
         # Create agent metadata
         metadata = AgentMetadata(
             agent_id=agent.agent_id,
-            name=f"Agent_{agent.agent_id}",
+            name=agent.name,
             metadata=self._extract_agent_metadata(agent),
             created_at=str(agent.birth_time),
             updated_at=str(agent.death_time or agent.birth_time)
