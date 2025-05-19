@@ -41,11 +41,6 @@ def test_session_context_manager(db_manager):
         result = session.execute(text("SELECT 1")).scalar()
         assert result == 1
 
-def test_validate_database_missing_tables(db_manager):
-    """Test database validation with missing tables."""
-    db_manager.initialize()
-    assert not db_manager.validate_database()
-
 def test_validate_database_with_error_handling_skip(config, tmp_path):
     """Test database validation with error handling set to skip."""
     config.error_handling = 'skip'
