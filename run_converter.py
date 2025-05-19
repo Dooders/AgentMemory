@@ -106,7 +106,7 @@ def main():
             {
                 "validate": args.validate,
                 "error_handling": args.error_handling,
-                "use_mock_redis": args.use_mock_redis,
+                "use_mock_redis": True,
                 "batch_size": args.batch_size,
                 "tiering_strategy_type": args.tiering_strategy,
             }

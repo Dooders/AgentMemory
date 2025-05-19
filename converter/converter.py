@@ -103,7 +103,7 @@ def from_agent_farm(db_path: str, config: Optional[Dict] = None) -> AgentMemoryS
 
         # Create memory system configuration
         memory_config = MemoryConfig(
-            use_mock_redis=converter_config.use_mock_redis, logging_level="INFO"
+            use_mock_redis=True, logging_level="INFO"
         )
 
         # Create and configure memory system
