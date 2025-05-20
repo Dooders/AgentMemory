@@ -102,13 +102,10 @@ def from_agent_farm(db_path: str, config: Optional[Dict] = None) -> AgentMemoryS
         logger.info(f"Successfully imported {len(all_memories)} total memories")
 
         # Create memory system configuration
-        memory_config = MemoryConfig(
-            use_mock_redis=True, logging_level="INFO"
-        )
+        memory_config = MemoryConfig(use_mock_redis=True, logging_level="INFO")
 
         # Create and configure memory system
-        memory_system = AgentMemorySystem(memory_config)
-
+        memory_system = AgentMemorySystem.get_instance(memory_config)
         # Add agents and their memories to the system
         for agent in imported_agents:
             # Add agent's memories
@@ -138,9 +135,9 @@ def from_agent_farm(db_path: str, config: Optional[Dict] = None) -> AgentMemoryS
 
             # Check if all memories were imported
             total_memories = sum(
-                agent.stm_store.count(str(agent.agent_id)) + 
-                agent.im_store.count(str(agent.agent_id)) + 
-                agent.ltm_store.count()  # SQLiteLTMStore doesn't take agent_id
+                agent.stm_store.count(str(agent.agent_id))
+                + agent.im_store.count(str(agent.agent_id))
+                + agent.ltm_store.count()  # SQLiteLTMStore doesn't take agent_id
                 for agent in memory_system.agents.values()
             )
             if total_memories != len(all_memories):

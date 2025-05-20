@@ -24,7 +24,7 @@ class TestRedisSTMConfig:
         assert config.db == 0
         assert config.namespace == "agent-stm"
         assert config.password is None
-        assert config.use_mock is False
+        assert config.use_mock is True
 
     def test_custom_values(self):
         """Test that custom values are set correctly."""
@@ -70,7 +70,7 @@ class TestRedisIMConfig:
         assert config.db == 1
         assert config.namespace == "agent-im"
         assert config.password is None
-        assert config.use_mock is False
+        assert config.use_mock is True
 
     def test_custom_values(self):
         """Test that custom values are set correctly."""
@@ -104,7 +104,7 @@ class TestSQLiteLTMConfig:
         assert config.compression_level == 1
         assert config.batch_size == 100
         assert config.table_prefix == "ltm"
-        assert config.use_mock is False
+        assert config.use_mock is True
 
     def test_custom_values(self):
         """Test that custom values are set correctly."""

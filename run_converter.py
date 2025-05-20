@@ -29,6 +29,7 @@ def main():
         "--output",
         "-o",
         type=str,
+        default="validation/memory_samples/agent_farm_memories.json",
         help="Path to save the memory system JSON file (optional)",
     )
     parser.add_argument(
