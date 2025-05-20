@@ -471,7 +471,8 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                         
                         
                         # Determine the tier for the memory
-                        tier = memory_copy.get("metadata", {}).get("current_tier")
+                        metadata = memory_copy.get("metadata", {})
+                        tier = metadata.get("current_tier") or metadata.get("tier")
                         if tier == "stm":
                             vector_store.store_memory_vectors(memory_copy, tier="stm")
                             memory_agent.stm_store.store(agent_id, memory_copy)
