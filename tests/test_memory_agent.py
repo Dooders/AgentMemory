@@ -98,6 +98,7 @@ def memory_agent(
     agent_id = "test-agent"
     config = MemoryConfig()
     config.autoencoder_config.use_neural_embeddings = True
+    config.text_model_name = "test-model"
     config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
     # Mock store classes before instantiating the agent
@@ -108,7 +109,7 @@ def memory_agent(
     ) as mock_ltm_class, mock.patch(
         "memory.agent_memory.CompressionEngine"
     ), mock.patch(
-        "memory.agent_memory.AutoencoderEmbeddingEngine"
+        "memory.embeddings.text_embeddings.TextEmbeddingEngine"
     ):
 
         # Configure the mock classes to return our mock instances
@@ -133,7 +134,10 @@ class TestMemoryAgentBasics:
         """Test memory agent initialization."""
         agent_id = "test-agent"
         config = MemoryConfig()
-        config.autoencoder_config.use_neural_embeddings = True
+        config.use_embedding_engine = True
+        config.text_model_name = (
+            "sentence-transformers/all-MiniLM-L6-v2"  # Use a real model
+        )
         config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
         with mock.patch("memory.agent_memory.RedisSTMStore") as mock_stm, mock.patch(
@@ -143,7 +147,7 @@ class TestMemoryAgentBasics:
         ) as mock_ltm, mock.patch(
             "memory.agent_memory.CompressionEngine"
         ) as mock_ce, mock.patch(
-            "memory.agent_memory.AutoencoderEmbeddingEngine"
+            "memory.embeddings.text_embeddings.TextEmbeddingEngine"
         ) as mock_ae:
 
             agent = MemoryAgent(agent_id, config)
@@ -153,7 +157,7 @@ class TestMemoryAgentBasics:
             mock_im.assert_called_once_with(config.im_config)
             mock_ltm.assert_called_once_with(agent_id, config.ltm_config)
             mock_ce.assert_called_once_with(config.autoencoder_config)
-            mock_ae.assert_called_once()
+            mock_ae.assert_called_once_with(model_name=config.text_model_name)
 
             assert agent.agent_id == agent_id
             assert agent.config == config
@@ -162,17 +166,20 @@ class TestMemoryAgentBasics:
         """Test memory agent initialization without neural embeddings."""
         agent_id = "test-agent"
         config = MemoryConfig()
-        config.autoencoder_config.use_neural_embeddings = False
+        config.use_embedding_engine = False
         config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
         with mock.patch("memory.agent_memory.RedisSTMStore"), mock.patch(
             "memory.agent_memory.RedisIMStore"
         ), mock.patch("memory.agent_memory.SQLiteLTMStore"), mock.patch(
             "memory.agent_memory.CompressionEngine"
-        ):
+        ), mock.patch(
+            "memory.embeddings.text_embeddings.TextEmbeddingEngine"
+        ) as mock_te:
 
             agent = MemoryAgent(agent_id, config)
             assert agent.embedding_engine is None
+            mock_te.assert_not_called()
 
 
 class TestMemoryStorage:
