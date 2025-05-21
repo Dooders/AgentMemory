@@ -4,7 +4,7 @@ Agent import system for the AgentFarm DB to Memory System converter.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .config import ConverterConfig
 from .db import DatabaseManager
@@ -66,7 +66,7 @@ class AgentImporter:
                     except Exception as e:
                         self._handle_import_error(e, agent)
 
-        return agents
+        return agents[0:1]  #! TODO: Remove this
 
     def _get_agent_query(self, session):
         """Get the appropriate agent query based on import mode."""
