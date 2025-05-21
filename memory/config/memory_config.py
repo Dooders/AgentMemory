@@ -98,6 +98,7 @@ class MemoryConfig:
         self.memory_priority_decay = 0.95
         self.enable_memory_hooks = True  # Default to enabled
         self.logging_level = "INFO"  # Default logging level
+        self.use_embedding_engine = True
 
         # Create config objects for each tier with default settings
         self.stm_config = RedisSTMConfig()
