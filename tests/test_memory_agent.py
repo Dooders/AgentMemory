@@ -28,7 +28,7 @@ import unittest.mock as mock
 import pytest
 
 from memory.agent_memory import MemoryAgent
-from memory.config import AutoencoderConfig, MemoryConfig
+from memory.config import MemoryConfig
 
 
 @pytest.fixture
@@ -98,24 +98,23 @@ def memory_agent(
     agent_id = "test-agent"
     config = MemoryConfig()
     config.autoencoder_config.use_neural_embeddings = True
-    config.text_model_name = "test-model"
+    config.text_model_name = "sentence-transformers/all-MiniLM-L6-v2"  # Use a real model
     config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
-    # Mock store classes before instantiating the agent
-    with mock.patch("memory.agent_memory.RedisSTMStore") as mock_stm_class, mock.patch(
+    with mock.patch("memory.agent_memory.RedisSTMStore") as mock_stm, mock.patch(
         "memory.agent_memory.RedisIMStore"
-    ) as mock_im_class, mock.patch(
+    ) as mock_im, mock.patch(
         "memory.agent_memory.SQLiteLTMStore"
-    ) as mock_ltm_class, mock.patch(
+    ) as mock_ltm, mock.patch(
         "memory.agent_memory.CompressionEngine"
-    ), mock.patch(
-        "memory.embeddings.text_embeddings.TextEmbeddingEngine"
-    ):
+    ) as mock_ce, mock.patch(
+        "memory.agent_memory.TextEmbeddingEngine"
+    ) as mock_ae:
 
         # Configure the mock classes to return our mock instances
-        mock_stm_class.return_value = mock_stm_store
-        mock_im_class.return_value = mock_im_store
-        mock_ltm_class.return_value = mock_ltm_store
+        mock_stm.return_value = mock_stm_store
+        mock_im.return_value = mock_im_store
+        mock_ltm.return_value = mock_ltm_store
 
         agent = MemoryAgent(agent_id, config)
 
@@ -147,7 +146,7 @@ class TestMemoryAgentBasics:
         ) as mock_ltm, mock.patch(
             "memory.agent_memory.CompressionEngine"
         ) as mock_ce, mock.patch(
-            "memory.embeddings.text_embeddings.TextEmbeddingEngine"
+            "memory.agent_memory.TextEmbeddingEngine"
         ) as mock_ae:
 
             agent = MemoryAgent(agent_id, config)
@@ -174,7 +173,7 @@ class TestMemoryAgentBasics:
         ), mock.patch("memory.agent_memory.SQLiteLTMStore"), mock.patch(
             "memory.agent_memory.CompressionEngine"
         ), mock.patch(
-            "memory.embeddings.text_embeddings.TextEmbeddingEngine"
+            "memory.agent_memory.TextEmbeddingEngine"
         ) as mock_te:
 
             agent = MemoryAgent(agent_id, config)
