@@ -99,6 +99,7 @@ class MemoryConfig:
         self.enable_memory_hooks = True  # Default to enabled
         self.logging_level = "INFO"  # Default logging level
         self.use_embedding_engine = True
+        self.text_model_name = "all-MiniLM-L6-v2"
 
         # Create config objects for each tier with default settings
         self.stm_config = RedisSTMConfig()
