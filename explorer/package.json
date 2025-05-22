@@ -1,0 +1,14 @@
+{
+  "name": "agent-memory-explorer",
+  "version": "0.1.0",
+  "description": "Electron-based Agent Memory Explorer (MVP)",
+  "main": "main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^29.0.0"
+  }
+} 
