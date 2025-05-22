@@ -6,9 +6,13 @@
   "author": "",
   "license": "MIT",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dev": "electron . --dev"
   },
   "dependencies": {
     "electron": "^29.0.0"
+  },
+  "devDependencies": {
+    "electron-reloader": "^1.2.3"
   }
 } 

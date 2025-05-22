@@ -2,6 +2,49 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// Enable hot reloading in development
+if (process.argv.includes('--dev')) {
+  try {
+    require('electron-reloader')(module, {
+      debug: true,
+      watchRenderer: true
+    });
+  } catch (_) { console.log('Error hot reloading'); }
+}
+
+// Get the default memory directory
+function getDefaultMemoryDir() {
+  // Point to the specific agent_farm_memories.json file
+  return path.join(__dirname, '..', 'validation', 'memory_samples', 'agent_farm_memories.json');
+}
+
+// Load memory files from a directory
+async function loadMemoryFiles(filePath) {
+  try {
+    console.log('Attempting to load file:', filePath);
+    if (!fs.existsSync(filePath)) {
+      console.error('File not found:', filePath);
+      return { error: 'Memory file not found' };
+    }
+
+    try {
+      console.log('Reading file...');
+      const raw = fs.readFileSync(filePath, 'utf8');
+      console.log('File read, size:', raw.length);
+      console.log('Parsing JSON...');
+      const data = JSON.parse(raw);
+      console.log('JSON parsed successfully, data type:', typeof data);
+      return { canceled: false, contents: [{ path: filePath, data }] };
+    } catch (err) {
+      console.error('Error processing file:', err);
+      return { error: `Failed to parse ${filePath}: ${err.message}` };
+    }
+  } catch (err) {
+    console.error('Error in loadMemoryFiles:', err);
+    return { error: err.message };
+  }
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
@@ -54,4 +97,13 @@ ipcMain.handle('dialog:openFiles', async () => {
     }
   }
   return { canceled: false, contents };
+});
+
+ipcMain.handle('loadDefaultMemories', async () => {
+  console.log('loadDefaultMemories called');
+  const memoryDir = getDefaultMemoryDir();
+  console.log('Default memory path:', memoryDir);
+  const result = await loadMemoryFiles(memoryDir);
+  console.log('Load result:', result);
+  return result;
 }); 
