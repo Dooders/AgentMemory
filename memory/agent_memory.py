@@ -56,32 +56,20 @@ class MemoryAgent:
             stm_dimension=config.autoencoder_config.stm_dim,
             im_dimension=config.autoencoder_config.im_dim,
             ltm_dimension=config.autoencoder_config.ltm_dim,
-            namespace=f"agent-{agent_id}"
+            namespace=f"agent-{agent_id}",
         )
 
         # Initialize compression engine
         self.compression_engine = CompressionEngine(config.autoencoder_config)
 
         # Initialize embedding engine based on configuration
-        if config.autoencoder_config.use_neural_embeddings:
-            if config.autoencoder_config.embedding_type == "text":
-                # Use text embedding model
-                self.embedding_engine = TextEmbeddingEngine(
-                    model_name=config.autoencoder_config.text_model_name
-                )
-                logger.info(
-                    f"Using text embeddings with model {config.autoencoder_config.text_model_name}"
-                )
-            else:
-                # Use traditional autoencoder
-                self.embedding_engine = AutoencoderEmbeddingEngine(
-                    model_path=config.autoencoder_config.model_path,
-                    input_dim=config.autoencoder_config.input_dim,
-                    stm_dim=config.autoencoder_config.stm_dim,
-                    im_dim=config.autoencoder_config.im_dim,
-                    ltm_dim=config.autoencoder_config.ltm_dim,
-                )
-                logger.info(f"Using autoencoder neural embeddings")
+        if config.use_embedding_engine:
+            # Use text embedding model
+            self.embedding_engine = TextEmbeddingEngine(
+                model_name=config.text_model_name
+            )
+            logger.info(f"Using text embeddings with model {config.text_model_name}")
+
         else:
             self.embedding_engine = None
             logger.warning(
