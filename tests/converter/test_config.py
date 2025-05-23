@@ -4,7 +4,7 @@ Tests for the configuration system.
 
 import pytest
 from converter.config import ConverterConfig
-from converter.tiering import StepBasedTieringStrategy, ImportanceAwareTieringStrategy
+from converter.tiering import SimpleTieringStrategy, StepBasedTieringStrategy, ImportanceAwareTieringStrategy
 from converter.mapping import MemoryTypeMapper
 
 def test_default_config():
@@ -17,8 +17,8 @@ def test_default_config():
     assert config.show_progress is True
     assert config.import_mode == "full"
     assert config.selective_agents is None
-    assert config.tiering_strategy_type == "step_based"
-    assert isinstance(config.tiering_strategy, StepBasedTieringStrategy)
+    assert config.tiering_strategy_type == "simple"
+    assert isinstance(config.tiering_strategy, SimpleTieringStrategy)
     assert isinstance(config.memory_type_mapper, MemoryTypeMapper)
     assert config.memory_type_mapping == {
         'AgentStateModel': 'state',

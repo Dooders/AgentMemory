@@ -98,7 +98,9 @@ def memory_agent(
     agent_id = "test-agent"
     config = MemoryConfig()
     config.autoencoder_config.use_neural_embeddings = True
-    config.text_model_name = "sentence-transformers/all-MiniLM-L6-v2"  # Use a real model
+    config.text_model_name = (
+        "sentence-transformers/all-MiniLM-L6-v2"  # Use a real model
+    )
     config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
     with mock.patch("memory.agent_memory.RedisSTMStore") as mock_stm, mock.patch(

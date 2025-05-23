@@ -221,10 +221,9 @@ class MemoryAgent:
         Returns:
             Formatted memory entry
         """
-        # Generate unique memory ID with type prefix and UUID
+        # Generate memory ID using agent_id, step number and timestamp
         timestamp = int(time.time())
-        unique_id = uuid.uuid4().hex[:8]  # Use first 8 chars of UUID for uniqueness
-        memory_id = f"{memory_type}_{self.agent_id}_{step_number}_{unique_id}"
+        memory_id = f"{self.agent_id}-{step_number}-{timestamp}"
 
         # Generate embeddings if available
         embeddings = {}

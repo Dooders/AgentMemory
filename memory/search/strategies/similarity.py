@@ -224,6 +224,10 @@ class SimilaritySearchStrategy(SearchStrategy):
                             )
                             continue
 
+                    # Ensure memory has required fields
+                    if "id" not in memory:
+                        memory["id"] = memory_id
+                    
                     # Attach similarity score and tier information
                     if "metadata" not in memory:
                         memory["metadata"] = {}
