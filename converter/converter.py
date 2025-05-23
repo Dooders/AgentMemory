@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from memory.config import MemoryConfig
+from memory.config import MemoryConfig, RedisSTMConfig
 from memory.core import AgentMemorySystem
 
 from .agent_import import AgentImporter, AgentMetadata
@@ -102,7 +102,15 @@ def from_agent_farm(db_path: str, config: Optional[Dict] = None) -> AgentMemoryS
         logger.info(f"Successfully imported {len(all_memories)} total memories")
 
         # Create memory system configuration
-        memory_config = MemoryConfig(use_mock_redis=True, logging_level="INFO")
+        memory_config = MemoryConfig(
+            use_mock_redis=True,
+            logging_level="INFO",
+            stm_config=RedisSTMConfig(
+                memory_limit=10000,  # Increase STM memory limit
+                ttl=86400,  # 24 hours
+                namespace="agent-stm",
+            ),
+        )
 
         # Create and configure memory system
         memory_system = AgentMemorySystem.get_instance(memory_config)

@@ -3,6 +3,7 @@
 import logging
 import math
 import time
+import uuid
 from typing import Any, Dict, List, Optional, Union
 
 from memory.config import MemoryConfig
@@ -220,7 +221,7 @@ class MemoryAgent:
         Returns:
             Formatted memory entry
         """
-        # Generate unique memory ID
+        # Generate memory ID using agent_id, step number and timestamp
         timestamp = int(time.time())
         memory_id = f"{self.agent_id}-{step_number}-{timestamp}"
 

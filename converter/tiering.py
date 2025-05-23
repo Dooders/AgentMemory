@@ -31,6 +31,15 @@ class TieringStrategy(ABC):
         """
         pass
 
+class SimpleTieringStrategy(TieringStrategy):
+    """
+    Simple tiering strategy that puts all memories in STM.
+    """
+    
+    def determine_tier(self, context: TieringContext) -> str:
+        """Always return STM tier."""
+        return "stm"
+
 class StepBasedTieringStrategy(TieringStrategy):
     """
     Step-based time decay tiering strategy.
@@ -86,12 +95,12 @@ class ImportanceAwareTieringStrategy(StepBasedTieringStrategy):
             
         return base_tier
 
-def create_tiering_strategy(strategy_type: str = "step_based") -> TieringStrategy:
+def create_tiering_strategy(strategy_type: str = "simple") -> TieringStrategy:
     """
     Factory function to create tiering strategies.
     
     Args:
-        strategy_type: Type of strategy to create ("step_based" or "importance_aware")
+        strategy_type: Type of strategy to create ("simple", "step_based", or "importance_aware")
         
     Returns:
         Configured TieringStrategy instance
@@ -100,6 +109,7 @@ def create_tiering_strategy(strategy_type: str = "step_based") -> TieringStrateg
         ValueError: If strategy_type is invalid
     """
     strategies = {
+        "simple": SimpleTieringStrategy,
         "step_based": StepBasedTieringStrategy,
         "importance_aware": ImportanceAwareTieringStrategy
     }

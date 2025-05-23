@@ -265,14 +265,14 @@ class MemoryImporter:
         )
         tier = self.tiering_strategy.determine_tier(tiering_context)
         
-        # Get the correct ID field based on model type
+        # Get the correct ID field based on model type and ensure uniqueness
         memory_id = None
         if model_name == 'ActionModel':
-            memory_id = getattr(memory, 'action_id', None)
+            memory_id = f"action_{getattr(memory, 'action_id', None)}_step_{getattr(memory, 'step_number', 0)}"
         elif model_name == 'SocialInteractionModel':
-            memory_id = getattr(memory, 'interaction_id', None)
+            memory_id = f"interaction_{getattr(memory, 'interaction_id', None)}_step_{getattr(memory, 'step_number', 0)}"
         elif model_name == 'AgentStateModel':
-            memory_id = getattr(memory, 'id', None)
+            memory_id = f"state_{getattr(memory, 'id', None)}_step_{getattr(memory, 'step_number', 0)}"
             
         if memory_id is None:
             logger.warning(f"Could not find ID for {model_name} memory")
