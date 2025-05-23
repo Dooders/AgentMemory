@@ -3,6 +3,7 @@
 import logging
 import math
 import time
+import uuid
 from typing import Any, Dict, List, Optional, Union
 
 from memory.config import MemoryConfig
@@ -220,9 +221,10 @@ class MemoryAgent:
         Returns:
             Formatted memory entry
         """
-        # Generate unique memory ID
+        # Generate unique memory ID with type prefix and UUID
         timestamp = int(time.time())
-        memory_id = f"{self.agent_id}-{step_number}-{timestamp}"
+        unique_id = uuid.uuid4().hex[:8]  # Use first 8 chars of UUID for uniqueness
+        memory_id = f"{memory_type}_{self.agent_id}_{step_number}_{unique_id}"
 
         # Generate embeddings if available
         embeddings = {}
