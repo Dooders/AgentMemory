@@ -35,7 +35,7 @@ class ConverterConfig:
     memory_type_mapper: Optional[MemoryTypeMapper] = None
     
     # Tiering strategy
-    tiering_strategy_type: str = "step_based"  # One of: "step_based", "importance_aware"
+    tiering_strategy_type: str = "simple"  # One of: "simple", "step_based", "importance_aware"
     tiering_strategy: Optional[TieringStrategy] = None
     
     # Import settings
@@ -81,7 +81,7 @@ class ConverterConfig:
             
     def _validate_tiering_strategy(self):
         """Validate tiering strategy settings."""
-        valid_types = ["step_based", "importance_aware"]
+        valid_types = ["simple", "step_based", "importance_aware"]
         if self.tiering_strategy_type not in valid_types:
             raise ValueError(
                 f"Invalid tiering_strategy_type: {self.tiering_strategy_type}. "
@@ -100,7 +100,7 @@ DEFAULT_CONFIG = {
         'ActionModel': 'action',
         'SocialInteractionModel': 'interaction'
     },
-    'tiering_strategy_type': 'step_based',
+    'tiering_strategy_type': 'simple',
     'import_mode': 'full',
     'selective_agents': None
 } 
