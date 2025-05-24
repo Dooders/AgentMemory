@@ -344,12 +344,6 @@ class AgentMemorySystem:
         Returns:
             memory_id of the added memory
         """
-        # Generate memory_id if not provided
-        memory_id = memory_data.get(
-            "memory_id", f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-        )
-        memory_data["memory_id"] = memory_id
-
         # Get agent_id from memory or use a default
         agent_id = memory_data.get("agent_id", "default_agent")
 
@@ -383,7 +377,7 @@ class AgentMemorySystem:
                 memory_data.get("content", {}), step_number, priority, tier
             )
 
-        return memory_id
+        return memory_data["memory_id"]
 
     def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a memory by its memory_id.

@@ -11,6 +11,7 @@ from pathlib import Path
 from converter.config import DEFAULT_CONFIG
 from converter.converter import from_agent_farm
 
+
 def main():
     db_path = "data/simulation.db"
     output = "validation/memory_samples/agent_farm_memories.json"
@@ -70,13 +71,14 @@ def main():
     # Run converter
     logger.info(f"Converting database: {db_path}")
     memory_system = from_agent_farm(db_path, config)
-    
+
     return memory_system
+
 
 if __name__ == "__main__":
     memory_system = main()
-    agent = memory_system.agents['nWpvyFJReoFD5Fnq7AEggt']
-    stats = agent.get_memory_statistics('nWpvyFJReoFD5Fnq7AEggt')
+    agent = memory_system.agents["nWpvyFJReoFD5Fnq7AEggt"]
+    stats = agent.get_memory_statistics("nWpvyFJReoFD5Fnq7AEggt")
     print(f"STM count: {stats['tiers']['stm']['count']}")
     print(f"IM count: {stats['tiers']['im']['count']}")
     print(f"LTM count: {stats['tiers']['ltm']['count']}")
