@@ -586,14 +586,12 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
                         clean_memory[k] = v
 
                 # Ensure all required fields for schema validation are present
-                if "memory_id" not in clean_memory:
-                    clean_memory["memory_id"] = (
-                        f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-                    )
+                if "memory_id" not in clean_memory or clean_memory["memory_id"] is None:
+                    clean_memory["memory_id"] = str(f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}")
                     logger.debug(f"Added memory_id to memory {i}")
 
-                if "agent_id" not in clean_memory:
-                    clean_memory["agent_id"] = agent_id
+                if "agent_id" not in clean_memory or clean_memory["agent_id"] is None:
+                    clean_memory["agent_id"] = str(agent_id)
                     logger.debug(f"Added agent_id to memory {i}")
 
                 if "content" not in clean_memory:
@@ -602,6 +600,8 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
 
                 # Ensure the memory type is set correctly and consistently
                 memory_type = memory.get("type", "generic")
+                if memory_type is None:
+                    memory_type = "generic"
 
                 # If type is generic, try to get it from metadata
                 if memory_type == "generic" and "metadata" in memory:
@@ -613,7 +613,7 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
                         )
 
                 # Always ensure both top-level type and metadata.memory_type are consistent
-                clean_memory["type"] = memory_type
+                clean_memory["type"] = str(memory_type)
                 logger.debug(f"Set memory type to {memory_type} for memory {i}")
 
                 # Ensure metadata is present with all required fields
@@ -629,16 +629,16 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
                     metadata["last_access_time"] = int(time.time())
 
                 if "importance_score" not in metadata:
-                    metadata["importance_score"] = memory.get("priority", 1.0)
+                    metadata["importance_score"] = float(memory.get("priority", 1.0))
 
                 if "retrieval_count" not in metadata:
                     metadata["retrieval_count"] = 0
 
-                if "current_tier" not in metadata:
+                if "current_tier" not in metadata or metadata["current_tier"] is None:
                     metadata["current_tier"] = "stm"
 
                 # Ensure memory_type in metadata matches the top-level type
-                metadata["memory_type"] = memory_type
+                metadata["memory_type"] = str(memory_type)
                 logger.debug(
                     f"Set metadata.memory_type to {memory_type} for memory {i}"
                 )
@@ -658,6 +658,23 @@ def save_memory_system_to_json(memory_system, filepath: str) -> bool:
                 logger.debug(
                     f"Memory {i} metadata keys: {list(clean_memory.get('metadata', {}).keys())}"
                 )
+
+                # Final validation of required string fields
+                required_string_fields = {
+                    "memory_id": clean_memory["memory_id"],
+                    "agent_id": clean_memory["agent_id"],
+                    "type": clean_memory["type"],
+                    "metadata.memory_type": clean_memory["metadata"]["memory_type"],
+                    "metadata.current_tier": clean_memory["metadata"]["current_tier"]
+                }
+
+                for field, value in required_string_fields.items():
+                    if value is None:
+                        logger.error(f"Required string field {field} is None in memory {i}")
+                        return False
+                    if not isinstance(value, str):
+                        logger.error(f"Required string field {field} is not a string in memory {i}")
+                        return False
 
                 clean_memories.append(clean_memory)
 
