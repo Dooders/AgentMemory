@@ -435,7 +435,10 @@ class TestMemoryStorage:
             )
 
             # Check structure
-            assert entry["memory_id"] == f"{memory_agent.agent_id}-{step_number}-12345"
+            assert (
+                entry["memory_id"]
+                == f"{memory_type}_{memory_agent.agent_id}_{step_number}"
+            )
             assert entry["agent_id"] == memory_agent.agent_id
             assert entry["step_number"] == step_number
             assert entry["timestamp"] == 12345

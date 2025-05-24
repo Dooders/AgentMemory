@@ -14,6 +14,7 @@ from memory.embeddings.vector_store import VectorStore
 from memory.storage.redis_im import RedisIMStore
 from memory.storage.redis_stm import RedisSTMStore
 from memory.storage.sqlite_ltm import SQLiteLTMStore
+from memory.utils.identity import generate_memory_id
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +224,7 @@ class MemoryAgent:
         """
         # Generate memory ID using agent_id, step number and timestamp
         timestamp = int(time.time())
-        memory_id = f"{self.agent_id}-{step_number}-{timestamp}"
+        memory_id = generate_memory_id(memory_type, self.agent_id, step_number)
 
         # Generate embeddings if available
         embeddings = {}

@@ -63,8 +63,14 @@ class DatabaseManager:
     def initialize(self) -> None:
         """Initialize the database connection and session factory."""
         try:
+            # Handle in-memory database
+            if self.db_path == 'sqlite:///:memory:':
+                engine_url = 'sqlite:///:memory:'
+            else:
+                engine_url = f'sqlite:///{self.db_path}'
+                
             self._engine = create_engine(
-                f'sqlite:///{self.db_path}',
+                engine_url,
                 poolclass=QueuePool,
                 pool_size=5,
                 max_overflow=10,

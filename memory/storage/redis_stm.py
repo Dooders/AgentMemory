@@ -251,7 +251,9 @@ class RedisSTMStore:
             # If it has embeddings, store for vector search
             embeddings = memory_entry.get("embeddings", {})
             if embeddings and "full_vector" in embeddings:
-                vector_key = self._get_vector_key(agent_id, memory_id)
+                vector_key = self._get_vector_key(
+                    agent_id, memory_id
+                )  #! should this be memory_id?
                 self.redis.set(
                     vector_key,
                     json.dumps(embeddings["full_vector"]),
