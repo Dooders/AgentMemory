@@ -304,9 +304,9 @@ class RedisVectorIndex(VectorIndex):
 
             # Store in Redis
             key = f"{self.index_name}:{id}"
-            self.redis.hset(
+            self.redis.hset_dict(
                 key,
-                mapping={
+                {
                     self.vector_field: vector_bytes,
                     "metadata": metadata_json,
                     "timestamp": int(time.time()),
@@ -511,6 +511,7 @@ class VectorStore:
             ltm_dimension: Dimension of LTM vectors
             namespace: Namespace prefix for indices
         """
+        redis_client = None  #! Temporary: Need to adapt MockRedis to work with RedisVectorIndex
         self.redis_client = redis_client
 
         # Initialize vector indices based on available backends

@@ -27,8 +27,8 @@ Example:
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from memory.space import MemorySpace
 from memory.config import MemoryConfig
+from memory.space import MemorySpace
 
 logger = logging.getLogger(__name__)
 
