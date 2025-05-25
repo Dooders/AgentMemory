@@ -22,14 +22,16 @@ function getDefaultMemoryDir() {
 async function loadMemoryFiles(filePath) {
   try {
     console.log('Attempting to load file:', filePath);
-    if (!fs.existsSync(filePath)) {
+    try {
+      await fs.access(filePath);
+    } catch {
       console.error('File not found:', filePath);
       return { error: 'Memory file not found' };
     }
 
     try {
       console.log('Reading file...');
-      const raw = fs.readFileSync(filePath, 'utf8');
+      const raw = await fs.readFile(filePath, 'utf8');
       console.log('File read, size:', raw.length);
       console.log('Parsing JSON...');
       const data = JSON.parse(raw);
