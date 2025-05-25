@@ -125,7 +125,7 @@ def test_total_steps():
     """Test total_steps configuration."""
     config = ConverterConfig(total_steps=1000)
     assert config.total_steps == 1000
-    
+
     # Test default value
     config = ConverterConfig()
     assert config.total_steps is None
@@ -140,8 +140,9 @@ def test_log_error_handling():
 def test_default_config_matches_class():
     """Test that DEFAULT_CONFIG matches the default values of ConverterConfig."""
     from converter.config import DEFAULT_CONFIG
+
     config = ConverterConfig()
-    
+
     assert DEFAULT_CONFIG["use_mock_redis"] == config.use_mock_redis
     assert DEFAULT_CONFIG["validate"] == config.validate
     assert DEFAULT_CONFIG["error_handling"] == config.error_handling
