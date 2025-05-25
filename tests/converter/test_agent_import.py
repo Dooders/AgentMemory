@@ -96,7 +96,7 @@ def test_import_agents_full_mode(mock_db_manager, mock_config, mock_agent):
     assert len(agents) == 1
     assert isinstance(agents[0], AgentMetadata)
     assert agents[0].agent_id == mock_agent.agent_id
-    assert agents[0].name == mock_agent.name
+    assert agents[0].name == f"Agent-{mock_agent.agent_id}"
 
     # Verify query chain
     mock_session.query.assert_called_once_with(mock_db_manager.AgentModel)
@@ -300,7 +300,7 @@ def test_import_agent_with_death_time(
     metadata = importer._import_agent(mock_agent_with_death)
 
     assert metadata.agent_id == mock_agent_with_death.agent_id
-    assert metadata.name == mock_agent_with_death.name
+    assert metadata.name == f"Agent-{mock_agent_with_death.agent_id}"
     assert metadata.created_at == mock_agent_with_death.birth_time
     assert metadata.updated_at == mock_agent_with_death.death_time
 
