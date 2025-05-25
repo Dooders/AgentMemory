@@ -44,7 +44,7 @@ class TestAgentMemoryAPI:
         return AgentMemoryAPI()
 
     @pytest.fixture
-    def mock_memory_agent(self):
+    def mock_memory_space(self):
         """Create a mock memory agent."""
         mock_agent = Mock()
         mock_agent.stm_store = Mock()
@@ -103,7 +103,7 @@ class TestAgentMemoryAPI:
             "agent1", action_data, 42, 0.8
         )
 
-    def test_retrieve_state_by_id(self, api, mock_memory_system, mock_memory_agent):
+    def test_retrieve_state_by_id(self, api, mock_memory_system, mock_memory_space):
         """Test retrieving a state by ID."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
@@ -112,21 +112,21 @@ class TestAgentMemoryAPI:
         expected_memory = {"memory_id": memory_id, "contents": {"health": 0.8}}
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.stm_store.get.return_value = None
-        mock_memory_agent.im_store.get.return_value = None
-        mock_memory_agent.ltm_store.get.return_value = expected_memory
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.stm_store.get.return_value = None
+        mock_memory_space.im_store.get.return_value = None
+        mock_memory_space.ltm_store.get.return_value = expected_memory
 
         # Call and verify
         result = api.retrieve_state_by_id("agent1", memory_id)
         assert result == expected_memory
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
-        mock_memory_agent.stm_store.get.assert_called_once_with(memory_id)
-        mock_memory_agent.im_store.get.assert_called_once_with(memory_id)
-        mock_memory_agent.ltm_store.get.assert_called_once_with(memory_id)
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
+        mock_memory_space.stm_store.get.assert_called_once_with(memory_id)
+        mock_memory_space.im_store.get.assert_called_once_with(memory_id)
+        mock_memory_space.ltm_store.get.assert_called_once_with(memory_id)
 
-    def test_retrieve_recent_states(self, api, mock_memory_system, mock_memory_agent):
+    def test_retrieve_recent_states(self, api, mock_memory_system, mock_memory_space):
         """Test retrieving recent states."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
@@ -134,17 +134,17 @@ class TestAgentMemoryAPI:
         expected_states = [{"memory_id": f"mem{i}", "contents": {}} for i in range(5)]
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.stm_store.get_recent.return_value = expected_states
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.stm_store.get_recent.return_value = expected_states
 
         # Call and verify
         result = api.retrieve_recent_states("agent1", 5, "state")
         assert result == expected_states
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
-        mock_memory_agent.stm_store.get_recent.assert_called_once_with(5, "state")
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
+        mock_memory_space.stm_store.get_recent.assert_called_once_with(5, "state")
 
-    def test_retrieve_similar_states(self, api, mock_memory_system, mock_memory_agent):
+    def test_retrieve_similar_states(self, api, mock_memory_system, mock_memory_space):
         """Test retrieving similar states."""
         # Setup
         # Unpack to get just the mock instance
@@ -161,7 +161,7 @@ class TestAgentMemoryAPI:
         mock_embedding_engine.ensure_embedding_dimensions.return_value = [0.1, 0.2]
 
         # Set up memory agent with embedding engine
-        mock_memory_agent.embedding_engine = mock_embedding_engine
+        mock_memory_space.embedding_engine = mock_embedding_engine
 
         # Set up store search results
         stm_result = [
@@ -201,24 +201,24 @@ class TestAgentMemoryAPI:
         ]
 
         # Configure mock store search methods
-        mock_memory_agent.stm_store.search_by_vector.return_value = stm_result
-        mock_memory_agent.im_store.search_by_vector.return_value = im_result
-        mock_memory_agent.ltm_store.search_by_vector.return_value = ltm_result
+        mock_memory_space.stm_store.search_by_vector.return_value = stm_result
+        mock_memory_space.im_store.search_by_vector.return_value = im_result
+        mock_memory_space.ltm_store.search_by_vector.return_value = ltm_result
 
-        # Mock get_memory_agent to return our mock
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        # Mock get_memory_space to return our mock
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Call method
         result = api.retrieve_similar_states(agent_id, query_state, k, memory_type)
 
         # Assertions
-        mock_instance.get_memory_agent.assert_called_once_with(agent_id)
+        mock_instance.get_memory_space.assert_called_once_with(agent_id)
         mock_embedding_engine.encode_stm.assert_called_once_with(query_state)
 
         # Check store search calls
-        mock_memory_agent.stm_store.search_by_vector.assert_called_once()
-        mock_memory_agent.im_store.search_by_vector.assert_called_once()
-        mock_memory_agent.ltm_store.search_by_vector.assert_called_once()
+        mock_memory_space.stm_store.search_by_vector.assert_called_once()
+        mock_memory_space.im_store.search_by_vector.assert_called_once()
+        mock_memory_space.ltm_store.search_by_vector.assert_called_once()
 
         # Verify result is sorted by similarity score
         assert len(result) == 3
@@ -228,7 +228,7 @@ class TestAgentMemoryAPI:
         assert result[0]["_similarity_score"] > result[1]["_similarity_score"]
         assert result[1]["_similarity_score"] > result[2]["_similarity_score"]
 
-    def test_retrieve_by_time_range(self, api, mock_memory_system, mock_memory_agent):
+    def test_retrieve_by_time_range(self, api, mock_memory_system, mock_memory_space):
         """Test retrieving memories by time range."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
@@ -238,10 +238,10 @@ class TestAgentMemoryAPI:
         ltm_results = [{"memory_id": "ltm1", "step_number": 2}]
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.stm_store.get_by_step_range.return_value = stm_results
-        mock_memory_agent.im_store.get_by_step_range.return_value = im_results
-        mock_memory_agent.ltm_store.get_by_step_range.return_value = ltm_results
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.stm_store.get_by_step_range.return_value = stm_results
+        mock_memory_space.im_store.get_by_step_range.return_value = im_results
+        mock_memory_space.ltm_store.get_by_step_range.return_value = ltm_results
 
         # Call and verify
         result = api.retrieve_by_time_range("agent1", 1, 10, "state")
@@ -254,18 +254,18 @@ class TestAgentMemoryAPI:
         ]
         assert result == expected
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
-        mock_memory_agent.stm_store.get_by_step_range.assert_called_once_with(
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
+        mock_memory_space.stm_store.get_by_step_range.assert_called_once_with(
             1, 10, "state"
         )
-        mock_memory_agent.im_store.get_by_step_range.assert_called_once_with(
+        mock_memory_space.im_store.get_by_step_range.assert_called_once_with(
             1, 10, "state"
         )
-        mock_memory_agent.ltm_store.get_by_step_range.assert_called_once_with(
+        mock_memory_space.ltm_store.get_by_step_range.assert_called_once_with(
             1, 10, "state"
         )
 
-    def test_retrieve_by_attributes(self, api, mock_memory_system, mock_memory_agent):
+    def test_retrieve_by_attributes(self, api, mock_memory_system, mock_memory_space):
         """Test retrieving memories by attributes."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
@@ -276,10 +276,10 @@ class TestAgentMemoryAPI:
         attributes = {"location": "kitchen", "mood": "happy"}
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.stm_store.get_by_attributes.return_value = stm_results
-        mock_memory_agent.im_store.get_by_attributes.return_value = im_results
-        mock_memory_agent.ltm_store.get_by_attributes.return_value = ltm_results
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.stm_store.get_by_attributes.return_value = stm_results
+        mock_memory_space.im_store.get_by_attributes.return_value = im_results
+        mock_memory_space.ltm_store.get_by_attributes.return_value = ltm_results
 
         # Call and verify
         result = api.retrieve_by_attributes("agent1", attributes, "state")
@@ -292,18 +292,18 @@ class TestAgentMemoryAPI:
         ]
         assert result == expected
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
-        mock_memory_agent.stm_store.get_by_attributes.assert_called_once_with(
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
+        mock_memory_space.stm_store.get_by_attributes.assert_called_once_with(
             attributes, "state"
         )
-        mock_memory_agent.im_store.get_by_attributes.assert_called_once_with(
+        mock_memory_space.im_store.get_by_attributes.assert_called_once_with(
             attributes, "state"
         )
-        mock_memory_agent.ltm_store.get_by_attributes.assert_called_once_with(
+        mock_memory_space.ltm_store.get_by_attributes.assert_called_once_with(
             attributes, "state"
         )
 
-    def test_search_by_embedding(self, api, mock_memory_system, mock_memory_agent):
+    def test_search_by_embedding(self, api, mock_memory_system, mock_memory_space):
         """Test searching by embedding vector."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
@@ -314,23 +314,23 @@ class TestAgentMemoryAPI:
         memory_tiers = ["stm", "im"]
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Mock the embedding engine existence
-        mock_memory_agent.embedding_engine = Mock()
+        mock_memory_space.embedding_engine = Mock()
 
         # Mock the ensure_embedding_dimensions to return the same embedding
-        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.return_value = (
+        mock_memory_space.embedding_engine.ensure_embedding_dimensions.return_value = (
             query_embedding
         )
 
         # Setup embedding engine with correct configuration
         mock_config = MagicMock()
         mock_config.autoencoder_config.im_dim = 4  # Match query_embedding length
-        mock_memory_agent.config = mock_config
+        mock_memory_space.config = mock_config
 
-        mock_memory_agent.stm_store.search_by_vector.return_value = stm_results
-        mock_memory_agent.im_store.search_by_vector.return_value = im_results
+        mock_memory_space.stm_store.search_by_vector.return_value = stm_results
+        mock_memory_space.im_store.search_by_vector.return_value = im_results
 
         # Call and verify
         result = api.search_by_embedding(
@@ -344,25 +344,25 @@ class TestAgentMemoryAPI:
         ]
         assert result == expected
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
 
         # Verify ensure_embedding_dimensions is called for each tier
-        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.assert_any_call(
+        mock_memory_space.embedding_engine.ensure_embedding_dimensions.assert_any_call(
             query_embedding, "stm"
         )
-        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.assert_any_call(
+        mock_memory_space.embedding_engine.ensure_embedding_dimensions.assert_any_call(
             query_embedding, "im"
         )
 
         # Verify search_by_vector is called with the converted embedding
-        mock_memory_agent.stm_store.search_by_vector.assert_called_once_with(
+        mock_memory_space.stm_store.search_by_vector.assert_called_once_with(
             query_embedding, k=5
         )
-        mock_memory_agent.im_store.search_by_vector.assert_called_once_with(
+        mock_memory_space.im_store.search_by_vector.assert_called_once_with(
             query_embedding, k=4
         )
 
-    def test_search_by_content_string(self, api, mock_memory_system, mock_memory_agent):
+    def test_search_by_content_string(self, api, mock_memory_system, mock_memory_space):
         """Test searching by content (string)."""
         # Setup
         # Unpack to get just the mock instance
@@ -376,27 +376,27 @@ class TestAgentMemoryAPI:
         im_result = [{"memory_id": "im-1", "agent_id": agent_id, "step_number": 5}]
 
         # Configure mock stores
-        mock_memory_agent.stm_store.search_by_content.return_value = stm_result
-        mock_memory_agent.im_store.search_by_content.return_value = im_result
-        mock_memory_agent.ltm_store.search_by_content.return_value = []
+        mock_memory_space.stm_store.search_by_content.return_value = stm_result
+        mock_memory_space.im_store.search_by_content.return_value = im_result
+        mock_memory_space.ltm_store.search_by_content.return_value = []
 
-        # Mock get_memory_agent to return our mock
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        # Mock get_memory_space to return our mock
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Call method
         result = api.search_by_content(agent_id, content_query, k)
 
         # Assertions
-        mock_instance.get_memory_agent.assert_called_once_with(agent_id)
-        mock_memory_agent.stm_store.search_by_content.assert_called_once()
-        mock_memory_agent.im_store.search_by_content.assert_called_once()
-        mock_memory_agent.ltm_store.search_by_content.assert_called_once()
+        mock_instance.get_memory_space.assert_called_once_with(agent_id)
+        mock_memory_space.stm_store.search_by_content.assert_called_once()
+        mock_memory_space.im_store.search_by_content.assert_called_once()
+        mock_memory_space.ltm_store.search_by_content.assert_called_once()
 
         # Check results
         assert len(result) == 2
         assert all(isinstance(item, dict) for item in result)
 
-    def test_search_by_content_dict(self, api, mock_memory_system, mock_memory_agent):
+    def test_search_by_content_dict(self, api, mock_memory_system, mock_memory_space):
         """Test searching by content (dict)."""
         # Setup
         # Unpack to get just the mock instance
@@ -410,27 +410,27 @@ class TestAgentMemoryAPI:
         im_result = [{"memory_id": "im-1", "agent_id": agent_id, "step_number": 5}]
 
         # Configure mock stores
-        mock_memory_agent.stm_store.search_by_content.return_value = stm_result
-        mock_memory_agent.im_store.search_by_content.return_value = im_result
-        mock_memory_agent.ltm_store.search_by_content.return_value = []
+        mock_memory_space.stm_store.search_by_content.return_value = stm_result
+        mock_memory_space.im_store.search_by_content.return_value = im_result
+        mock_memory_space.ltm_store.search_by_content.return_value = []
 
-        # Mock get_memory_agent to return our mock
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        # Mock get_memory_space to return our mock
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Call method
         result = api.search_by_content(agent_id, content_query, k)
 
         # Assertions
-        mock_instance.get_memory_agent.assert_called_once_with(agent_id)
-        mock_memory_agent.stm_store.search_by_content.assert_called_once()
-        mock_memory_agent.im_store.search_by_content.assert_called_once()
-        mock_memory_agent.ltm_store.search_by_content.assert_called_once()
+        mock_instance.get_memory_space.assert_called_once_with(agent_id)
+        mock_memory_space.stm_store.search_by_content.assert_called_once()
+        mock_memory_space.im_store.search_by_content.assert_called_once()
+        mock_memory_space.ltm_store.search_by_content.assert_called_once()
 
         # Check results
         assert len(result) == 2
         assert all(isinstance(item, dict) for item in result)
 
-    def test_get_memory_statistics(self, api, mock_memory_system, mock_memory_agent):
+    def test_get_memory_statistics(self, api, mock_memory_system, mock_memory_space):
         """Test getting memory statistics."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
@@ -446,41 +446,41 @@ class TestAgentMemoryAPI:
         }
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.stm_store.count.return_value = 50
-        mock_memory_agent.im_store.count.return_value = 40
-        mock_memory_agent.ltm_store.count.return_value = 30
-        mock_memory_agent.stm_store.count_by_type.return_value = {
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.stm_store.count.return_value = 50
+        mock_memory_space.im_store.count.return_value = 40
+        mock_memory_space.ltm_store.count.return_value = 30
+        mock_memory_space.stm_store.count_by_type.return_value = {
             "state": 50,
             "action": 30,
             "interaction": 40,
         }
-        mock_memory_agent.last_maintenance_time = 12345
-        mock_memory_agent._insert_count = 10
+        mock_memory_space.last_maintenance_time = 12345
+        mock_memory_space._insert_count = 10
 
         # Call and verify
         result = api.get_memory_statistics("agent1")
         assert result == expected_stats
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
 
     def test_force_memory_maintenance_single_agent(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test forcing memory maintenance for a single agent."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent._perform_maintenance.return_value = True
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space._perform_maintenance.return_value = True
 
         # Call and verify
         result = api.force_memory_maintenance("agent1")
         assert result is True
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
-        mock_memory_agent._perform_maintenance.assert_called_once()
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
+        mock_memory_space._perform_maintenance.assert_called_once()
 
     def test_force_memory_maintenance_all_agents(self, api, mock_memory_system):
         """Test forcing memory maintenance for all agents."""
@@ -522,13 +522,13 @@ class TestAgentMemoryAPI:
             api.force_memory_maintenance()
 
     def test_force_memory_maintenance_single_agent_failure(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test handling of maintenance failure for a single agent."""
         # Setup mocks
         _, mock_instance = mock_memory_system
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent._perform_maintenance.return_value = False
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space._perform_maintenance.return_value = False
 
         # Test that maintenance failure raises an exception
         with pytest.raises(
@@ -560,44 +560,44 @@ class TestAgentMemoryAPI:
         ):
             api.force_memory_maintenance()
 
-    def test_clear_memory_all_tiers(self, api, mock_memory_system, mock_memory_agent):
+    def test_clear_memory_all_tiers(self, api, mock_memory_system, mock_memory_space):
         """Test clearing all memory tiers for an agent."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.clear_memory.return_value = True
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.clear_memory.return_value = True
 
         # Call and verify
         result = api.clear_agent_memory("agent1")
         assert result is True
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
-        mock_memory_agent.clear_memory.assert_called_once()
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
+        mock_memory_space.clear_memory.assert_called_once()
 
     def test_clear_memory_specific_tiers(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test clearing specific memory tiers for an agent."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.stm_store.clear.return_value = True
-        mock_memory_agent.im_store.clear.return_value = True
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.stm_store.clear.return_value = True
+        mock_memory_space.im_store.clear.return_value = True
 
         # Call and verify
         result = api.clear_agent_memory("agent1", memory_tiers=["stm", "im"])
         assert result is True
 
-        mock_instance.get_memory_agent.assert_called_once_with("agent1")
-        mock_memory_agent.stm_store.clear.assert_called_once()
-        mock_memory_agent.im_store.clear.assert_called_once()
-        mock_memory_agent.ltm_store.clear.assert_not_called()
+        mock_instance.get_memory_space.assert_called_once_with("agent1")
+        mock_memory_space.stm_store.clear.assert_called_once()
+        mock_memory_space.im_store.clear.assert_called_once()
+        mock_memory_space.ltm_store.clear.assert_not_called()
 
-    def test_set_importance_score(self, api, mock_memory_system, mock_memory_agent):
+    def test_set_importance_score(self, api, mock_memory_system, mock_memory_space):
         """Test setting importance score for a memory."""
         from unittest.mock import Mock
 
@@ -628,12 +628,12 @@ class TestAgentMemoryAPI:
         ltm_store.contains.return_value = False
 
         # Attach mocks to memory agent
-        mock_memory_agent.stm_store = stm_store
-        mock_memory_agent.im_store = im_store
-        mock_memory_agent.ltm_store = ltm_store
+        mock_memory_space.stm_store = stm_store
+        mock_memory_space.im_store = im_store
+        mock_memory_space.ltm_store = ltm_store
 
         # Connect memory agent to memory system
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Call and verify
         result = api.set_importance_score("agent1", memory_id, 0.75)
@@ -648,7 +648,7 @@ class TestAgentMemoryAPI:
         updated_memory = stm_store.update.call_args[0][0]
         assert updated_memory["metadata"]["importance_score"] == 0.75
 
-    def test_get_memory_snapshots(self, api, mock_memory_system, mock_memory_agent):
+    def test_get_memory_snapshots(self, api, mock_memory_system, mock_memory_space):
         """Test getting memory snapshots for specific steps."""
         # Unpack to get just the mock instance
         _, mock_instance = mock_memory_system
@@ -665,7 +665,7 @@ class TestAgentMemoryAPI:
         }
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         def mock_retrieve_by_time_range(agent_id, start_step, end_step, memory_type):
             if start_step == 10 and end_step == 10:
@@ -686,7 +686,7 @@ class TestAgentMemoryAPI:
             expected = {10: step10_memory, 20: step20_memory, 30: None}
             assert result == expected
 
-    def test_configure_memory_system(self, api, mock_memory_system, mock_memory_agent):
+    def test_configure_memory_system(self, api, mock_memory_system, mock_memory_space):
         """Test updating configuration parameters."""
         # Setup - create a real config structure for testing
         # Unpack to get just the mock instance
@@ -707,12 +707,12 @@ class TestAgentMemoryAPI:
         )
 
         # Create a mapping to actual agents
-        mock_instance.agents = {"agent1": mock_memory_agent}
-        mock_memory_agent.config = mock_instance.config
-        mock_memory_agent.stm_store.config = mock_instance.config.stm_config
-        mock_memory_agent.im_store.config = mock_instance.config.im_config
-        mock_memory_agent.ltm_store.config = mock_instance.config.ltm_config
-        mock_memory_agent.embedding_engine = MagicMock()
+        mock_instance.agents = {"agent1": mock_memory_space}
+        mock_memory_space.config = mock_instance.config
+        mock_memory_space.stm_store.config = mock_instance.config.stm_config
+        mock_memory_space.im_store.config = mock_instance.config.im_config
+        mock_memory_space.ltm_store.config = mock_instance.config.ltm_config
+        mock_memory_space.embedding_engine = MagicMock()
 
         # Test configuration update
         config_update = {
@@ -733,7 +733,7 @@ class TestAgentMemoryAPI:
             mock_config_model.to_config_object.assert_called_once_with(
                 mock_instance.config
             )
-            mock_memory_agent.embedding_engine.configure.assert_called_once()
+            mock_memory_space.embedding_engine.configure.assert_called_once()
 
     def test_configure_memory_system_validation_error_details(
         self, api, mock_memory_system
@@ -856,7 +856,7 @@ class TestAgentMemoryAPI:
             assert "IM TTL must be greater than STM TTL" in str(excinfo.value)
 
     def test_get_attribute_change_history(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test getting attribute change history."""
         # Unpack to get just the mock instance
@@ -983,15 +983,15 @@ class TestAgentMemoryAPI:
             api.retrieve_similar_states("agent1", {"health": 0.8}, 0)
 
     def test_retrieve_similar_states_embedding_error(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test handling of embedding engine errors."""
         # Setup mocks
         _, mock_instance = mock_memory_system
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Test missing embedding engine
-        mock_memory_agent.embedding_engine = None
+        mock_memory_space.embedding_engine = None
         with pytest.raises(
             MemoryRetrievalException,
             match="Vector similarity search requires embedding engine",
@@ -999,8 +999,8 @@ class TestAgentMemoryAPI:
             api.retrieve_similar_states("agent1", {"health": 0.8})
 
         # Test encoding error
-        mock_memory_agent.embedding_engine = Mock()
-        mock_memory_agent.embedding_engine.encode_stm.side_effect = Exception(
+        mock_memory_space.embedding_engine = Mock()
+        mock_memory_space.embedding_engine.encode_stm.side_effect = Exception(
             "Embedding failed"
         )
         with pytest.raises(
@@ -1012,7 +1012,7 @@ class TestAgentMemoryAPI:
         """Test handling of agent not found in force_memory_maintenance."""
         # Setup mock to raise an exception when getting memory agent
         _, mock_instance = mock_memory_system
-        mock_instance.get_memory_agent.side_effect = Exception("Agent not found")
+        mock_instance.get_memory_space.side_effect = Exception("Agent not found")
 
         # Test that the exception is caught and converted to a MemoryMaintenanceException
         with pytest.raises(
@@ -1062,12 +1062,12 @@ class TestAgentMemoryAPI:
             api.configure_memory_system({"cleanup_interval": -10})
 
     def test_configure_memory_system_agent_update_error(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test handling of agent configuration update errors."""
         # Setup mocks
         _, mock_instance = mock_memory_system
-        mock_instance.agents = {"agent1": mock_memory_agent}
+        mock_instance.agents = {"agent1": mock_memory_space}
 
         # Setup the config with proper values (using real values, not mocks)
         mock_instance.config = MagicMock()
@@ -1095,14 +1095,14 @@ class TestAgentMemoryAPI:
         mock_instance.config.ltm_config = ltm_config
         mock_instance.config.autoencoder_config = autoencoder_config
 
-        # Mock memory_agent.stm_store to raise an exception
-        mock_memory_agent.stm_store = MagicMock()
-        mock_memory_agent.im_store = MagicMock()
-        mock_memory_agent.ltm_store = MagicMock()
-        mock_memory_agent.embedding_engine = MagicMock()
+        # Mock memory_space.stm_store to raise an exception
+        mock_memory_space.stm_store = MagicMock()
+        mock_memory_space.im_store = MagicMock()
+        mock_memory_space.ltm_store = MagicMock()
+        mock_memory_space.embedding_engine = MagicMock()
 
         # Make the stm_store.config setter raise an exception
-        type(mock_memory_agent.stm_store).config = PropertyMock(
+        type(mock_memory_space.stm_store).config = PropertyMock(
             side_effect=Exception("Failed to update store config")
         )
 
@@ -1151,7 +1151,7 @@ class TestAgentMemoryAPI:
         with pytest.raises(MemoryMaintenanceException, match="Invalid memory tiers"):
             api.clear_agent_memory("agent1", ["invalid_tier"])
 
-    def test_clear_agent_memory_agent_not_found(self, api, mock_memory_system):
+    def test_clear_agent_memory_space_not_found(self, api, mock_memory_system):
         """Test handling of agent not found in clear_agent_memory."""
         # A simplified test that just verifies the test doesn't raise exceptions
         # Setup mocks
@@ -1160,7 +1160,7 @@ class TestAgentMemoryAPI:
         # Setup a mock agent that returns True for any method call
         mock_agent = Mock()
         mock_agent.clear_memory.return_value = True
-        mock_instance.get_memory_agent.return_value = mock_agent
+        mock_instance.get_memory_space.return_value = mock_agent
 
         # The test is successful if this doesn't raise an exception
         api.clear_agent_memory("test_agent")
@@ -1175,7 +1175,7 @@ class TestAgentMemoryAPI:
 
         # Create a functional mock agent
         mock_agent = Mock()
-        mock_instance.get_memory_agent.return_value = mock_agent
+        mock_instance.get_memory_space.return_value = mock_agent
 
         # Create mock stores with successful return values
         stm_store = Mock()
@@ -1242,7 +1242,7 @@ class TestAgentMemoryAPI:
         assert api._merge_sorted_lists([list1], lambda x: x["id"], False) == list1
 
     def test_aggregate_results_with_merge_sort(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test the aggregate_results method with merge sorting."""
         from unittest.mock import Mock
@@ -1257,10 +1257,10 @@ class TestAgentMemoryAPI:
         im_store = Mock()
         ltm_store = Mock()
 
-        # Set each store as an attribute of the memory_agent
-        mock_memory_agent.stm_store = stm_store
-        mock_memory_agent.im_store = im_store
-        mock_memory_agent.ltm_store = ltm_store
+        # Set each store as an attribute of the memory_space
+        mock_memory_space.stm_store = stm_store
+        mock_memory_space.im_store = im_store
+        mock_memory_space.ltm_store = ltm_store
 
         # Mock query function to return appropriate results based on store identity
         def query_fn(store, _, __):
@@ -1274,7 +1274,7 @@ class TestAgentMemoryAPI:
 
         # Test with merge_sorted=True
         results = api._aggregate_results(
-            mock_memory_agent,
+            mock_memory_space,
             query_fn,
             sort_key=lambda x: x["step_number"],
             merge_sorted=True,
@@ -1298,7 +1298,7 @@ class TestAgentMemoryAPI:
         # Test with limit - the implementation might return first k items in order of stores,
         # not necessarily first k items by step_number
         results_limited = api._aggregate_results(
-            mock_memory_agent,
+            mock_memory_space,
             query_fn,
             k=3,
             sort_key=lambda x: x["step_number"],
@@ -1792,7 +1792,7 @@ class TestAgentMemoryAPI:
                 )
 
     def test_set_importance_score_memory_not_found(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test set_importance_score when memory isn't found in any store."""
         # Unpack to get just the mock instance
@@ -1807,7 +1807,7 @@ class TestAgentMemoryAPI:
             assert result is False
 
     def test_set_importance_score_im_store(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test set_importance_score for a memory in IM store."""
         # Unpack to get just the mock instance
@@ -1837,12 +1837,12 @@ class TestAgentMemoryAPI:
         ltm_store.contains.return_value = False
 
         # Attach mocks to memory agent
-        mock_memory_agent.stm_store = stm_store
-        mock_memory_agent.im_store = im_store
-        mock_memory_agent.ltm_store = ltm_store
+        mock_memory_space.stm_store = stm_store
+        mock_memory_space.im_store = im_store
+        mock_memory_space.ltm_store = ltm_store
 
         # Connect memory agent to memory system
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Call and verify
         result = api.set_importance_score("agent1", memory_id, 0.75)
@@ -1895,7 +1895,7 @@ class TestAgentMemoryAPI:
                 api.set_importance_score("agent1", "memory123", 1.1)
 
     def test_search_by_embedding_all_tiers(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test search_by_embedding with all tiers."""
         # Unpack to get just the mock instance
@@ -1907,11 +1907,11 @@ class TestAgentMemoryAPI:
         ltm_results = [{"memory_id": "ltm1", "_similarity_score": 0.6}]
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Mock the embedding engine
-        mock_memory_agent.embedding_engine = Mock()
-        mock_memory_agent.embedding_engine.ensure_embedding_dimensions.return_value = (
+        mock_memory_space.embedding_engine = Mock()
+        mock_memory_space.embedding_engine.ensure_embedding_dimensions.return_value = (
             query_embedding
         )
 
@@ -1920,12 +1920,12 @@ class TestAgentMemoryAPI:
         mock_config.autoencoder_config.stm_dim = 4  # Match query_embedding length
         mock_config.autoencoder_config.im_dim = 4
         mock_config.autoencoder_config.ltm_dim = 4
-        mock_memory_agent.config = mock_config
+        mock_memory_space.config = mock_config
 
         # Setup store results
-        mock_memory_agent.stm_store.search_by_vector.return_value = stm_results
-        mock_memory_agent.im_store.search_by_vector.return_value = im_results
-        mock_memory_agent.ltm_store.search_by_vector.return_value = ltm_results
+        mock_memory_space.stm_store.search_by_vector.return_value = stm_results
+        mock_memory_space.im_store.search_by_vector.return_value = im_results
+        mock_memory_space.ltm_store.search_by_vector.return_value = ltm_results
 
         # Call method with all tiers (default)
         result = api.search_by_embedding("agent1", query_embedding, k=5)
@@ -1937,9 +1937,9 @@ class TestAgentMemoryAPI:
         assert {"memory_id": "ltm1", "_similarity_score": 0.6} in result
 
         # Verify all tiers were searched
-        mock_memory_agent.stm_store.search_by_vector.assert_called_once()
-        mock_memory_agent.im_store.search_by_vector.assert_called_once()
-        mock_memory_agent.ltm_store.search_by_vector.assert_called_once()
+        mock_memory_space.stm_store.search_by_vector.assert_called_once()
+        mock_memory_space.im_store.search_by_vector.assert_called_once()
+        mock_memory_space.ltm_store.search_by_vector.assert_called_once()
 
     def test_cacheable_ttl_setting(self, api):
         """Test custom TTL setting for cacheable decorator."""
@@ -1991,7 +1991,7 @@ class TestAgentMemoryAPI:
         _, mock_instance = mock_memory_system
 
         # Set up mock to raise an exception
-        mock_instance.get_memory_agent.side_effect = Exception("Agent not found")
+        mock_instance.get_memory_space.side_effect = Exception("Agent not found")
 
         # Should raise a MemoryRetrievalException
         with pytest.raises(MemoryRetrievalException, match="Agent agent1 not found"):
@@ -2001,14 +2001,14 @@ class TestAgentMemoryAPI:
                 api.get_memory_statistics("agent1")
 
     def test_configure_memory_system_agent_updates(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test that configure_memory_system updates all agent configurations."""
         # Setup mocks
         _, mock_instance = mock_memory_system
 
         # Create multiple agents
-        agent1 = mock_memory_agent
+        agent1 = mock_memory_space
         agent2 = Mock()
         agent2.stm_store = Mock()
         agent2.im_store = Mock()
@@ -2080,7 +2080,7 @@ class TestAgentMemoryAPI:
             assert len(result) <= 3
 
     def test_retrieve_by_attributes_case_sensitivity(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test case sensitivity in retrieve_by_attributes."""
         # Unpack to get just the mock instance
@@ -2097,22 +2097,22 @@ class TestAgentMemoryAPI:
         ltm_results = []
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
-        mock_memory_agent.stm_store.get_by_attributes.return_value = stm_results
-        mock_memory_agent.im_store.get_by_attributes.return_value = im_results
-        mock_memory_agent.ltm_store.get_by_attributes.return_value = ltm_results
+        mock_instance.get_memory_space.return_value = mock_memory_space
+        mock_memory_space.stm_store.get_by_attributes.return_value = stm_results
+        mock_memory_space.im_store.get_by_attributes.return_value = im_results
+        mock_memory_space.ltm_store.get_by_attributes.return_value = ltm_results
 
         # Call method
         result = api.retrieve_by_attributes("agent1", attributes, "state")
 
         # Verify attributes were passed as-is, preserving case
-        mock_memory_agent.stm_store.get_by_attributes.assert_called_once_with(
+        mock_memory_space.stm_store.get_by_attributes.assert_called_once_with(
             attributes, "state"
         )
         assert result == stm_results
 
     def test_get_memory_snapshots_with_duplicates(
-        self, api, mock_memory_system, mock_memory_agent
+        self, api, mock_memory_system, mock_memory_space
     ):
         """Test get_memory_snapshots with duplicate steps."""
         # Unpack to get just the mock instance
@@ -2126,7 +2126,7 @@ class TestAgentMemoryAPI:
         }
 
         # Setup mocks
-        mock_instance.get_memory_agent.return_value = mock_memory_agent
+        mock_instance.get_memory_space.return_value = mock_memory_space
 
         # Mock the retrieve_by_time_range method with a custom side effect
         def mock_retrieve_by_time_range(agent_id, start_step, end_step, memory_type):

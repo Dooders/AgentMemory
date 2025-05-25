@@ -195,7 +195,7 @@ This allows you to develop and test your agent memory system without setting up 
 Explore the comprehensive documentation to understand the system components and APIs:
 
 - [Memory API](docs/memory_api.md) - Complete API reference for working with the TASM system
-- [Agent Memory](docs/agent_memory.md) - Core MemoryAgent implementation and usage
+- [Agent Memory](docs/agent_memory.md) - Core MemorySpace implementation and usage
 - [Memory System](docs/memory_system.md) - Overview of the tiered memory architecture
 - [Memory Configuration](docs/memory_config.md) - Configuration options for all components
 - [Memory Tiers](docs/memory_tiers.md) - Details on the three memory tiers and their characteristics

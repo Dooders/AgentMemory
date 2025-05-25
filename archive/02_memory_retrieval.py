@@ -68,13 +68,13 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
         all_validations_passed = False
 
     # 2. Validate memory type distribution
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
 
     # Collect all memories across tiers
     all_memories = []
-    all_memories.extend(memory_agent.stm_store.get_all(agent_id))
-    all_memories.extend(memory_agent.im_store.get_all(agent_id))
-    all_memories.extend(memory_agent.ltm_store.get_all(agent_id))
+    all_memories.extend(memory_space.stm_store.get_all(agent_id))
+    all_memories.extend(memory_space.im_store.get_all(agent_id))
+    all_memories.extend(memory_space.ltm_store.get_all(agent_id))
 
     # Count by memory type
     memory_types = {"state": 0, "action": 0, "interaction": 0}

@@ -143,13 +143,13 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
         all_validations_passed = False
 
     # 3. Validate memory type distribution
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
 
     # Collect all memories across tiers
     all_memories = []
-    all_memories.extend(memory_agent.stm_store.get_all(agent_id))
-    all_memories.extend(memory_agent.im_store.get_all(agent_id))
-    all_memories.extend(memory_agent.ltm_store.get_all(agent_id))
+    all_memories.extend(memory_space.stm_store.get_all(agent_id))
+    all_memories.extend(memory_space.im_store.get_all(agent_id))
+    all_memories.extend(memory_space.ltm_store.get_all(agent_id))
 
     # Count by memory type
     memory_types = {"state": 0, "action": 0, "interaction": 0}
@@ -221,8 +221,8 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
 
         # If still missing, check by step_number
         if step in missing_steps:
-            memory_agent = memory_system.get_memory_agent(agent_id)
-            for source in [memory_agent.stm_store, memory_agent.im_store]:
+            memory_space = memory_system.get_memory_space(agent_id)
+            for source in [memory_space.stm_store, memory_space.im_store]:
                 memories = source.get_all(agent_id)
                 for memory in memories:
                     step_number = memory.get("step_number")
@@ -234,7 +234,7 @@ def validate_memory_statistics(logger, stats, agent_id, memory_system):
 
             # Also check LTM if still missing
             if step in missing_steps:
-                memories = memory_agent.ltm_store.get_all(agent_id)
+                memories = memory_space.ltm_store.get_all(agent_id)
                 for memory in memories:
                     step_number = memory.get("step_number")
                     if step_number == step:
@@ -378,11 +378,11 @@ def run_demo():
 
     # Display example content from each memory tier
     log_print(logger, "\n== EXAMPLE MEMORY CONTENT FROM EACH TIER ==")
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
 
     # STM example content
     log_print(logger, "\n----- SHORT-TERM MEMORY (STM) EXAMPLES -----")
-    stm_memories = memory_agent.stm_store.get_all(agent_id)
+    stm_memories = memory_space.stm_store.get_all(agent_id)
 
     if stm_memories:
         for i, memory in enumerate(stm_memories[:3]):  # Show up to 3 examples
@@ -411,7 +411,7 @@ def run_demo():
 
     # IM example content
     log_print(logger, "\n----- INTERMEDIATE MEMORY (IM) EXAMPLES -----")
-    im_memories = memory_agent.im_store.get_all(agent_id)
+    im_memories = memory_space.im_store.get_all(agent_id)
 
     if im_memories:
         for i, memory in enumerate(im_memories[:3]):  # Show up to 3 examples
@@ -432,7 +432,7 @@ def run_demo():
 
     # LTM example content
     log_print(logger, "\n----- LONG-TERM MEMORY (LTM) EXAMPLES -----")
-    ltm_memories = memory_agent.ltm_store.get_all(agent_id)
+    ltm_memories = memory_space.ltm_store.get_all(agent_id)
 
     if ltm_memories:
         for i, memory in enumerate(ltm_memories[:3]):  # Show up to 3 examples
@@ -483,7 +483,7 @@ def run_demo():
     # 3. Check high-priority memories in different tiers
     # We expect most high-priority memories to be preserved in higher tiers (IM/LTM)
     high_priority_steps = [5, 10, 15, 20, 21, 25, 30]
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
 
     # Query for high-priority memories across all tiers
     milestone_memories = []
@@ -497,9 +497,9 @@ def run_demo():
         # First try to find directly by step_number across all tiers
         found_by_step = False
         for store_memories in [
-            memory_agent.stm_store.get_all(agent_id),
-            memory_agent.im_store.get_all(agent_id),
-            memory_agent.ltm_store.get_all(agent_id),
+            memory_space.stm_store.get_all(agent_id),
+            memory_space.im_store.get_all(agent_id),
+            memory_space.ltm_store.get_all(agent_id),
         ]:
             for memory in store_memories:
                 mem_step = memory.get("step_number")
@@ -567,9 +567,9 @@ def run_demo():
         # For each missing step, try to verify if any memory actually exists
         for missing_step in list(missing_steps):
             # Directly check if we can find any memories with this timestamp across all three tiers
-            stm_memories = memory_agent.stm_store.get_all(agent_id)
-            im_memories = memory_agent.im_store.get_all(agent_id)
-            ltm_memories = memory_agent.ltm_store.get_all(agent_id)
+            stm_memories = memory_space.stm_store.get_all(agent_id)
+            im_memories = memory_space.im_store.get_all(agent_id)
+            ltm_memories = memory_space.ltm_store.get_all(agent_id)
             log_print(
                 logger, f"Searching for step {missing_step} manually in all stores..."
             )

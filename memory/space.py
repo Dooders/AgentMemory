@@ -1,4 +1,51 @@
-"""Memory Agent implementation for agent state management."""
+"""Memory Space implementation for agent management.
+
+This module implements a hierarchical memory system for AI agents that manages memories across
+three distinct storage tiers:
+
+1. Short-Term Memory (STM): High-resolution, temporary storage for recent experiences
+2. Intermediate Memory (IM): Medium-term storage with moderate compression
+3. Long-Term Memory (LTM): Permanent storage with high compression for long-term retention
+
+Key Features:
+- Hierarchical memory management with automatic tier transitions
+- Neural embedding-based similarity search
+- Hybrid retrieval combining vector similarity and attribute matching
+- Memory compression and importance scoring
+- Event-based memory formation hooks
+- Comprehensive memory statistics and maintenance
+
+The system uses Redis for STM and IM storage, and SQLite for LTM storage. It supports
+various memory types including states, interactions, and actions, with configurable
+compression levels and importance scoring mechanisms.
+
+Example:
+    ```python
+    from memory.config import MemoryConfig
+    from memory.space import MemorySpace
+
+    # Initialize memory system
+    config = MemoryConfig()
+    memory = MemorySpace(agent_id="agent1", config=config)
+
+    # Store a memory
+    memory.store_state(
+        state_data={"position": {"x": 10, "y": 20}},
+        step_number=1,
+        priority=0.8
+    )
+
+    # Retrieve similar memories
+    similar = memory.retrieve_similar_states(
+        query_state={"position": {"x": 11, "y": 19}},
+        k=5
+    )
+    ```
+
+Note:
+    This module requires Redis for STM/IM storage and SQLite for LTM storage.
+    Neural embeddings are optional but recommended for similarity search functionality.
+"""
 
 import logging
 import math
@@ -7,7 +54,6 @@ import uuid
 from typing import Any, Dict, List, Optional, Union
 
 from memory.config import MemoryConfig
-from memory.embeddings.autoencoder import AutoencoderEmbeddingEngine
 from memory.embeddings.compression import CompressionEngine
 from memory.embeddings.text_embeddings import TextEmbeddingEngine
 from memory.embeddings.vector_store import VectorStore
@@ -19,7 +65,7 @@ from memory.utils.identity import generate_memory_id
 logger = logging.getLogger(__name__)
 
 
-class MemoryAgent:
+class MemorySpace:
     """Manages an agent's memory across hierarchical storage tiers.
 
     This class provides a unified interface for storing and retrieving
@@ -38,7 +84,7 @@ class MemoryAgent:
     """
 
     def __init__(self, agent_id: str, config: MemoryConfig):
-        """Initialize the MemoryAgent.
+        """Initialize the MemorySpace.
 
         Args:
             agent_id: Unique identifier for the agent
@@ -81,7 +127,7 @@ class MemoryAgent:
         # Internal state
         self._insert_count = 0
 
-        logger.debug("MemoryAgent initialized for agent %s", agent_id)
+        logger.debug("MemorySpace initialized for agent %s", agent_id)
 
     def store_state(
         self,

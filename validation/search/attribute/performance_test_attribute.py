@@ -61,7 +61,7 @@ class PerformanceTest:
         )
         
         # Get agent reference
-        agent = self.memory_system.get_memory_agent(AGENT_ID)
+        agent = self.memory_system.get_memory_space(AGENT_ID)
         
         # Generate test memories
         self._generate_test_memories(memory_count)
@@ -84,7 +84,7 @@ class PerformanceTest:
     def _generate_test_memories(self, count):
         """Generate test memories with varied content and distribute across tiers."""
         log_print(self.logger, f"Generating {count} test memories")
-        agent = self.memory_system.get_memory_agent(AGENT_ID)
+        agent = self.memory_system.get_memory_space(AGENT_ID)
 
         # Define templates for content variety
         templates = [
@@ -866,7 +866,7 @@ class PerformanceTest:
         try:
             # Clean up memory stores
             if self.memory_system:
-                agent = self.memory_system.get_memory_agent(AGENT_ID)
+                agent = self.memory_system.get_memory_space(AGENT_ID)
                 
                 # Clear STM store
                 if agent.stm_store:

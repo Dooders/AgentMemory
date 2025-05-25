@@ -51,7 +51,7 @@ class ImportancePerformanceTest(PerformanceTest):
             return
         
         # Get the memory agent
-        agent = self.memory_system.get_memory_agent(AGENT_ID)
+        agent = self.memory_system.get_memory_space(AGENT_ID)
         
         # Load the ImportanceStrategy
         self.search_strategy = ImportanceStrategy(

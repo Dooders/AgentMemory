@@ -30,7 +30,7 @@ class TestExampleMatchingStrategy(unittest.TestCase):
         self.mock_agent.ltm_store = self.mock_ltm_store
         
         # Configure memory system to return mock agent
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Create strategy with mock memory system
         self.strategy = ExampleMatchingStrategy(self.mock_memory_system)

@@ -371,7 +371,7 @@ client = ResilientRedisClient(
 - [Redis Integration](../../redis_integration.md)
 - [Error Handling Strategy](../../error_handling_strategy.md)
 - [Agent State Redis Schema](../../agent_state_redis_schema.md)
-- [Memory Agent Implementation](../memory_agent.py)
+- [Memory Space Implementation](../memory_space.py)
 
 ## **13. AsyncResilientRedisClient**
 

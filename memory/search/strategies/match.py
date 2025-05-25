@@ -52,7 +52,7 @@ class ExampleMatchingStrategy(SearchStrategy):
         min_score: float = 0.6,
         **kwargs
     ) -> List[Dict[str, Any]]:
-        agent = self.memory_system.get_memory_agent(agent_id)
+        agent = self.memory_system.get_memory_space(agent_id)
         if "example" not in query:
             raise ValueError("Query must include an 'example' memory to match against")
         example = query["example"]

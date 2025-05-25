@@ -7,7 +7,7 @@ import time
 from typing import Dict, Any
 
 from memory.config import MemoryConfig
-from memory.agent_memory import MemoryAgent
+from memory.space import MemorySpace
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -45,16 +45,16 @@ def debug_memory_system():
     """Run a memory debug session."""
     config = MemoryConfig()
     agent_id = f"debug_agent_{int(time.time())}"
-    memory_agent = MemoryAgent(agent_id, config)
+    memory_space = MemorySpace(agent_id, config)
     
     logger.info(f"Created debug agent: {agent_id}")
     
     # Create and store test memory (STM)
     test_data = {"position": [10, 20], "health": 0.8, "inventory": ["map", "key"]}
-    memory_agent.store_state(test_data, 1, 0.5)
+    memory_space.store_state(test_data, 1, 0.5)
     
     # Get the memory from STM to check structure
-    stm_memories = memory_agent.stm_store.get_all(agent_id)
+    stm_memories = memory_space.stm_store.get_all(agent_id)
     if stm_memories:
         check_memory_content(stm_memories[0], "STM")
         original_memory_id = stm_memories[0]["memory_id"]
@@ -64,11 +64,11 @@ def debug_memory_system():
     
     # Force transition to IM
     logger.info("Forcing transition to IM...")
-    memory_agent.config.stm_config.memory_limit = 0  # Force transition
-    memory_agent._check_memory_transition()
+    memory_space.config.stm_config.memory_limit = 0  # Force transition
+    memory_space._check_memory_transition()
     
     # Check if memory made it to IM
-    im_memories = memory_agent.im_store.get_all(agent_id)
+    im_memories = memory_space.im_store.get_all(agent_id)
     if im_memories:
         # Find the same memory
         for memory in im_memories:
@@ -80,11 +80,11 @@ def debug_memory_system():
     
     # Force transition to LTM
     logger.info("Forcing transition to LTM...")
-    memory_agent.config.im_config.memory_limit = 0  # Force transition
-    memory_agent._check_memory_transition()
+    memory_space.config.im_config.memory_limit = 0  # Force transition
+    memory_space._check_memory_transition()
     
     # Check if memory made it to LTM
-    ltm_memory = memory_agent.ltm_store.get(original_memory_id)
+    ltm_memory = memory_space.ltm_store.get(original_memory_id)
     if ltm_memory:
         check_memory_content(ltm_memory, "LTM")
     else:
