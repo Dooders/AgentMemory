@@ -100,7 +100,7 @@ class MemorySpace:
 
         # Initialize vector store
         self.vector_store = VectorStore(
-            redis_client=self.stm_store.redis,
+            redis_client=None,
             stm_dimension=config.autoencoder_config.stm_dim,
             im_dimension=config.autoencoder_config.im_dim,
             ltm_dimension=config.autoencoder_config.ltm_dim,

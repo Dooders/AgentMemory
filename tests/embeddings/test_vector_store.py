@@ -86,13 +86,13 @@ def test_redis_vector_index_add(mock_redis_client):
     result = index.add("test1", [0.1, 0.2, 0.3], {"name": "test"})
 
     assert result is True
-    # Check that hset was called with the correct arguments
-    mock_redis_client.hset.assert_called_once()
-    args = mock_redis_client.hset.call_args[0]
+    # Check that hset_dict was called with the correct arguments
+    mock_redis_client.hset_dict.assert_called_once()
+    args = mock_redis_client.hset_dict.call_args[0]
     assert args[0] == "test_index:test1"
 
     # Check that mapping includes the vector field and metadata
-    mapping = mock_redis_client.hset.call_args[1]["mapping"]
+    mapping = mock_redis_client.hset_dict.call_args[0][1]  # Get second positional argument
     assert "embedding" in mapping
     assert "metadata" in mapping
     assert "timestamp" in mapping
@@ -370,8 +370,8 @@ def test_redis_vector_index_add_error(mock_redis_client):
     """Test error handling when adding vectors fails."""
     index = RedisVectorIndex(mock_redis_client, "test_index")
 
-    # Make hset raise an exception
-    mock_redis_client.hset.side_effect = Exception("Test error")
+    # Make hset_dict raise an exception
+    mock_redis_client.hset_dict.side_effect = Exception("Test error")
 
     result = index.add("test1", [0.1, 0.2, 0.3])
     assert result is False

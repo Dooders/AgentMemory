@@ -511,7 +511,6 @@ class VectorStore:
             ltm_dimension: Dimension of LTM vectors
             namespace: Namespace prefix for indices
         """
-        redis_client = None  #! Temporary: Need to adapt MockRedis to work with RedisVectorIndex
         self.redis_client = redis_client
 
         # Initialize vector indices based on available backends
