@@ -70,7 +70,7 @@ class ValidationTestRunner:
             return
 
         # Get agent and create strategy
-        self.agent = self.memory_system.get_memory_agent(agent_id)
+        self.agent = self.memory_system.get_memory_space(agent_id)
         self.strategy = strategy_class(self.memory_system)
 
         # Print strategy info

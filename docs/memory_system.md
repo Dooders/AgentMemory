@@ -10,7 +10,7 @@
 graph TB
     subgraph "Main Components"
         AMS[Agent Memory System]
-        MA[Memory Agent]
+        MA[Memory Space]
         RS[Redis Storage]
         SQ[SQLite Storage]
     end
@@ -42,7 +42,7 @@ graph TB
     MA --> |Manages| EH
 ```
 
-The system is composed of an [AgentMemorySystem](../memory/core.py) that serves as the singleton entry point, managing [MemoryAgent](../memory/agent_memory.py) instances for individual agents. Each MemoryAgent manages three memory tiers: 
+The system is composed of an [AgentMemorySystem](../memory/core.py) that serves as the singleton entry point, managing [MemorySpace](../memory/agent_memory.py) instances for individual agents. Each MemorySpace manages three memory tiers: 
 - [Short-Term Memory](../memory/storage/redis_stm.py) (Redis-based)
 - [Intermediate Memory](../memory/storage/redis_im.py) (Redis-based with TTL)
 - [Long-Term Memory](../memory/storage/sqlite_ltm.py) (SQLite-based)
@@ -70,12 +70,12 @@ config = MemoryConfig(
 memory_system = AgentMemorySystem.get_instance(config)
 ```
 
-### 2. Memory Agent ([`MemoryAgent`](../memory/agent_memory.py) class)
+### 2. Memory Space ([`MemorySpace`](../memory/agent_memory.py) class)
 Manages memory operations for a specific agent across all memory tiers.
 
 ```python
-# The AgentMemorySystem creates and manages MemoryAgent instances
-memory_agent = memory_system.get_memory_agent(agent_id="agent-123")
+# The AgentMemorySystem creates and manages MemorySpace instances
+memory_space = memory_system.get_memory_space(agent_id="agent-123")
 ```
 
 ### 3. Memory Tiers

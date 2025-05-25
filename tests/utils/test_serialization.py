@@ -459,14 +459,14 @@ class TestMemorySystemSerialization(unittest.TestCase):
         mock_validate.return_value = True
 
         # Create a mock memory agent with mock store attributes
-        mock_memory_agent = MagicMock()
-        mock_memory_agent.stm_store = MagicMock()
-        mock_memory_agent.im_store = MagicMock()
-        mock_memory_agent.ltm_store = MagicMock()
+        mock_memory_space = MagicMock()
+        mock_memory_space.stm_store = MagicMock()
+        mock_memory_space.im_store = MagicMock()
+        mock_memory_space.ltm_store = MagicMock()
 
         # Configure the mock memory system to return the mock agent
         mock_memory_system = MagicMock()
-        mock_memory_system.get_memory_agent.return_value = mock_memory_agent
+        mock_memory_system.get_memory_space.return_value = mock_memory_space
         mock_memory_system_class.return_value = mock_memory_system
 
         # Mock configurations
@@ -547,14 +547,14 @@ class TestMemorySystemSerialization(unittest.TestCase):
         mock_validate.assert_called_once()
 
         # Verify memory agent was created and memories were added to the correct stores
-        mock_memory_system.get_memory_agent.assert_called_once_with("agent_1")
+        mock_memory_system.get_memory_space.assert_called_once_with("agent_1")
 
         # Verify that the stm_store.store was called for the state memory
         # Since we've provided embeddings in the test data, it should only be called once
-        self.assertEqual(mock_memory_agent.stm_store.store.call_count, 1)
+        self.assertEqual(mock_memory_space.stm_store.store.call_count, 1)
 
         # Verify that the im_store.store was called for the interaction memory
-        self.assertEqual(mock_memory_agent.im_store.store.call_count, 1)
+        self.assertEqual(mock_memory_space.im_store.store.call_count, 1)
 
     @patch("memory.schema.validate_memory_system_json")
     def test_load_memory_system_validation_failure(self, mock_validate):

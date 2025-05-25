@@ -1,20 +1,20 @@
-"""Unit tests for the Memory Agent module.
+"""Unit tests for the Memory Space module.
 
-This test suite covers the functionality of the MemoryAgent class, which manages
+This test suite covers the functionality of the MemorySpace class, which manages
 hierarchical memory storage across short-term (STM), intermediate (IM), and
 long-term memory (LTM) tiers.
 
-The tests use pytest fixtures and mocks to isolate the MemoryAgent from its
+The tests use pytest fixtures and mocks to isolate the MemorySpace from its
 dependencies, allowing focused testing of the agent's logic.
 
 To run these tests:
-    pytest tests/test_memory_agent.py
+    pytest tests/test_memory_space.py
 
 To run with coverage:
-    pytest tests/test_memory_agent.py --cov=memory
+    pytest tests/test_memory_space.py --cov=memory
 
 Test categories:
-- TestMemoryAgentBasics: Tests for initialization and configuration
+- TestMemorySpaceBasics: Tests for initialization and configuration
 - TestMemoryStorage: Tests for memory storage operations
 - TestMemoryTransitions: Tests for memory movement between tiers
 - TestMemoryRetrieval: Tests for memory retrieval operations
@@ -27,8 +27,8 @@ import unittest.mock as mock
 
 import pytest
 
-from memory.agent_memory import MemoryAgent
 from memory.config import MemoryConfig
+from memory.space import MemorySpace
 
 
 @pytest.fixture
@@ -40,6 +40,11 @@ def mock_stm_store():
     store.get_all.return_value = []
     store.get_size.return_value = 1000
     store.clear.return_value = True
+    store.search_similar.return_value = []
+    store.search_by_step_range.return_value = []
+    store.search_by_attributes.return_value = []
+    store.search_by_embedding.return_value = []
+    store.search_by_content.return_value = []
     return store
 
 
@@ -52,6 +57,11 @@ def mock_im_store():
     store.get_all.return_value = []
     store.get_size.return_value = 1000
     store.clear.return_value = True
+    store.search_similar.return_value = []
+    store.search_by_step_range.return_value = []
+    store.search_by_attributes.return_value = []
+    store.search_by_embedding.return_value = []
+    store.search_by_content.return_value = []
     return store
 
 
@@ -64,6 +74,11 @@ def mock_ltm_store():
     store.get_all.return_value = []
     store.get_size.return_value = 1000
     store.clear.return_value = True
+    store.search_similar.return_value = []
+    store.search_by_step_range.return_value = []
+    store.search_by_attributes.return_value = []
+    store.search_by_embedding.return_value = []
+    store.search_by_content.return_value = []
     return store
 
 
@@ -87,7 +102,7 @@ def mock_embedding_engine():
 
 
 @pytest.fixture
-def memory_agent(
+def memory_space(
     mock_stm_store,
     mock_im_store,
     mock_ltm_store,
@@ -103,24 +118,22 @@ def memory_agent(
     )
     config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
-    with mock.patch("memory.agent_memory.RedisSTMStore") as mock_stm, mock.patch(
-        "memory.agent_memory.RedisIMStore"
-    ) as mock_im, mock.patch(
-        "memory.agent_memory.SQLiteLTMStore"
-    ) as mock_ltm, mock.patch(
-        "memory.agent_memory.CompressionEngine"
-    ) as mock_ce, mock.patch(
-        "memory.agent_memory.TextEmbeddingEngine"
-    ) as mock_ae:
+    with mock.patch("memory.space.RedisSTMStore", return_value=mock_stm_store), mock.patch(
+        "memory.space.RedisIMStore", return_value=mock_im_store
+    ), mock.patch(
+        "memory.space.SQLiteLTMStore", return_value=mock_ltm_store
+    ), mock.patch(
+        "memory.space.CompressionEngine", return_value=mock_compression_engine
+    ), mock.patch(
+        "memory.space.TextEmbeddingEngine", return_value=mock_embedding_engine
+    ):
 
-        # Configure the mock classes to return our mock instances
-        mock_stm.return_value = mock_stm_store
-        mock_im.return_value = mock_im_store
-        mock_ltm.return_value = mock_ltm_store
+        agent = MemorySpace(agent_id, config)
 
-        agent = MemoryAgent(agent_id, config)
-
-        # No need to replace stores as they are already our mocks
+        # Ensure the mock stores are properly set
+        agent.stm_store = mock_stm_store
+        agent.im_store = mock_im_store
+        agent.ltm_store = mock_ltm_store
         agent.compression_engine = mock_compression_engine
         agent.embedding_engine = mock_embedding_engine
 
@@ -128,8 +141,8 @@ def memory_agent(
 
 
 # Base test cases follow
-class TestMemoryAgentBasics:
-    """Basic tests for Memory Agent initialization and configuration."""
+class TestMemorySpaceBasics:
+    """Basic tests for Memory Space initialization and configuration."""
 
     def test_init(self):
         """Test memory agent initialization."""
@@ -141,17 +154,17 @@ class TestMemoryAgentBasics:
         )
         config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
-        with mock.patch("memory.agent_memory.RedisSTMStore") as mock_stm, mock.patch(
-            "memory.agent_memory.RedisIMStore"
+        with mock.patch("memory.space.RedisSTMStore") as mock_stm, mock.patch(
+            "memory.space.RedisIMStore"
         ) as mock_im, mock.patch(
-            "memory.agent_memory.SQLiteLTMStore"
+            "memory.space.SQLiteLTMStore"
         ) as mock_ltm, mock.patch(
-            "memory.agent_memory.CompressionEngine"
+            "memory.space.CompressionEngine"
         ) as mock_ce, mock.patch(
-            "memory.agent_memory.TextEmbeddingEngine"
+            "memory.space.TextEmbeddingEngine"
         ) as mock_ae:
 
-            agent = MemoryAgent(agent_id, config)
+            agent = MemorySpace(agent_id, config)
 
             # Verify stores were initialized
             mock_stm.assert_called_once_with(config.stm_config)
@@ -170,15 +183,15 @@ class TestMemoryAgentBasics:
         config.use_embedding_engine = False
         config.ltm_config.db_path = "test_memory.db"  # Set a valid db path
 
-        with mock.patch("memory.agent_memory.RedisSTMStore"), mock.patch(
-            "memory.agent_memory.RedisIMStore"
-        ), mock.patch("memory.agent_memory.SQLiteLTMStore"), mock.patch(
-            "memory.agent_memory.CompressionEngine"
+        with mock.patch("memory.space.RedisSTMStore"), mock.patch(
+            "memory.space.RedisIMStore"
+        ), mock.patch("memory.space.SQLiteLTMStore"), mock.patch(
+            "memory.space.CompressionEngine"
         ), mock.patch(
-            "memory.agent_memory.TextEmbeddingEngine"
+            "memory.space.TextEmbeddingEngine"
         ) as mock_te:
 
-            agent = MemoryAgent(agent_id, config)
+            agent = MemorySpace(agent_id, config)
             assert agent.embedding_engine is None
             mock_te.assert_not_called()
 
@@ -186,17 +199,17 @@ class TestMemoryAgentBasics:
 class TestMemoryStorage:
     """Tests for memory storage operations."""
 
-    def test_store_state(self, memory_agent, mock_stm_store):
+    def test_store_state(self, memory_space, mock_stm_store):
         """Test storing a state memory in the default tier (STM)."""
         state_data = {"position": [1, 2, 3], "inventory": ["sword", "shield"]}
         step_number = 42
         priority = 0.8
 
         # Patch the _create_memory_entry method
-        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+        with mock.patch.object(memory_space, "_create_memory_entry") as mock_create:
             mock_create.return_value = {"memory_id": "test-memory-1"}
 
-            result = memory_agent.store_state(state_data, step_number, priority)
+            result = memory_space.store_state(state_data, step_number, priority)
 
             # Check the _create_memory_entry call
             mock_create.assert_called_once_with(
@@ -205,13 +218,13 @@ class TestMemoryStorage:
 
             # Check the store call
             mock_stm_store.store.assert_called_once_with(
-                memory_agent.agent_id, {"memory_id": "test-memory-1"}
+                memory_space.agent_id, {"memory_id": "test-memory-1"}
             )
 
             assert result is True
-            assert memory_agent._insert_count == 1
+            assert memory_space._insert_count == 1
 
-    def test_store_state_custom_tier(self, memory_agent, mock_im_store, mock_ltm_store):
+    def test_store_state_custom_tier(self, memory_space, mock_im_store, mock_ltm_store):
         """Test storing a state memory in a custom tier."""
         state_data = {"position": [1, 2, 3], "inventory": ["sword", "shield"]}
         step_number = 42
@@ -222,10 +235,10 @@ class TestMemoryStorage:
         mock_ltm_store.store.return_value = True
 
         # Test storing in IM tier
-        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+        with mock.patch.object(memory_space, "_create_memory_entry") as mock_create:
             mock_create.return_value = {"memory_id": "test-memory-im"}
 
-            result = memory_agent.store_state(
+            result = memory_space.store_state(
                 state_data, step_number, priority, tier="im"
             )
 
@@ -236,16 +249,16 @@ class TestMemoryStorage:
 
             # Check the store call to IM store
             mock_im_store.store.assert_called_once_with(
-                memory_agent.agent_id, {"memory_id": "test-memory-im"}
+                memory_space.agent_id, {"memory_id": "test-memory-im"}
             )
 
             assert result is True
 
         # Test storing in LTM tier
-        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+        with mock.patch.object(memory_space, "_create_memory_entry") as mock_create:
             mock_create.return_value = {"memory_id": "test-memory-ltm"}
 
-            result = memory_agent.store_state(
+            result = memory_space.store_state(
                 state_data, step_number, priority, tier="ltm"
             )
 
@@ -261,17 +274,17 @@ class TestMemoryStorage:
 
             assert result is True
 
-    def test_store_interaction(self, memory_agent, mock_stm_store):
+    def test_store_interaction(self, memory_space, mock_stm_store):
         """Test storing an interaction memory."""
         interaction_data = {"agent": "agent1", "target": "agent2", "action": "greet"}
         step_number = 42
         priority = 0.5
 
         # Patch the _create_memory_entry method
-        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+        with mock.patch.object(memory_space, "_create_memory_entry") as mock_create:
             mock_create.return_value = {"memory_id": "test-memory-2"}
 
-            result = memory_agent.store_interaction(
+            result = memory_space.store_interaction(
                 interaction_data, step_number, priority
             )
 
@@ -282,13 +295,13 @@ class TestMemoryStorage:
 
             # Check the store call
             mock_stm_store.store.assert_called_once_with(
-                memory_agent.agent_id, {"memory_id": "test-memory-2"}
+                memory_space.agent_id, {"memory_id": "test-memory-2"}
             )
 
             assert result is True
-            assert memory_agent._insert_count == 1
+            assert memory_space._insert_count == 1
 
-    def test_store_interaction_custom_tier(self, memory_agent, mock_im_store):
+    def test_store_interaction_custom_tier(self, memory_space, mock_im_store):
         """Test storing an interaction memory in a custom tier."""
         interaction_data = {"agent": "agent1", "target": "agent2", "action": "greet"}
         step_number = 42
@@ -296,10 +309,10 @@ class TestMemoryStorage:
         tier = "im"
 
         # Patch the _create_memory_entry method
-        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+        with mock.patch.object(memory_space, "_create_memory_entry") as mock_create:
             mock_create.return_value = {"memory_id": "test-memory-2-im"}
 
-            result = memory_agent.store_interaction(
+            result = memory_space.store_interaction(
                 interaction_data, step_number, priority, tier
             )
 
@@ -310,23 +323,23 @@ class TestMemoryStorage:
 
             # Check the store call
             mock_im_store.store.assert_called_once_with(
-                memory_agent.agent_id, {"memory_id": "test-memory-2-im"}
+                memory_space.agent_id, {"memory_id": "test-memory-2-im"}
             )
 
             assert result is True
-            assert memory_agent._insert_count == 1
+            assert memory_space._insert_count == 1
 
-    def test_store_action(self, memory_agent, mock_stm_store):
+    def test_store_action(self, memory_space, mock_stm_store):
         """Test storing an action memory."""
         action_data = {"action_type": "move", "direction": "north", "result": "success"}
         step_number = 42
         priority = 0.7
 
         # Patch the _create_memory_entry method
-        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+        with mock.patch.object(memory_space, "_create_memory_entry") as mock_create:
             mock_create.return_value = {"memory_id": "test-memory-3"}
 
-            result = memory_agent.store_action(action_data, step_number, priority)
+            result = memory_space.store_action(action_data, step_number, priority)
 
             # Check the _create_memory_entry call
             mock_create.assert_called_once_with(
@@ -335,13 +348,13 @@ class TestMemoryStorage:
 
             # Check the store call
             mock_stm_store.store.assert_called_once_with(
-                memory_agent.agent_id, {"memory_id": "test-memory-3"}
+                memory_space.agent_id, {"memory_id": "test-memory-3"}
             )
 
             assert result is True
-            assert memory_agent._insert_count == 1
+            assert memory_space._insert_count == 1
 
-    def test_store_action_custom_tier(self, memory_agent, mock_ltm_store):
+    def test_store_action_custom_tier(self, memory_space, mock_ltm_store):
         """Test storing an action memory in a custom tier."""
         action_data = {"action_type": "move", "direction": "north", "result": "success"}
         step_number = 42
@@ -352,10 +365,10 @@ class TestMemoryStorage:
         mock_ltm_store.store.return_value = True
 
         # Patch the _create_memory_entry method
-        with mock.patch.object(memory_agent, "_create_memory_entry") as mock_create:
+        with mock.patch.object(memory_space, "_create_memory_entry") as mock_create:
             mock_create.return_value = {"memory_id": "test-memory-3-ltm"}
 
-            result = memory_agent.store_action(action_data, step_number, priority, tier)
+            result = memory_space.store_action(action_data, step_number, priority, tier)
 
             # Check the _create_memory_entry call
             mock_create.assert_called_once_with(
@@ -370,7 +383,7 @@ class TestMemoryStorage:
             assert result is True
 
     def test_store_in_tier(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test the _store_in_tier method for different tiers."""
         memory_entry = {"memory_id": "test-memory-tier", "content": {"test": "data"}}
@@ -381,47 +394,47 @@ class TestMemoryStorage:
         mock_ltm_store.store.return_value = True
 
         # Test storing in STM
-        result_stm = memory_agent._store_in_tier("stm", memory_entry)
-        mock_stm_store.store.assert_called_with(memory_agent.agent_id, memory_entry)
+        result_stm = memory_space._store_in_tier("stm", memory_entry)
+        mock_stm_store.store.assert_called_with(memory_space.agent_id, memory_entry)
         assert result_stm is True
 
         # Test storing in IM
-        result_im = memory_agent._store_in_tier("im", memory_entry)
-        mock_im_store.store.assert_called_with(memory_agent.agent_id, memory_entry)
+        result_im = memory_space._store_in_tier("im", memory_entry)
+        mock_im_store.store.assert_called_with(memory_space.agent_id, memory_entry)
         assert result_im is True
 
         # Test storing in LTM
-        result_ltm = memory_agent._store_in_tier("ltm", memory_entry)
+        result_ltm = memory_space._store_in_tier("ltm", memory_entry)
         mock_ltm_store.store.assert_called_with(memory_entry)
         assert result_ltm is True
 
         # Test invalid tier
-        with mock.patch("memory.agent_memory.logger.warning") as mock_logger:
-            result_invalid = memory_agent._store_in_tier("invalid_tier", memory_entry)
+        with mock.patch("memory.space.logger.warning") as mock_logger:
+            result_invalid = memory_space._store_in_tier("invalid_tier", memory_entry)
             mock_logger.assert_called_once()
-            mock_stm_store.store.assert_called_with(memory_agent.agent_id, memory_entry)
+            mock_stm_store.store.assert_called_with(memory_space.agent_id, memory_entry)
             assert result_invalid is True
 
-    def test_cleanup_triggered(self, memory_agent):
+    def test_cleanup_triggered(self, memory_space):
         """Test that cleanup is triggered after multiple insertions."""
-        memory_agent.config.cleanup_interval = 5
-        memory_agent._insert_count = 0
+        memory_space.config.cleanup_interval = 5
+        memory_space._insert_count = 0
 
         # Patch _check_memory_transition
-        with mock.patch.object(memory_agent, "_check_memory_transition") as mock_check:
+        with mock.patch.object(memory_space, "_check_memory_transition") as mock_check:
             # Do 5 insertions
             for i in range(5):
                 with mock.patch.object(
-                    memory_agent, "_create_memory_entry"
+                    memory_space, "_create_memory_entry"
                 ) as mock_create:
                     mock_create.return_value = {"memory_id": f"test-memory-{i}"}
-                    memory_agent.store_state({"test": i}, i, 0.5)
+                    memory_space.store_state({"test": i}, i, 0.5)
 
             # Verify _check_memory_transition was called once
             mock_check.assert_called_once()
-            assert memory_agent._insert_count == 5
+            assert memory_space._insert_count == 5
 
-    def test_create_memory_entry(self, memory_agent, mock_embedding_engine):
+    def test_create_memory_entry(self, memory_space, mock_embedding_engine):
         """Test memory entry creation with default tier."""
         test_data = {"test": "data"}
         step_number = 42
@@ -430,16 +443,16 @@ class TestMemoryStorage:
 
         # Mock time.time()
         with mock.patch("time.time", return_value=12345):
-            entry = memory_agent._create_memory_entry(
+            entry = memory_space._create_memory_entry(
                 test_data, step_number, memory_type, priority
             )
 
             # Check structure
             assert (
                 entry["memory_id"]
-                == f"{memory_type}_{memory_agent.agent_id}_{step_number}"
+                == f"{memory_type}_{memory_space.agent_id}_{step_number}"
             )
-            assert entry["agent_id"] == memory_agent.agent_id
+            assert entry["agent_id"] == memory_space.agent_id
             assert entry["step_number"] == step_number
             assert entry["timestamp"] == 12345
             assert entry["content"] == test_data
@@ -463,7 +476,7 @@ class TestMemoryStorage:
             mock_embedding_engine.encode_ltm.assert_called_once_with(test_data)
 
     def test_create_memory_entry_with_tier(
-        self, memory_agent, mock_embedding_engine, mock_compression_engine
+        self, memory_space, mock_embedding_engine, mock_compression_engine
     ):
         """Test memory entry creation with different tiers and compression."""
         test_data = {"test": "data"}
@@ -473,7 +486,7 @@ class TestMemoryStorage:
 
         # Test IM tier
         with mock.patch("time.time", return_value=12345):
-            entry_im = memory_agent._create_memory_entry(
+            entry_im = memory_space._create_memory_entry(
                 test_data, step_number, memory_type, priority, tier="im"
             )
 
@@ -486,7 +499,7 @@ class TestMemoryStorage:
 
         # Test LTM tier
         with mock.patch("time.time", return_value=12346):
-            entry_ltm = memory_agent._create_memory_entry(
+            entry_ltm = memory_space._create_memory_entry(
                 test_data, step_number, memory_type, priority, tier="ltm"
             )
 
@@ -502,11 +515,11 @@ class TestMemoryTransitions:
     """Tests for memory transitions between tiers."""
 
     def test_check_memory_transition_stm_to_im(
-        self, memory_agent, mock_stm_store, mock_im_store
+        self, memory_space, mock_stm_store, mock_im_store
     ):
         """Test transitioning memories from STM to IM when STM is at capacity."""
         # Configure mocks
-        memory_agent.config.stm_config.memory_limit = 5
+        memory_space.config.stm_config.memory_limit = 5
         mock_stm_store.count.return_value = 10  # Over capacity
 
         # Create sample memories in STM
@@ -536,21 +549,21 @@ class TestMemoryTransitions:
                 ].copy(),  # Create a copy to detect changes
             }
 
-        memory_agent.compression_engine.compress.side_effect = mock_compress_func
+        memory_space.compression_engine.compress.side_effect = mock_compress_func
 
         # Call the transition method
         with mock.patch.object(
-            memory_agent,
+            memory_space,
             "_calculate_importance",
             side_effect=lambda m: m["metadata"]["importance_score"],
         ):
-            memory_agent._check_memory_transition()
+            memory_space._check_memory_transition()
 
             # Check that IM store was called with compressed memories
             assert mock_im_store.store.call_count == 5  # Should transition 5 memories
 
             # Verify the compression engine was used
-            assert memory_agent.compression_engine.compress.call_count == 5
+            assert memory_space.compression_engine.compress.call_count == 5
 
             # Verify current_tier was updated in the metadata
             for call in mock_im_store.store.call_args_list:
@@ -562,12 +575,12 @@ class TestMemoryTransitions:
             assert mock_stm_store.delete.call_count == 5
 
     def test_check_memory_transition_im_to_ltm(
-        self, memory_agent, mock_im_store, mock_ltm_store, mock_stm_store
+        self, memory_space, mock_im_store, mock_ltm_store, mock_stm_store
     ):
         """Test transitioning memories from IM to LTM when IM is at capacity."""
         # Configure mocks
-        memory_agent.config.im_config.memory_limit = 5
-        memory_agent.config.ltm_config.batch_size = 3
+        memory_space.config.im_config.memory_limit = 5
+        memory_space.config.ltm_config.batch_size = 3
         mock_stm_store.count.return_value = 3  # Under capacity
         mock_im_store.count.return_value = 8  # Over capacity
 
@@ -598,15 +611,15 @@ class TestMemoryTransitions:
                 ].copy(),  # Create a copy to detect changes
             }
 
-        memory_agent.compression_engine.compress.side_effect = mock_compress_func
+        memory_space.compression_engine.compress.side_effect = mock_compress_func
 
         # Call the transition method
         with mock.patch.object(
-            memory_agent,
+            memory_space,
             "_calculate_importance",
             side_effect=lambda m: m["metadata"]["importance_score"],
         ):
-            memory_agent._check_memory_transition()
+            memory_space._check_memory_transition()
 
             # Check that LTM store was called with batches
             # Should be 1 call with 3 memories, plus 1 more call with remaining 0 memories
@@ -615,7 +628,7 @@ class TestMemoryTransitions:
             assert len(calls[0][0][0]) == 3  # First batch has 3 items
 
             # Verify the compression engine was used
-            assert memory_agent.compression_engine.compress.call_count == 3
+            assert memory_space.compression_engine.compress.call_count == 3
 
             # Verify current_tier was updated in the metadata
             batch = calls[0][0][0]  # Get the batch of memories
@@ -625,7 +638,7 @@ class TestMemoryTransitions:
             # Verify memories were deleted from IM
             assert mock_im_store.delete.call_count == 3
 
-    def test_calculate_importance(self, memory_agent):
+    def test_calculate_importance(self, memory_space):
         """Test importance calculation logic."""
         # Create a test memory with relevant fields
         current_time = time.time()
@@ -638,7 +651,7 @@ class TestMemoryTransitions:
             },
         }
 
-        importance = memory_agent._calculate_importance(memory)
+        importance = memory_space._calculate_importance(memory)
 
         # Verify importance calculation components and bounds
         assert 0.0 <= importance <= 1.0
@@ -653,7 +666,7 @@ class TestMemoryTransitions:
             },
         }
 
-        high_reward_importance = memory_agent._calculate_importance(memory_high_reward)
+        high_reward_importance = memory_space._calculate_importance(memory_high_reward)
 
         # Should have full reward component (40%) and full recency component (20%)
         assert high_reward_importance == pytest.approx(0.6, abs=0.01)
@@ -668,7 +681,7 @@ class TestMemoryTransitions:
             },
         }
 
-        high_retrieval_importance = memory_agent._calculate_importance(
+        high_retrieval_importance = memory_space._calculate_importance(
             memory_high_retrieval
         )
         # Should have full retrieval component (30%) and full recency component (20%)
@@ -678,49 +691,8 @@ class TestMemoryTransitions:
 class TestMemoryRetrieval:
     """Tests for memory retrieval operations."""
 
-    # def test_retrieve_similar_states(self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store):
-    #     """Test retrieving similar states across memory tiers."""
-    #     # Configure the mock stores to return results
-    #     stm_results = [{"memory_id": "stm1", "similarity_score": 0.9},
-    #                   {"memory_id": "stm2", "similarity_score": 0.8}]
-    #     im_results = [{"memory_id": "im1", "similarity_score": 0.7}]
-    #     ltm_results = [{"memory_id": "ltm1", "similarity_score": 0.6},
-    #                   {"memory_id": "ltm2", "similarity_score": 0.5}]
-
-    #     mock_stm_store.search_similar.return_value = stm_results
-    #     mock_im_store.search_similar.return_value = im_results
-    #     mock_ltm_store.search_similar.return_value = ltm_results
-
-    #     # Mock the embedding engine
-    #     query_state = {"position": [1, 2, 3]}
-
-    #     # Set k=5 to ensure we search all tiers
-    #     results = memory_agent.retrieve_similar_states(query_state, k=5)
-
-    #     # Should return top 5 results from all stores combined, sorted by similarity
-    #     assert len(results) == 5
-    #     assert results[0]["memory_id"] == "stm1"  # Highest similarity
-    #     assert results[1]["memory_id"] == "stm2"
-    #     assert results[2]["memory_id"] == "im1"
-    #     assert results[3]["memory_id"] == "ltm1"
-    #     assert results[4]["memory_id"] == "ltm2"  # Lowest similarity
-
-    #     # Verify embedding engine calls
-    #     memory_agent.embedding_engine.encode_stm.assert_called_with(query_state, None)
-    #     memory_agent.embedding_engine.encode_im.assert_called_with(query_state, None)
-    #     memory_agent.embedding_engine.encode_ltm.assert_called_with(query_state, None)
-
-    #     # Verify search calls on stores with correct parameters
-    #     stm_query = memory_agent.embedding_engine.encode_stm.return_value
-    #     im_query = memory_agent.embedding_engine.encode_im.return_value
-    #     ltm_query = memory_agent.embedding_engine.encode_ltm.return_value
-
-    #     mock_stm_store.search_similar.assert_called_once_with(memory_agent.agent_id, stm_query, k=5, memory_type=None)
-    #     mock_im_store.search_similar.assert_called_once_with(memory_agent.agent_id, im_query, k=3, memory_type=None)
-    #     mock_ltm_store.search_similar.assert_called_once_with(ltm_query, k=2, memory_type=None)
-
     def test_retrieve_similar_states_with_type_filter(
-        self, memory_agent, mock_stm_store
+        self, memory_space, mock_stm_store
     ):
         """Test retrieving similar states with a memory type filter."""
         # Configure the stores
@@ -731,7 +703,13 @@ class TestMemoryRetrieval:
         query_state = {"position": [1, 2, 3]}
         memory_type = "action"
 
-        memory_agent.retrieve_similar_states(query_state, k=5, memory_type=memory_type)
+        # Mock the embedding engine to return a test embedding
+        memory_space.embedding_engine.encode_stm.return_value = [0.1, 0.2, 0.3]
+
+        # Ensure the mock store is properly set
+        memory_space.stm_store = mock_stm_store
+
+        memory_space.retrieve_similar_states(query_state, k=5, memory_type=memory_type)
 
         # Verify memory_type was passed to the store
         mock_stm_store.search_similar.assert_called_once()
@@ -739,7 +717,7 @@ class TestMemoryRetrieval:
         assert kwargs.get("memory_type") == memory_type
 
     def test_retrieve_by_time_range(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test retrieving memories within a time range."""
         # Configure the stores
@@ -754,7 +732,12 @@ class TestMemoryRetrieval:
         mock_im_store.search_by_step_range.return_value = im_results
         mock_ltm_store.search_by_step_range.return_value = ltm_results
 
-        results = memory_agent.retrieve_by_time_range(1, 10)
+        # Ensure the mock stores are properly set
+        memory_space.stm_store = mock_stm_store
+        memory_space.im_store = mock_im_store
+        memory_space.ltm_store = mock_ltm_store
+
+        results = memory_space.retrieve_by_time_range(1, 10)
 
         # Results should be sorted by step number
         assert len(results) == 4
@@ -765,15 +748,15 @@ class TestMemoryRetrieval:
 
         # Verify calls to stores
         mock_stm_store.search_by_step_range.assert_called_once_with(
-            memory_agent.agent_id, 1, 10, None
+            memory_space.agent_id, 1, 10, None
         )
         mock_im_store.search_by_step_range.assert_called_once_with(
-            memory_agent.agent_id, 1, 10, None
+            memory_space.agent_id, 1, 10, None
         )
         mock_ltm_store.search_by_step_range.assert_called_once_with(1, 10, None)
 
     def test_retrieve_by_attributes(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test retrieving memories by attribute matching."""
         # Configure the stores
@@ -785,9 +768,14 @@ class TestMemoryRetrieval:
         mock_im_store.search_by_attributes.return_value = im_results
         mock_ltm_store.search_by_attributes.return_value = ltm_results
 
+        # Ensure the mock stores are properly set
+        memory_space.stm_store = mock_stm_store
+        memory_space.im_store = mock_im_store
+        memory_space.ltm_store = mock_ltm_store
+
         attributes = {"location": "forest", "action_type": "gather"}
 
-        results = memory_agent.retrieve_by_attributes(attributes)
+        results = memory_space.retrieve_by_attributes(attributes)
 
         # Results should be sorted by timestamp (most recent first)
         assert len(results) == 3
@@ -797,17 +785,17 @@ class TestMemoryRetrieval:
 
         # Verify calls to stores
         mock_stm_store.search_by_attributes.assert_called_once_with(
-            memory_agent.agent_id, attributes, None
+            memory_space.agent_id, attributes, None
         )
         mock_im_store.search_by_attributes.assert_called_once_with(
-            memory_agent.agent_id, attributes, None
+            memory_space.agent_id, attributes, None
         )
         mock_ltm_store.search_by_attributes.assert_called_once_with(
-            memory_agent.agent_id, attributes, None
+            memory_space.agent_id, attributes, None
         )
 
     def test_search_by_embedding(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test searching by raw embedding vector."""
         # Configure the stores
@@ -819,9 +807,14 @@ class TestMemoryRetrieval:
         mock_im_store.search_by_embedding.return_value = im_results
         mock_ltm_store.search_by_embedding.return_value = ltm_results
 
+        # Ensure the mock stores are properly set
+        memory_space.stm_store = mock_stm_store
+        memory_space.im_store = mock_im_store
+        memory_space.ltm_store = mock_ltm_store
+
         query_embedding = [0.1, 0.2, 0.3, 0.4]
 
-        results = memory_agent.search_by_embedding(query_embedding, k=3)
+        results = memory_space.search_by_embedding(query_embedding, k=3)
 
         # Results should be sorted by similarity score
         assert len(results) == 3
@@ -830,22 +823,22 @@ class TestMemoryRetrieval:
         assert results[2]["memory_id"] == "ltm1"  # Lowest similarity
 
         # Verify compression engine calls for IM and LTM
-        memory_agent.compression_engine.compress_embedding.assert_any_call(
+        memory_space.compression_engine.compress_embedding.assert_any_call(
             query_embedding, level=1
         )
-        memory_agent.compression_engine.compress_embedding.assert_any_call(
+        memory_space.compression_engine.compress_embedding.assert_any_call(
             query_embedding, level=2
         )
 
         # Verify search calls include agent_id for Redis stores
         mock_stm_store.search_by_embedding.assert_called_once_with(
-            memory_agent.agent_id, query_embedding, k=3
+            memory_space.agent_id, query_embedding, k=3
         )
-        mock_im_store.search_by_embedding.assert_called_once()  # Already passes but could be more specific
-        mock_ltm_store.search_by_embedding.assert_called_once()  # Already passes but could be more specific
+        mock_im_store.search_by_embedding.assert_called_once()
+        mock_ltm_store.search_by_embedding.assert_called_once()
 
     def test_search_by_content(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test searching by content text or attributes."""
         # Configure the stores
@@ -857,13 +850,18 @@ class TestMemoryRetrieval:
         mock_im_store.search_by_content.return_value = im_results
         mock_ltm_store.search_by_content.return_value = ltm_results
 
+        # Ensure the mock stores are properly set
+        memory_space.stm_store = mock_stm_store
+        memory_space.im_store = mock_im_store
+        memory_space.ltm_store = mock_ltm_store
+
         # Test with string query
         text_query = "forest exploration"
-        results = memory_agent.search_by_content(text_query, k=3)
+        results = memory_space.search_by_content(text_query, k=3)
 
         # Verify string query was converted to dict
         mock_stm_store.search_by_content.assert_called_with(
-            memory_agent.agent_id, {"text": text_query}, 3
+            memory_space.agent_id, {"text": text_query}, 3
         )
 
         # Results should be sorted by relevance score
@@ -874,18 +872,18 @@ class TestMemoryRetrieval:
 
         # Test with dict query
         dict_query = {"location": "forest", "action": "explore"}
-        memory_agent.search_by_content(dict_query, k=2)
+        memory_space.search_by_content(dict_query, k=2)
 
         # Verify dict query was passed as is
         mock_stm_store.search_by_content.assert_called_with(
-            memory_agent.agent_id, dict_query, 2
+            memory_space.agent_id, dict_query, 2
         )
 
 
 class TestEventHooks:
     """Tests for memory event hooks mechanism."""
 
-    def test_register_hook(self, memory_agent):
+    def test_register_hook(self, memory_space):
         """Test registering event hooks."""
 
         # Define a sample hook function
@@ -893,16 +891,16 @@ class TestEventHooks:
             return {"result": "success"}
 
         # Register the hook
-        result = memory_agent.register_hook("memory_storage", test_hook, priority=7)
+        result = memory_space.register_hook("memory_storage", test_hook, priority=7)
 
         assert result is True
-        assert hasattr(memory_agent, "_event_hooks")
-        assert "memory_storage" in memory_agent._event_hooks
-        assert len(memory_agent._event_hooks["memory_storage"]) == 1
-        assert memory_agent._event_hooks["memory_storage"][0]["function"] == test_hook
-        assert memory_agent._event_hooks["memory_storage"][0]["priority"] == 7
+        assert hasattr(memory_space, "_event_hooks")
+        assert "memory_storage" in memory_space._event_hooks
+        assert len(memory_space._event_hooks["memory_storage"]) == 1
+        assert memory_space._event_hooks["memory_storage"][0]["function"] == test_hook
+        assert memory_space._event_hooks["memory_storage"][0]["priority"] == 7
 
-    def test_register_multiple_hooks_with_priority(self, memory_agent):
+    def test_register_multiple_hooks_with_priority(self, memory_space):
         """Test registering multiple hooks with priority ordering."""
 
         # Define sample hook functions
@@ -916,18 +914,18 @@ class TestEventHooks:
             return {"result": "hook3"}
 
         # Register hooks with different priorities
-        memory_agent.register_hook("test_event", hook1, priority=3)
-        memory_agent.register_hook("test_event", hook2, priority=8)
-        memory_agent.register_hook("test_event", hook3, priority=5)
+        memory_space.register_hook("test_event", hook1, priority=3)
+        memory_space.register_hook("test_event", hook2, priority=8)
+        memory_space.register_hook("test_event", hook3, priority=5)
 
         # Verify hooks are stored in priority order (highest first)
-        hooks = memory_agent._event_hooks["test_event"]
+        hooks = memory_space._event_hooks["test_event"]
         assert len(hooks) == 3
         assert hooks[0]["function"] == hook2  # Priority 8
         assert hooks[1]["function"] == hook3  # Priority 5
         assert hooks[2]["function"] == hook1  # Priority 3
 
-    def test_trigger_event(self, memory_agent):
+    def test_trigger_event(self, memory_space):
         """Test triggering events and executing hooks."""
         # Define sample hook functions with different behaviors
         event_results = []
@@ -947,14 +945,14 @@ class TestEventHooks:
             }
 
         # Register both hooks
-        memory_agent.register_hook("test_event", hook1, priority=5)
-        memory_agent.register_hook("test_event", hook2, priority=3)
+        memory_space.register_hook("test_event", hook1, priority=5)
+        memory_space.register_hook("test_event", hook2, priority=3)
 
         # Mock store_state method
-        with mock.patch.object(memory_agent, "store_state") as mock_store:
+        with mock.patch.object(memory_space, "store_state") as mock_store:
             # Trigger the event
             event_data = {"source": "test", "action": "move"}
-            result = memory_agent.trigger_event("test_event", event_data)
+            result = memory_space.trigger_event("test_event", event_data)
 
             # Verify both hooks executed in order
             assert result is True
@@ -969,7 +967,7 @@ class TestEventHooks:
                 0.9,  # priority
             )
 
-    def test_trigger_event_with_exception(self, memory_agent):
+    def test_trigger_event_with_exception(self, memory_space):
         """Test handling exceptions in event hooks."""
 
         # Define a hook that raises an exception
@@ -985,11 +983,11 @@ class TestEventHooks:
             return {"result": "success"}
 
         # Register hooks
-        memory_agent.register_hook("test_event", failing_hook, priority=5)
-        memory_agent.register_hook("test_event", normal_hook, priority=3)
+        memory_space.register_hook("test_event", failing_hook, priority=5)
+        memory_space.register_hook("test_event", normal_hook, priority=3)
 
         # Trigger the event - should continue after exception
-        result = memory_agent.trigger_event("test_event", {"source": "test"})
+        result = memory_space.trigger_event("test_event", {"source": "test"})
 
         # First hook failed but second one executed
         assert result is False  # Overall failure
@@ -1000,10 +998,10 @@ class TestUtilityFunctions:
     """Tests for memory utility functions."""
 
     def test_clear_memory(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test clearing all memory stores."""
-        result = memory_agent.clear_memory()
+        result = memory_space.clear_memory()
 
         assert result is True
         mock_stm_store.clear.assert_called_once()
@@ -1011,36 +1009,36 @@ class TestUtilityFunctions:
         mock_ltm_store.clear.assert_called_once()
 
     def test_clear_memory_failure(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test handling failure in clearing memory."""
         mock_stm_store.clear.return_value = False
 
-        result = memory_agent.clear_memory()
+        result = memory_space.clear_memory()
 
         assert result is False
 
-    def test_force_maintenance(self, memory_agent):
+    def test_force_maintenance(self, memory_space):
         """Test forcing memory maintenance."""
-        with mock.patch.object(memory_agent, "_check_memory_transition") as mock_check:
-            result = memory_agent.force_maintenance()
+        with mock.patch.object(memory_space, "_check_memory_transition") as mock_check:
+            result = memory_space.force_maintenance()
 
             assert result is True
             mock_check.assert_called_once()
 
-    def test_force_maintenance_failure(self, memory_agent):
+    def test_force_maintenance_failure(self, memory_space):
         """Test handling failure in forced maintenance."""
         with mock.patch.object(
-            memory_agent,
+            memory_space,
             "_check_memory_transition",
             side_effect=Exception("Test exception"),
         ):
-            result = memory_agent.force_maintenance()
+            result = memory_space.force_maintenance()
 
             assert result is False
 
     def test_get_memory_statistics(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test retrieving memory statistics."""
         # Configure the mocks
@@ -1049,18 +1047,18 @@ class TestUtilityFunctions:
         mock_ltm_store.count.return_value = 30
 
         with mock.patch.object(
-            memory_agent, "_calculate_tier_importance", return_value=0.5
+            memory_space, "_calculate_tier_importance", return_value=0.5
         ), mock.patch.object(
-            memory_agent, "_calculate_compression_ratio", return_value=2.5
+            memory_space, "_calculate_compression_ratio", return_value=2.5
         ), mock.patch.object(
-            memory_agent,
+            memory_space,
             "_get_memory_type_distribution",
             return_value={"state": 30, "action": 20, "interaction": 10},
         ), mock.patch.object(
-            memory_agent, "_get_access_patterns", return_value={"most_accessed": []}
+            memory_space, "_get_access_patterns", return_value={"most_accessed": []}
         ):
 
-            stats = memory_agent.get_memory_statistics()
+            stats = memory_space.get_memory_statistics()
 
             # Verify statistics structure
             assert stats["total_memories"] == 60  # 10 + 20 + 30
@@ -1077,14 +1075,14 @@ class TestUtilityFunctions:
             assert stats["memory_types"]["interaction"] == 10
 
             # Verify helper method calls
-            memory_agent._calculate_tier_importance.assert_any_call("stm")
-            memory_agent._calculate_tier_importance.assert_any_call("im")
-            memory_agent._calculate_tier_importance.assert_any_call("ltm")
+            memory_space._calculate_tier_importance.assert_any_call("stm")
+            memory_space._calculate_tier_importance.assert_any_call("im")
+            memory_space._calculate_tier_importance.assert_any_call("ltm")
 
-            memory_agent._calculate_compression_ratio.assert_any_call("im")
-            memory_agent._calculate_compression_ratio.assert_any_call("ltm")
+            memory_space._calculate_compression_ratio.assert_any_call("im")
+            memory_space._calculate_compression_ratio.assert_any_call("ltm")
 
-    def test_calculate_reward_score(self, memory_agent):
+    def test_calculate_reward_score(self, memory_space):
         """Test calculating reward score from a memory."""
         # Memory with no reward
         memory_no_reward = {"content": {}}
@@ -1096,26 +1094,26 @@ class TestUtilityFunctions:
         memory_negative_reward = {"content": {"reward": -2.0}}
 
         # Test with max_reward_score of 10 (the default)
-        memory_agent.config.autoencoder_config.max_reward_score = 10.0
+        memory_space.config.autoencoder_config.max_reward_score = 10.0
 
         # Test cases
-        no_reward_score = memory_agent.calculate_reward_score(memory_no_reward)
+        no_reward_score = memory_space.calculate_reward_score(memory_no_reward)
         assert no_reward_score == 0.0
 
-        reward_score = memory_agent.calculate_reward_score(memory_with_reward)
+        reward_score = memory_space.calculate_reward_score(memory_with_reward)
         assert reward_score == 0.5  # 5/10 = 0.5
 
         # Negative rewards should be normalized to 0
-        negative_score = memory_agent.calculate_reward_score(memory_negative_reward)
+        negative_score = memory_space.calculate_reward_score(memory_negative_reward)
         assert negative_score == 0.0
 
         # Test with higher reward than max (should cap at 1.0)
         memory_high_reward = {"content": {"reward": 15.0}}
-        high_score = memory_agent.calculate_reward_score(memory_high_reward)
+        high_score = memory_space.calculate_reward_score(memory_high_reward)
         assert high_score == 1.0
 
     def test_hybrid_retrieve(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test hybrid retrieval combining similarity and attribute matching."""
         # Setup query state
@@ -1150,20 +1148,20 @@ class TestUtilityFunctions:
 
         # Configure the mocks
         with mock.patch.object(
-            memory_agent, "retrieve_similar_states", return_value=vector_results
+            memory_space, "retrieve_similar_states", return_value=vector_results
         ), mock.patch.object(
-            memory_agent, "retrieve_by_attributes", return_value=attr_results
+            memory_space, "retrieve_by_attributes", return_value=attr_results
         ):
 
             # Test hybrid retrieval with default weights
-            results = memory_agent.hybrid_retrieve(query_state, k=3)
+            results = memory_space.hybrid_retrieve(query_state, k=3)
 
             # Verify the function calls
-            memory_agent.retrieve_similar_states.assert_called_with(
+            memory_space.retrieve_similar_states.assert_called_with(
                 query_state, k=6, memory_type=None, threshold=0.2
             )
 
-            memory_agent.retrieve_by_attributes.assert_called()
+            memory_space.retrieve_by_attributes.assert_called()
 
             # Check results
             assert len(results) <= 3  # Should not exceed k
@@ -1174,14 +1172,14 @@ class TestUtilityFunctions:
                 assert "hybrid_score" in results[0]
 
             # Test with custom weights
-            results_custom = memory_agent.hybrid_retrieve(
+            results_custom = memory_space.hybrid_retrieve(
                 query_state, k=2, vector_weight=0.8, attribute_weight=0.2
             )
 
             # Results should be ordered by weighted scores
             assert len(results_custom) <= 2
 
-    def test_hybrid_retrieve_no_embeddings(self, memory_agent, mock_stm_store):
+    def test_hybrid_retrieve_no_embeddings(self, memory_space, mock_stm_store):
         """Test hybrid retrieval when embeddings are not available."""
         # Query state with attributes
         query_state = {"position": {"location": "bedroom"}, "energy": 50}
@@ -1192,15 +1190,15 @@ class TestUtilityFunctions:
         ]
 
         # Temporarily set embedding_engine to None
-        memory_agent.embedding_engine = None
+        memory_space.embedding_engine = None
 
         with mock.patch.object(
-            memory_agent, "retrieve_by_attributes", return_value=attr_results
+            memory_space, "retrieve_by_attributes", return_value=attr_results
         ):
-            results = memory_agent.hybrid_retrieve(query_state, k=3)
+            results = memory_space.hybrid_retrieve(query_state, k=3)
 
             # Should fall back to attribute-based search only
-            memory_agent.retrieve_by_attributes.assert_called_once()
+            memory_space.retrieve_by_attributes.assert_called_once()
 
             # Check results
             assert len(results) <= 3
@@ -1208,7 +1206,7 @@ class TestUtilityFunctions:
                 assert results[0]["memory_id"] == "attr1"
 
     def test_flush_to_ltm(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test flushing memories from STM and IM to LTM."""
         # Setup memory data
@@ -1246,7 +1244,7 @@ class TestUtilityFunctions:
         mock_ltm_store.flush_memories.return_value = (2, 0)
 
         # Test flushing both STM and IM
-        result = memory_agent.flush_to_ltm(include_stm=True, include_im=True)
+        result = memory_space.flush_to_ltm(include_stm=True, include_im=True)
 
         # Verify the calls
         mock_stm_store.get_all.assert_called_once()
@@ -1274,7 +1272,7 @@ class TestUtilityFunctions:
         assert result["im_filtered"] == 0
 
     def test_flush_to_ltm_with_filtering(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test flushing memories with filtering applied."""
         # Setup memory data
@@ -1302,7 +1300,7 @@ class TestUtilityFunctions:
         ]
 
         # Test flushing with normal filtering
-        result1 = memory_agent.flush_to_ltm(
+        result1 = memory_space.flush_to_ltm(
             include_stm=True, include_im=False, force=False
         )
 
@@ -1318,7 +1316,7 @@ class TestUtilityFunctions:
         mock_stm_store.clear.reset_mock()
 
         # Test flushing with force=True to bypass filtering
-        result2 = memory_agent.flush_to_ltm(
+        result2 = memory_space.flush_to_ltm(
             include_stm=True, include_im=False, force=True
         )
 
@@ -1330,7 +1328,7 @@ class TestUtilityFunctions:
         assert result2["stm_filtered"] == 0
 
     def test_flush_to_ltm_error_handling(
-        self, memory_agent, mock_stm_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_ltm_store
     ):
         """Test error handling during memory flush operations."""
         # Setup memory data
@@ -1346,7 +1344,7 @@ class TestUtilityFunctions:
         # Mock time.sleep to avoid waiting during test
         with mock.patch("time.sleep"):
             # Test flush with retry logic
-            result = memory_agent.flush_to_ltm(include_stm=True, include_im=False)
+            result = memory_space.flush_to_ltm(include_stm=True, include_im=False)
 
             # Should have called flush_memories twice due to retry
             assert mock_ltm_store.flush_memories.call_count == 2
@@ -1355,7 +1353,7 @@ class TestUtilityFunctions:
             assert result["stm_stored"] == 1
             assert result["stm_filtered"] == 0
 
-    def test_calculate_tier_importance(self, memory_agent, mock_stm_store):
+    def test_calculate_tier_importance(self, memory_space, mock_stm_store):
         """Test calculating the average importance score for a memory tier."""
         # Create test memories with importance scores
         test_memories = [
@@ -1368,17 +1366,17 @@ class TestUtilityFunctions:
         mock_stm_store.get_all.return_value = test_memories
 
         # Calculate tier importance for STM
-        importance = memory_agent._calculate_tier_importance("stm")
+        importance = memory_space._calculate_tier_importance("stm")
 
         # Average should be (0.3 + 0.7 + 0.5) / 3 = 0.5
         assert importance == 0.5
 
         # Test with empty store
         mock_stm_store.get_all.return_value = []
-        empty_importance = memory_agent._calculate_tier_importance("stm")
+        empty_importance = memory_space._calculate_tier_importance("stm")
         assert empty_importance == 0.0
 
-    def test_calculate_compression_ratio(self, memory_agent, mock_im_store):
+    def test_calculate_compression_ratio(self, memory_space, mock_im_store):
         """Test calculating the compression ratio for a memory tier."""
         # Create test memories with original size metadata
         test_memories = [
@@ -1391,23 +1389,23 @@ class TestUtilityFunctions:
         mock_im_store.get_size.return_value = 1200  # Compressed size
 
         # Calculate compression ratio for IM
-        ratio = memory_agent._calculate_compression_ratio("im")
+        ratio = memory_space._calculate_compression_ratio("im")
 
         # Ratio should be (1000 + 2000) / 1200 = 2.5
         assert ratio == 2.5
 
         # Test with zero compressed size (should avoid division by zero)
         mock_im_store.get_size.return_value = 0
-        zero_ratio = memory_agent._calculate_compression_ratio("im")
+        zero_ratio = memory_space._calculate_compression_ratio("im")
         assert zero_ratio == 0.0
 
         # Test with empty store
         mock_im_store.get_all.return_value = []
-        empty_ratio = memory_agent._calculate_compression_ratio("im")
+        empty_ratio = memory_space._calculate_compression_ratio("im")
         assert empty_ratio == 0.0
 
     def test_get_memory_type_distribution(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test getting the distribution of memory types across all tiers."""
         # Create test memories for each store
@@ -1435,7 +1433,7 @@ class TestUtilityFunctions:
         mock_ltm_store.get_all.return_value = ltm_memories
 
         # Get distribution
-        distribution = memory_agent._get_memory_type_distribution()
+        distribution = memory_space._get_memory_type_distribution()
 
         # Check results
         assert distribution["state"] == 3  # 1 from STM, 1 from IM, 1 from LTM
@@ -1447,11 +1445,11 @@ class TestUtilityFunctions:
         mock_im_store.get_all.return_value = []
         mock_ltm_store.get_all.return_value = []
 
-        empty_distribution = memory_agent._get_memory_type_distribution()
+        empty_distribution = memory_space._get_memory_type_distribution()
         assert len(empty_distribution) == 0
 
     def test_get_access_patterns(
-        self, memory_agent, mock_stm_store, mock_im_store, mock_ltm_store
+        self, memory_space, mock_stm_store, mock_im_store, mock_ltm_store
     ):
         """Test getting statistics about memory access patterns."""
         # Create test memories with various access counts
@@ -1469,7 +1467,7 @@ class TestUtilityFunctions:
         mock_ltm_store.get_all.return_value = memories[3:5]  # 3, 8
 
         # Get access patterns
-        patterns = memory_agent._get_access_patterns()
+        patterns = memory_space._get_access_patterns()
 
         # Check total accesses: 10 + 5 + 0 + 3 + 8 = 26
         assert patterns["total_accesses"] == 26
@@ -1497,7 +1495,7 @@ class TestUtilityFunctions:
         mock_im_store.get_all.return_value = []
         mock_ltm_store.get_all.return_value = []
 
-        empty_patterns = memory_agent._get_access_patterns()
+        empty_patterns = memory_space._get_access_patterns()
         assert empty_patterns["total_accesses"] == 0
         assert empty_patterns["avg_accesses"] == 0
         assert len(empty_patterns["most_accessed"]) == 0
@@ -1505,4 +1503,4 @@ class TestUtilityFunctions:
 
 
 if __name__ == "__main__":
-    pytest.main(["-xvs", "test_memory_agent.py"])
+    pytest.main(["-xvs", "test_memory_space.py"])

@@ -8,7 +8,7 @@ import sys
 from typing import Dict, Any
 
 from memory.config import MemoryConfig
-from memory.agent_memory import MemoryAgent
+from memory.space import MemorySpace
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -76,7 +76,7 @@ def verify_memory_system():
     """Run a complete memory verification through all tiers."""
     config = MemoryConfig()
     agent_id = f"verify_agent_{int(time.time())}"
-    memory_agent = MemoryAgent(agent_id, config)
+    memory_space = MemorySpace(agent_id, config)
     
     logger.info(f"Created verification agent: {agent_id}")
     
@@ -98,11 +98,11 @@ def verify_memory_system():
     logger.info(f"Original test data: {json.dumps(test_data, indent=2)}")
     
     # 1. Store in STM
-    memory_agent.store_state(test_data, 1, 0.7)
+    memory_space.store_state(test_data, 1, 0.7)
     logger.info("Stored memory in STM")
     
     # Get memory from STM to verify 
-    stm_memories = memory_agent.stm_store.get_all(agent_id)
+    stm_memories = memory_space.stm_store.get_all(agent_id)
     if stm_memories:
         original_memory_id = stm_memories[0]["memory_id"]
         logger.info(f"Memory ID: {original_memory_id}")
@@ -113,11 +113,11 @@ def verify_memory_system():
     
     # 2. Force transition to IM
     logger.info("\nForcing transition to IM...")
-    memory_agent.config.stm_config.memory_limit = 0
-    memory_agent._check_memory_transition()
+    memory_space.config.stm_config.memory_limit = 0
+    memory_space._check_memory_transition()
     
     # Get memory from IM to verify
-    im_memories = memory_agent.im_store.get_all(agent_id)
+    im_memories = memory_space.im_store.get_all(agent_id)
     if im_memories:
         im_memory = next((m for m in im_memories if m["memory_id"] == original_memory_id), None)
         if im_memory:
@@ -130,11 +130,11 @@ def verify_memory_system():
     
     # 3. Force transition to LTM
     logger.info("\nForcing transition to LTM...")
-    memory_agent.config.im_config.memory_limit = 0
-    memory_agent._check_memory_transition()
+    memory_space.config.im_config.memory_limit = 0
+    memory_space._check_memory_transition()
     
     # Get memory from LTM to verify
-    ltm_memory = memory_agent.ltm_store.get(original_memory_id)
+    ltm_memory = memory_space.ltm_store.get(original_memory_id)
     if ltm_memory:
         compare_memory_content(test_data, ltm_memory, "LTM")
     else:

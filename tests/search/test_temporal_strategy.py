@@ -25,7 +25,7 @@ class TestTemporalSearchStrategy(unittest.TestCase):
 
         # Create mock memory system
         self.mock_memory_system = MagicMock()
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Create strategy with mock memory system
         self.strategy = TemporalSearchStrategy(self.mock_memory_system)
@@ -76,7 +76,7 @@ class TestTemporalSearchStrategy(unittest.TestCase):
         self.mock_ltm_store.get_all.return_value = []
 
         # Ensure agent is properly configured
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Define a time range that includes only the two more recent memories
         start_time = int((self.now - timedelta(days=1)).timestamp())
@@ -107,7 +107,7 @@ class TestTemporalSearchStrategy(unittest.TestCase):
         self.mock_ltm_store.get_all.return_value = []
 
         # Ensure agent is properly configured
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Define time range in the query
         query = {
@@ -133,7 +133,7 @@ class TestTemporalSearchStrategy(unittest.TestCase):
         self.mock_ltm_store.get_all.return_value = self.sample_memories
 
         # Ensure agent is properly configured
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Perform search with high recency weight
         results_high_recency = self.strategy.search(
@@ -204,7 +204,7 @@ class TestTemporalSearchStrategy(unittest.TestCase):
         self.mock_ltm_store.get_all.return_value = [self.sample_memories[2]]
 
         # Ensure agent is properly configured
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Perform search across all tiers
         results = self.strategy.search(

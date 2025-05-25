@@ -395,7 +395,7 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
         # Load agents and their memories
         for agent_id, agent_data in data.get("agents", {}).items():
             # Get or create agent
-            memory_agent = memory_system.get_memory_agent(agent_id)
+            memory_space = memory_system.get_memory_space(agent_id)
 
             # Add memories
             for memory in agent_data.get("memories", []):
@@ -435,18 +435,18 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                 # Store memory in the appropriate store based on the tier
                 if tier == "stm":
                     logger.debug(f"Storing memory in STM store with type {memory_type}")
-                    memory_agent.stm_store.store(agent_id, memory_copy)
+                    memory_space.stm_store.store(agent_id, memory_copy)
                 elif tier == "im":
                     logger.debug(f"Storing memory in IM store with type {memory_type}")
-                    memory_agent.im_store.store(agent_id, memory_copy)
+                    memory_space.im_store.store(agent_id, memory_copy)
                 elif tier == "ltm":
                     logger.debug(f"Storing memory in LTM store with type {memory_type}")
-                    memory_agent.ltm_store.store(memory_copy)
+                    memory_space.ltm_store.store(memory_copy)
                 else:
                     # Default to STM if tier is unknown
                     logger.warning(f"Unknown tier '{tier}', storing in STM")
                     logger.debug(f"Storing memory in STM store with type {memory_type}")
-                    memory_agent.stm_store.store(agent_id, memory_copy)
+                    memory_space.stm_store.store(agent_id, memory_copy)
 
                 # Store memory vectors if embeddings exist
                 if "embeddings" in memory_copy and memory_copy.get("embeddings"):
@@ -475,13 +475,13 @@ def load_memory_system_from_json(filepath: str, use_mock_redis: bool = False):
                         tier = metadata.get("current_tier") or metadata.get("tier")
                         if tier == "stm":
                             vector_store.store_memory_vectors(memory_copy, tier="stm")
-                            memory_agent.stm_store.store(agent_id, memory_copy)
+                            memory_space.stm_store.store(agent_id, memory_copy)
                         elif tier == "im":
                             vector_store.store_memory_vectors(memory_copy, tier="im")
-                            memory_agent.im_store.store(agent_id, memory_copy)
+                            memory_space.im_store.store(agent_id, memory_copy)
                         elif tier == "ltm":
                             vector_store.store_memory_vectors(memory_copy, tier="ltm")
-                            memory_agent.ltm_store.store(memory_copy)
+                            memory_space.ltm_store.store(memory_copy)
                         else:
                             logger.warning(f"Unknown tier '{tier}' for memory {memory_copy.get('memory_id')}")
                     except Exception as e:

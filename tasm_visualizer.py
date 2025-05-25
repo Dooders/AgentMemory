@@ -530,8 +530,8 @@ class TASMVisualizer:
 
         # Get STM memories
         try:
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
-            stm_memories = memory_agent.stm_store.get_all(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
+            stm_memories = memory_space.stm_store.get_all(agent_id)
             self.memory_contents["STM"] = stm_memories
             self.stm_text.delete(1.0, tk.END)
             self.stm_text.insert(tk.END, f"STM Memories: {len(stm_memories)}\n\n")
@@ -544,7 +544,7 @@ class TASMVisualizer:
 
         # Get IM memories
         try:
-            im_memories = memory_agent.im_store.get_all(agent_id)
+            im_memories = memory_space.im_store.get_all(agent_id)
             self.memory_contents["IM"] = im_memories
             self.im_text.delete(1.0, tk.END)
             self.im_text.insert(tk.END, f"IM Memories: {len(im_memories)}\n\n")
@@ -557,7 +557,7 @@ class TASMVisualizer:
 
         # Get LTM memories
         try:
-            ltm_memories = memory_agent.ltm_store.get_all(agent_id=agent_id)
+            ltm_memories = memory_space.ltm_store.get_all(agent_id=agent_id)
             self.memory_contents["LTM"] = ltm_memories
             self.ltm_text.delete(1.0, tk.END)
             self.ltm_text.insert(tk.END, f"LTM Memories: {len(ltm_memories)}\n\n")

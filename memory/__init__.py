@@ -20,7 +20,7 @@ from memory.embeddings.autoencoder import (
 )
 # from memory.embeddings.text_embeddings import TextEmbeddingEngine
 from memory.embeddings.compression import CompressionEngine
-from memory.agent_memory import MemoryAgent
+from memory.space import MemorySpace
 
 # Retrieval components
 from memory.retrieval.attribute import AttributeRetrieval
@@ -35,7 +35,7 @@ from memory.storage.sqlite_ltm import SQLiteLTMStore
 __all__ = [
     # Core classes
     "AgentMemorySystem",
-    "MemoryAgent",
+    "MemorySpace",
     "MemoryConfig",
     # Config classes
     "RedisSTMConfig",

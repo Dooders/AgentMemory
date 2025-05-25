@@ -25,7 +25,7 @@ class TestTimeWindowStrategy(unittest.TestCase):
 
         # Create mock memory system
         self.mock_memory_system = MagicMock()
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Create strategy with mock memory system
         self.strategy = TimeWindowStrategy(self.mock_memory_system)
@@ -71,7 +71,7 @@ class TestTimeWindowStrategy(unittest.TestCase):
         self.mock_stm_store.get_all.return_value = memories
 
         # Ensure agent is properly configured
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Search for memories within the last 2 hours
         results = self.strategy.search(
@@ -122,7 +122,7 @@ class TestTimeWindowStrategy(unittest.TestCase):
         self.mock_im_store.get_all.return_value = memories
 
         # Ensure agent is properly configured
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Search for memories from the last 20 minutes
         results = self.strategy.search(
@@ -167,7 +167,7 @@ class TestTimeWindowStrategy(unittest.TestCase):
         self.mock_ltm_store.get_all.return_value = memories
 
         # Ensure agent is properly configured
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Search for memories from the last 4 hours
         results = self.strategy.search(

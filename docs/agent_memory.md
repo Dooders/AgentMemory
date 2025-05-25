@@ -1,12 +1,12 @@
-# MemoryAgent Documentation
+# MemorySpace Documentation
 
 ## Overview
 
-The `MemoryAgent` class is the core component of the agent memory system, responsible for managing an individual agent's memories across different storage tiers. It provides a unified interface for storing, retrieving, and maintaining agent memories with varying levels of detail and persistence.
+The `MemorySpace` class is the core component of the agent memory system, responsible for managing an individual agent's memories across different storage tiers. It provides a unified interface for storing, retrieving, and maintaining agent memories with varying levels of detail and persistence.
 
 ```mermaid
 graph TD
-    MA[MemoryAgent] --> STM[Short-Term Memory]
+    MA[MemorySpace] --> STM[Short-Term Memory]
     MA --> IM[Intermediate Memory]
     MA --> LTM[Long-Term Memory]
     MA --> CE[Compression Engine]
@@ -35,7 +35,7 @@ graph TD
 ## Initialization
 
 ```python
-from memory.agent_memory import MemoryAgent
+from memory.agent_memory import MemorySpace
 from memory.config import MemoryConfig
 
 # Create a memory configuration
@@ -67,12 +67,12 @@ config = MemoryConfig(
 
 # Initialize the memory agent
 agent_id = "agent-123"
-memory_agent = MemoryAgent(agent_id, config)
+memory_space = MemorySpace(agent_id, config)
 ```
 
 ## Memory Tiers
 
-The MemoryAgent manages three memory tiers with different characteristics:
+The MemorySpace manages three memory tiers with different characteristics:
 
 | Tier | Storage | TTL | Compression | Resolution | Access Speed |
 |------|---------|-----|-------------|------------|--------------|
@@ -86,7 +86,7 @@ The MemoryAgent manages three memory tiers with different characteristics:
 
 ```python
 # Store an agent state
-memory_agent.store_state(
+memory_space.store_state(
     state_data={
         "position": {"x": 10, "y": 20, "location": "forest"},
         "health": 0.85,
@@ -98,7 +98,7 @@ memory_agent.store_state(
 )
 
 # Store an interaction with another agent
-memory_agent.store_interaction(
+memory_space.store_interaction(
     interaction_data={
         "agent_id": "agent-456",
         "interaction_type": "conversation",
@@ -110,7 +110,7 @@ memory_agent.store_interaction(
 )
 
 # Store an action
-memory_agent.store_action(
+memory_space.store_action(
     action_data={
         "action_type": "move",
         "direction": "north",
@@ -130,7 +130,7 @@ query_state = {
     "position": {"x": 12, "y": 22, "location": "forest"},
     "health": 0.8
 }
-similar_states = memory_agent.retrieve_similar_states(
+similar_states = memory_space.retrieve_similar_states(
     query_state=query_state,
     k=5,
     memory_type="state",
@@ -139,20 +139,20 @@ similar_states = memory_agent.retrieve_similar_states(
 )
 
 # Retrieve memories by time range
-historical_memories = memory_agent.retrieve_by_time_range(
+historical_memories = memory_space.retrieve_by_time_range(
     start_step=1000,
     end_step=2000,
     memory_type="interaction"
 )
 
 # Retrieve memories by attributes
-matching_memories = memory_agent.retrieve_by_attributes(
+matching_memories = memory_space.retrieve_by_attributes(
     attributes={"action_type": "move", "direction": "north"},
     memory_type="action"
 )
 
 # Search by content text
-content_matches = memory_agent.search_by_content(
+content_matches = memory_space.search_by_content(
     content_query="wood trade",
     k=5
 )
@@ -164,7 +164,7 @@ The hybrid_retrieve method combines similarity-based and attribute-based search 
 
 ```python
 # Combine vector similarity and attribute matching
-hybrid_results = memory_agent.hybrid_retrieve(
+hybrid_results = memory_space.hybrid_retrieve(
     query_state={
         "position": {"location": "forest"},
         "inventory": ["wood", "stone"]
@@ -180,18 +180,18 @@ hybrid_results = memory_agent.hybrid_retrieve(
 
 ```python
 # Force memory tier transitions and cleanup
-memory_agent.force_maintenance()
+memory_space.force_maintenance()
 
 # Clear all memories for this agent
-memory_agent.clear_memory()
+memory_space.clear_memory()
 
 # Get memory statistics
-stats = memory_agent.get_memory_statistics()
+stats = memory_space.get_memory_statistics()
 ```
 
 ## Memory Importance Calculation
 
-The `MemoryAgent` calculates memory importance using a formula that considers:
+The `MemorySpace` calculates memory importance using a formula that considers:
 
 1. **Reward magnitude (40%)**: Higher absolute rewards increase importance
 2. **Recency (20%)**: More recent memories get higher importance
@@ -232,7 +232,7 @@ def _calculate_importance(self, memory):
 
 ## Memory Tier Transitions
 
-The `MemoryAgent` automatically transitions memories between tiers based on:
+The `MemorySpace` automatically transitions memories between tiers based on:
 
 1. **Capacity limits**: When a tier exceeds its capacity limit
 2. **Memory importance**: Less important memories are transitioned first
@@ -245,11 +245,11 @@ The transition process is triggered:
 
 ## Event Hooks
 
-The `MemoryAgent` provides an event hook system for customizing memory behavior:
+The `MemorySpace` provides an event hook system for customizing memory behavior:
 
 ```python
 # Define a custom hook function
-def custom_memory_hook(event_data, memory_agent):
+def custom_memory_hook(event_data, memory_space):
     # Process the event data
     print(f"Event triggered: {event_data}")
     
@@ -262,14 +262,14 @@ def custom_memory_hook(event_data, memory_agent):
     }
 
 # Register the hook
-memory_agent.register_hook(
+memory_space.register_hook(
     event_type="resource_depleted",
     hook_function=custom_memory_hook,
     priority=8  # Higher priority hooks execute first (1-10)
 )
 
 # Trigger the event
-memory_agent.trigger_event(
+memory_space.trigger_event(
     event_type="resource_depleted",
     event_data={"resource": "wood", "step_number": 1240}
 )
@@ -280,7 +280,7 @@ memory_agent.trigger_event(
 The `get_memory_statistics()` method provides comprehensive information about memory usage:
 
 ```python
-stats = memory_agent.get_memory_statistics()
+stats = memory_space.get_memory_statistics()
 ```
 
 The statistics include:
@@ -303,7 +303,7 @@ As memories transition between tiers, they undergo progressive compression:
 
 ### Neural Embeddings
 
-When configured with neural embeddings, the `MemoryAgent` generates:
+When configured with neural embeddings, the `MemorySpace` generates:
 
 1. **Full vectors** for STM (higher dimensionality)
 2. **Compressed vectors** for IM (medium dimensionality)

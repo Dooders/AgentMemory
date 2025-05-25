@@ -77,7 +77,7 @@ def test_load_attribute_validation_memory(cleanup_memory_system):
 
     # Verify the agent was created
     assert "test-agent-attribute-search" in memory_system.agents, "Expected agent not found"
-    agent = memory_system.get_memory_agent("test-agent-attribute-search")
+    agent = memory_system.get_memory_space("test-agent-attribute-search")
 
     # Get all memories to check content attributes
     stm_memories = agent.stm_store.get_all("test-agent-attribute-search")
@@ -110,7 +110,7 @@ def test_memory_content_preservation(cleanup_memory_system):
     assert memory_system is not None
 
     # Get the agent
-    agent = memory_system.get_memory_agent("test-agent-attribute-search")
+    agent = memory_system.get_memory_space("test-agent-attribute-search")
 
     # Get all memories
     stm_memories = agent.stm_store.get_all("test-agent-attribute-search")

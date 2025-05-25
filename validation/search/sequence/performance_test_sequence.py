@@ -64,7 +64,7 @@ class SequencePerformanceTest(PerformanceTest):
             return
 
         # Get the memory agent
-        agent = self.memory_system.get_memory_agent(AGENT_ID)
+        agent = self.memory_system.get_memory_space(AGENT_ID)
 
         # Load the NarrativeSequenceStrategy
         self.search_strategy = NarrativeSequenceStrategy(

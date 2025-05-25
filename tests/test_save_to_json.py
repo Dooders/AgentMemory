@@ -88,7 +88,7 @@ def test_save_memory_system_with_agent(cleanup_memory_system):
 
     # Create an agent and add some memories
     agent_id = "test_agent"
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
     logger.info(f"Created memory agent with ID: {agent_id}")
 
     # Add state memory
@@ -111,7 +111,7 @@ def test_save_memory_system_with_agent(cleanup_memory_system):
 
     # Check if memories were stored
     try:
-        stm_memories = memory_agent.stm_store.get_all(agent_id)
+        stm_memories = memory_space.stm_store.get_all(agent_id)
         logger.info(f"STM memories count: {len(stm_memories)}")
         if stm_memories:
             logger.info(f"First STM memory keys: {stm_memories[0].keys()}")
@@ -227,7 +227,7 @@ def test_save_and_load_roundtrip(cleanup_memory_system):
 
     # Create an agent and add some memories
     agent_id = "test_agent"
-    memory_agent = original_system.get_memory_agent(agent_id)
+    memory_space = original_system.get_memory_space(agent_id)
 
     # Add state memory with some content to check after reload
     test_content = {"name": "Test Agent", "status": "active", "data": {"key1": "value1", "key2": 42}}
@@ -243,7 +243,7 @@ def test_save_and_load_roundtrip(cleanup_memory_system):
     
     # Verify the memory was stored with the correct type
     try:
-        stm_memories = memory_agent.stm_store.get_all(agent_id)
+        stm_memories = memory_space.stm_store.get_all(agent_id)
         logger.info(f"Before save: STM memories count: {len(stm_memories)}")
         for i, mem in enumerate(stm_memories):
             logger.info(f"Memory {i} type: {mem.get('type')}")
@@ -293,7 +293,7 @@ def test_save_and_load_roundtrip(cleanup_memory_system):
         assert agent_id in loaded_system.agents, f"Agent {agent_id} not found in loaded system"
         
         # Get all memories for the agent
-        loaded_agent = loaded_system.get_memory_agent(agent_id)
+        loaded_agent = loaded_system.get_memory_space(agent_id)
         stm_memories = loaded_agent.stm_store.get_all(agent_id)
         im_memories = loaded_agent.im_store.get_all(agent_id)
         ltm_memories = loaded_agent.ltm_store.get_all(agent_id)
@@ -369,7 +369,7 @@ def test_save_with_complex_memory_content(cleanup_memory_system):
 
     # Create an agent 
     agent_id = "test_agent"
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
 
     # Add state memory with complex nested content
     complex_content = {

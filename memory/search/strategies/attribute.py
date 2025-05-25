@@ -182,7 +182,7 @@ class AttributeSearchStrategy(SearchStrategy):
 
         # Use provided scoring method or fallback to instance default
         current_scoring_method = scoring_method or self.scoring_method
-        agent = self.memory_system.get_memory_agent(agent_id)
+        agent = self.memory_system.get_memory_space(agent_id)
         for current_tier in tiers_to_search:
             if current_tier not in ["stm", "im", "ltm"]:
                 logger.warning("Unsupported memory tier: %s", current_tier)

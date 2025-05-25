@@ -101,9 +101,9 @@ class SimilaritySearchStrategy(SearchStrategy):
 
         if isinstance(self.memory_system, AgentMemorySystem):
             # Get the memory agent
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
         else:
-            memory_agent = self.memory_system
+            memory_space = self.memory_system
 
         for current_tier in tiers_to_search:
             # Skip if tier is not supported
@@ -201,11 +201,11 @@ class SimilaritySearchStrategy(SearchStrategy):
                     "Fetching memory %s from %s store", memory_id, current_tier
                 )
                 if current_tier == "stm":
-                    memory = memory_agent.stm_store.get(agent_id, memory_id)
+                    memory = memory_space.stm_store.get(agent_id, memory_id)
                 elif current_tier == "im":
-                    memory = memory_agent.im_store.get(agent_id, memory_id)
+                    memory = memory_space.im_store.get(agent_id, memory_id)
                 else:  # ltm
-                    memory = memory_agent.ltm_store.get(memory_id)
+                    memory = memory_space.ltm_store.get(memory_id)
 
                 logger.debug("Memory store returned: %s", memory)
 

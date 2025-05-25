@@ -28,7 +28,7 @@ We compare two agent types:
    - Makes decisions solely based on current Q-values
    - No ability to recall specific past experiences
 
-2. **Memory Agent (With AgentMemory)**
+2. **Memory Space (With AgentMemory)**
    - Uses Q-learning enhanced with memory retrieval
    - Recalls similar past states and their successful actions
    - Automatically stores experiences in tiered memory (STM, IM, LTM)
@@ -40,7 +40,7 @@ The memory agent demonstrates several key features of the AgentMemory system:
 
 ```python
 @install_memory_hooks
-class MemoryAgent(BaseAgent):
+class MemorySpace(BaseAgent):
     def __init__(self, agent_id, action_space=4, learning_rate=0.1, discount_factor=0.9):
         # Initialize with a config dict to satisfy memory hooks
         self.config = {"agent_id": agent_id, "memory_config": MemoryConfig()}
@@ -143,11 +143,11 @@ def run_experiment(episodes=100, memory_enabled=True):
     env = MazeEnvironment(size=size, obstacles=obstacles)
     
     # Create agent based on memory flag
-    agent_id = "memory_agent" if memory_enabled else "standard_agent"
+    agent_id = "memory_space" if memory_enabled else "standard_agent"
     if memory_enabled:
         # Create the agent with config in constructor
-        agent = MemoryAgent(agent_id, action_space=4)
-        # Memory config is already set in MemoryAgent.__init__
+        agent = MemorySpace(agent_id, action_space=4)
+        # Memory config is already set in MemorySpace.__init__
     else:
         agent = BaseAgent(agent_id, action_space=4)
     
@@ -398,7 +398,7 @@ class BaseAgent:
 
 # Memory-enhanced agent using hooks
 @install_memory_hooks
-class MemoryAgent(BaseAgent):
+class MemorySpace(BaseAgent):
     def __init__(self, agent_id, action_space=4, learning_rate=0.1, discount_factor=0.9):
         # Initialize with a config dict to satisfy memory hooks
         self.config = {"agent_id": agent_id, "memory_config": MemoryConfig()}
@@ -457,11 +457,11 @@ def run_experiment(episodes=100, memory_enabled=True):
     env = MazeEnvironment(size=size, obstacles=obstacles)
     
     # Create agent based on memory flag
-    agent_id = "memory_agent" if memory_enabled else "standard_agent"
+    agent_id = "memory_space" if memory_enabled else "standard_agent"
     if memory_enabled:
         # Create the agent with config in constructor
-        agent = MemoryAgent(agent_id, action_space=4)
-        # Memory config is already set in MemoryAgent.__init__
+        agent = MemorySpace(agent_id, action_space=4)
+        # Memory config is already set in MemorySpace.__init__
     else:
         agent = BaseAgent(agent_id, action_space=4)
     

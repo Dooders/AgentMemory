@@ -302,11 +302,11 @@ def benchmark_rllib_integration(env_name="CartPole-v1", training_iterations=10):
         standard_rewards.append(result["episode_reward_mean"])
     
     # Setup agent with memory integration
-    memory_agent_config = agent_config.copy()
+    memory_space_config = agent_config.copy()
     
     # This would be actual integration in real implementation
-    # memory_agent = integrate_with_rllib(ppo.PPOTrainer, memory_system, config=memory_agent_config)
-    memory_agent = MockRLlibAgentWithMemory(env, memory_agent_config, memory_system)
+    # memory_space = integrate_with_rllib(ppo.PPOTrainer, memory_system, config=memory_space_config)
+    memory_space = MockRLlibAgentWithMemory(env, memory_space_config, memory_system)
     
     # Train memory-integrated agent
     memory_times = []
@@ -314,7 +314,7 @@ def benchmark_rllib_integration(env_name="CartPole-v1", training_iterations=10):
     
     for i in range(training_iterations):
         start_time = time.time()
-        result = memory_agent.train()
+        result = memory_space.train()
         memory_times.append(time.time() - start_time)
         memory_rewards.append(result["episode_reward_mean"])
     
@@ -332,7 +332,7 @@ def benchmark_rllib_integration(env_name="CartPole-v1", training_iterations=10):
             "total_training_time_seconds": sum(standard_times),
             "reward_progress": standard_rewards
         },
-        "memory_agent": {
+        "memory_space": {
             "avg_iteration_time_seconds": avg_memory_time,
             "total_training_time_seconds": sum(memory_times),
             "reward_progress": memory_rewards

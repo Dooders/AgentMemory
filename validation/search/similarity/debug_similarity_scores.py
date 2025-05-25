@@ -47,9 +47,9 @@ def analyze_similarity_scores(query: str = "machine learning model accuracy"):
     )  # Using a smaller model for testing
     
     # Get the storage components from the memory system
-    stm_store = memory_system.get_memory_agent(agent_id).stm_store
-    im_store = memory_system.get_memory_agent(agent_id).im_store
-    ltm_store = memory_system.get_memory_agent(agent_id).ltm_store
+    stm_store = memory_system.get_memory_space(agent_id).stm_store
+    im_store = memory_system.get_memory_space(agent_id).im_store
+    ltm_store = memory_system.get_memory_space(agent_id).ltm_store
     
     # Load validation memory for reference
     memory_data = load_validation_memory()

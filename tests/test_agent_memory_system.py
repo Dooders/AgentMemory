@@ -27,15 +27,15 @@ import unittest.mock as mock
 
 import pytest
 
-from memory.agent_memory import MemoryAgent
+from memory.space import MemorySpace
 from memory.config import MemoryConfig
 from memory.core import AgentMemorySystem
 
 
 @pytest.fixture
-def mock_memory_agent():
-    """Mock the MemoryAgent class."""
-    agent = mock.MagicMock(spec=MemoryAgent)
+def mock_memory_space():
+    """Mock the MemorySpace class."""
+    agent = mock.MagicMock(spec=MemorySpace)
     agent.store_state.return_value = True
     agent.store_interaction.return_value = True
     agent.store_action.return_value = True
@@ -75,8 +75,8 @@ def mock_memory_agent():
 
 
 @pytest.fixture
-def memory_system(mock_memory_agent):
-    """Create an AgentMemorySystem with mocked MemoryAgent."""
+def memory_system(mock_memory_space):
+    """Create an AgentMemorySystem with mocked MemorySpace."""
     config = MemoryConfig()
     config.ltm_config.db_path = (
         ":memory:"  # Use in-memory SQLite to avoid file system issues
@@ -85,8 +85,8 @@ def memory_system(mock_memory_agent):
     # Override singleton instance if it exists
     AgentMemorySystem._instance = None
 
-    # Mock MemoryAgent creation
-    with mock.patch("memory.core.MemoryAgent", return_value=mock_memory_agent):
+    # Mock MemorySpace creation
+    with mock.patch("memory.core.MemorySpace", return_value=mock_memory_space):
         system = AgentMemorySystem.get_instance(config)
 
     return system
@@ -165,37 +165,37 @@ class TestAgentMemorySystemBasics:
 class TestAgentManagement:
     """Tests for agent creation and management."""
 
-    def test_get_memory_agent_new(self, memory_system, mock_memory_agent):
+    def test_get_memory_space_new(self, memory_system, mock_memory_space):
         """Test getting a new memory agent."""
         agent_id = "test-agent-1"
 
         assert agent_id not in memory_system.agents
 
-        # Mock the MemoryAgent constructor to return a specific agent
-        with mock.patch("memory.core.MemoryAgent", return_value=mock_memory_agent):
-            agent = memory_system.get_memory_agent(agent_id)
+        # Mock the MemorySpace constructor to return a specific agent
+        with mock.patch("memory.core.MemorySpace", return_value=mock_memory_space):
+            agent = memory_system.get_memory_space(agent_id)
 
         assert agent_id in memory_system.agents
         assert memory_system.agents[agent_id] is agent
-        assert agent is mock_memory_agent
+        assert agent is mock_memory_space
 
-    def test_get_memory_agent_existing(self, memory_system, mock_memory_agent):
+    def test_get_memory_space_existing(self, memory_system, mock_memory_space):
         """Test getting an existing memory agent."""
         agent_id = "test-agent-2"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
-        agent = memory_system.get_memory_agent(agent_id)
+        agent = memory_system.get_memory_space(agent_id)
 
-        assert agent is mock_memory_agent
+        assert agent is mock_memory_space
         assert len(memory_system.agents) == 1
 
 
 class TestMemoryStorage:
     """Tests for memory storage operations."""
 
-    def test_store_agent_state(self, memory_system, mock_memory_agent):
+    def test_store_agent_state(self, memory_system, mock_memory_space):
         """Test storing agent state in the default tier."""
         agent_id = "test-agent"
         state_data = {"location": "home", "energy": 100, "mood": "happy"}
@@ -203,18 +203,18 @@ class TestMemoryStorage:
         priority = 0.8
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.store_agent_state(
             agent_id, state_data, step_number, priority
         )
 
         assert result is True
-        mock_memory_agent.store_state.assert_called_once_with(
+        mock_memory_space.store_state.assert_called_once_with(
             state_data, step_number, priority, "stm"
         )
 
-    def test_store_agent_state_custom_tier(self, memory_system, mock_memory_agent):
+    def test_store_agent_state_custom_tier(self, memory_system, mock_memory_space):
         """Test storing agent state in a custom tier."""
         agent_id = "test-agent"
         state_data = {"location": "home", "energy": 100, "mood": "happy"}
@@ -223,18 +223,18 @@ class TestMemoryStorage:
         tier = "ltm"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.store_agent_state(
             agent_id, state_data, step_number, priority, tier
         )
 
         assert result is True
-        mock_memory_agent.store_state.assert_called_once_with(
+        mock_memory_space.store_state.assert_called_once_with(
             state_data, step_number, priority, tier
         )
 
-    def test_store_agent_interaction(self, memory_system, mock_memory_agent):
+    def test_store_agent_interaction(self, memory_system, mock_memory_space):
         """Test storing agent interaction in the default tier."""
         agent_id = "test-agent"
         interaction_data = {
@@ -246,19 +246,19 @@ class TestMemoryStorage:
         priority = 0.9
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.store_agent_interaction(
             agent_id, interaction_data, step_number, priority
         )
 
         assert result is True
-        mock_memory_agent.store_interaction.assert_called_once_with(
+        mock_memory_space.store_interaction.assert_called_once_with(
             interaction_data, step_number, priority, "stm"
         )
 
     def test_store_agent_interaction_custom_tier(
-        self, memory_system, mock_memory_agent
+        self, memory_system, mock_memory_space
     ):
         """Test storing agent interaction in a custom tier."""
         agent_id = "test-agent"
@@ -272,18 +272,18 @@ class TestMemoryStorage:
         tier = "im"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.store_agent_interaction(
             agent_id, interaction_data, step_number, priority, tier
         )
 
         assert result is True
-        mock_memory_agent.store_interaction.assert_called_once_with(
+        mock_memory_space.store_interaction.assert_called_once_with(
             interaction_data, step_number, priority, tier
         )
 
-    def test_store_agent_action(self, memory_system, mock_memory_agent):
+    def test_store_agent_action(self, memory_system, mock_memory_space):
         """Test storing agent action in the default tier."""
         agent_id = "test-agent"
         action_data = {"action_type": "move", "direction": "north", "speed": "fast"}
@@ -291,18 +291,18 @@ class TestMemoryStorage:
         priority = 0.7
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.store_agent_action(
             agent_id, action_data, step_number, priority
         )
 
         assert result is True
-        mock_memory_agent.store_action.assert_called_once_with(
+        mock_memory_space.store_action.assert_called_once_with(
             action_data, step_number, priority, "stm"
         )
 
-    def test_store_agent_action_custom_tier(self, memory_system, mock_memory_agent):
+    def test_store_agent_action_custom_tier(self, memory_system, mock_memory_space):
         """Test storing agent action in a custom tier."""
         agent_id = "test-agent"
         action_data = {"action_type": "move", "direction": "north", "speed": "fast"}
@@ -311,14 +311,14 @@ class TestMemoryStorage:
         tier = "im"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.store_agent_action(
             agent_id, action_data, step_number, priority, tier
         )
 
         assert result is True
-        mock_memory_agent.store_action.assert_called_once_with(
+        mock_memory_space.store_action.assert_called_once_with(
             action_data, step_number, priority, tier
         )
 
@@ -326,7 +326,7 @@ class TestMemoryStorage:
 class TestMemoryRetrieval:
     """Tests for memory retrieval operations."""
 
-    def test_retrieve_similar_states(self, memory_system, mock_memory_agent):
+    def test_retrieve_similar_states(self, memory_system, mock_memory_space):
         """Test retrieving similar states."""
         agent_id = "test-agent"
         query_state = {"location": "store", "energy": 50}
@@ -334,8 +334,8 @@ class TestMemoryRetrieval:
         memory_type = "state"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.retrieve_similar_states.return_value = [
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.retrieve_similar_states.return_value = [
             {"memory_id": "mem1", "contents": {"location": "store", "energy": 60}},
             {"memory_id": "mem2", "contents": {"location": "store", "energy": 70}},
         ]
@@ -346,11 +346,11 @@ class TestMemoryRetrieval:
 
         assert isinstance(result, list)
         assert len(result) == 2
-        mock_memory_agent.retrieve_similar_states.assert_called_once_with(
+        mock_memory_space.retrieve_similar_states.assert_called_once_with(
             query_state, k, memory_type, 0.6, None
         )
 
-    def test_retrieve_by_time_range(self, memory_system, mock_memory_agent):
+    def test_retrieve_by_time_range(self, memory_system, mock_memory_space):
         """Test retrieving memories by time range."""
         agent_id = "test-agent"
         start_step = 10
@@ -358,8 +358,8 @@ class TestMemoryRetrieval:
         memory_type = "action"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.retrieve_by_time_range.return_value = [
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.retrieve_by_time_range.return_value = [
             {"memory_id": "mem1", "step_number": 12},
             {"memory_id": "mem2", "step_number": 15},
             {"memory_id": "mem3", "step_number": 18},
@@ -371,19 +371,19 @@ class TestMemoryRetrieval:
 
         assert isinstance(result, list)
         assert len(result) == 3
-        mock_memory_agent.retrieve_by_time_range.assert_called_once_with(
+        mock_memory_space.retrieve_by_time_range.assert_called_once_with(
             start_step, end_step, memory_type
         )
 
-    def test_retrieve_by_attributes(self, memory_system, mock_memory_agent):
+    def test_retrieve_by_attributes(self, memory_system, mock_memory_space):
         """Test retrieving memories by attributes."""
         agent_id = "test-agent"
         attributes = {"location": "home", "mood": "happy"}
         memory_type = "state"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.retrieve_by_attributes.return_value = [
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.retrieve_by_attributes.return_value = [
             {
                 "memory_id": "mem1",
                 "contents": {"location": "home", "mood": "happy", "energy": 80},
@@ -394,17 +394,17 @@ class TestMemoryRetrieval:
 
         assert isinstance(result, list)
         assert len(result) == 1
-        mock_memory_agent.retrieve_by_attributes.assert_called_once_with(
+        mock_memory_space.retrieve_by_attributes.assert_called_once_with(
             attributes, memory_type
         )
 
-    def test_get_memory_statistics(self, memory_system, mock_memory_agent):
+    def test_get_memory_statistics(self, memory_system, mock_memory_space):
         """Test getting memory statistics."""
         agent_id = "test-agent"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.get_memory_statistics.return_value = {
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.get_memory_statistics.return_value = {
             "stm_count": 100,
             "im_count": 500,
             "ltm_count": 1000,
@@ -417,55 +417,55 @@ class TestMemoryRetrieval:
         assert isinstance(result, dict)
         assert result["stm_count"] == 100
         assert result["total_count"] == 1600
-        mock_memory_agent.get_memory_statistics.assert_called_once()
+        mock_memory_space.get_memory_statistics.assert_called_once()
 
 
 class TestMemoryMaintenance:
     """Tests for memory maintenance operations."""
 
     def test_force_memory_maintenance_single_agent(
-        self, memory_system, mock_memory_agent
+        self, memory_system, mock_memory_space
     ):
         """Test forcing memory maintenance for a single agent."""
         agent_id = "test-agent"
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.force_memory_maintenance(agent_id)
 
         assert result is True
-        mock_memory_agent.force_maintenance.assert_called_once()
+        mock_memory_space.force_maintenance.assert_called_once()
 
     def test_force_memory_maintenance_all_agents(
-        self, memory_system, mock_memory_agent
+        self, memory_system, mock_memory_space
     ):
         """Test forcing memory maintenance for all agents."""
         # Add multiple agents to the system
-        memory_system.agents["agent1"] = mock_memory_agent
-        memory_system.agents["agent2"] = mock.MagicMock(spec=MemoryAgent)
+        memory_system.agents["agent1"] = mock_memory_space
+        memory_system.agents["agent2"] = mock.MagicMock(spec=MemorySpace)
         memory_system.agents["agent2"].force_maintenance.return_value = True
 
         result = memory_system.force_memory_maintenance()
 
         assert result is True
-        assert mock_memory_agent.force_maintenance.call_count == 1
+        assert mock_memory_space.force_maintenance.call_count == 1
         memory_system.agents["agent2"].force_maintenance.assert_called_once()
 
-    def test_force_memory_maintenance_failure(self, memory_system, mock_memory_agent):
+    def test_force_memory_maintenance_failure(self, memory_system, mock_memory_space):
         """Test forcing memory maintenance with a failure."""
         # Add multiple agents to the system
-        memory_system.agents["agent1"] = mock_memory_agent
-        memory_system.agents["agent2"] = mock.MagicMock(spec=MemoryAgent)
+        memory_system.agents["agent1"] = mock_memory_space
+        memory_system.agents["agent2"] = mock.MagicMock(spec=MemorySpace)
         memory_system.agents["agent2"].force_maintenance.return_value = False
 
         result = memory_system.force_memory_maintenance()
 
         assert result is False
-        assert mock_memory_agent.force_maintenance.call_count == 1
+        assert mock_memory_space.force_maintenance.call_count == 1
         memory_system.agents["agent2"].force_maintenance.assert_called_once()
 
-    def test_search_by_embedding(self, memory_system, mock_memory_agent):
+    def test_search_by_embedding(self, memory_system, mock_memory_space):
         """Test searching by embedding vector."""
         agent_id = "test-agent"
         embedding = [0.1, 0.2, 0.3, 0.4]
@@ -473,8 +473,8 @@ class TestMemoryMaintenance:
         memory_tiers = ["stm", "im"]
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.search_by_embedding.return_value = [
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.search_by_embedding.return_value = [
             {"memory_id": "mem1", "similarity": 0.95},
             {"memory_id": "mem2", "similarity": 0.85},
             {"memory_id": "mem3", "similarity": 0.75},
@@ -484,19 +484,19 @@ class TestMemoryMaintenance:
 
         assert isinstance(result, list)
         assert len(result) == 3
-        mock_memory_agent.search_by_embedding.assert_called_once_with(
+        mock_memory_space.search_by_embedding.assert_called_once_with(
             embedding, k, memory_tiers
         )
 
-    def test_search_by_content(self, memory_system, mock_memory_agent):
+    def test_search_by_content(self, memory_system, mock_memory_space):
         """Test searching by content."""
         agent_id = "test-agent"
         content_query = "find memories about the store"
         k = 5
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.search_by_content.return_value = [
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.search_by_content.return_value = [
             {"memory_id": "mem1", "relevance": 0.92},
             {"memory_id": "mem2", "relevance": 0.85},
         ]
@@ -505,13 +505,13 @@ class TestMemoryMaintenance:
 
         assert isinstance(result, list)
         assert len(result) == 2
-        mock_memory_agent.search_by_content.assert_called_once_with(content_query, k)
+        mock_memory_space.search_by_content.assert_called_once_with(content_query, k)
 
-    def test_clear_all_memories(self, memory_system, mock_memory_agent):
+    def test_clear_all_memories(self, memory_system, mock_memory_space):
         """Test clearing all memories for all agents."""
         # Add multiple agents to the system
-        memory_system.agents["agent1"] = mock_memory_agent
-        mock_agent2 = mock.MagicMock(spec=MemoryAgent)
+        memory_system.agents["agent1"] = mock_memory_space
+        mock_agent2 = mock.MagicMock(spec=MemorySpace)
         mock_agent2.clear_memory.return_value = True
         memory_system.agents["agent2"] = mock_agent2
 
@@ -526,11 +526,11 @@ class TestMemoryMaintenance:
         agent2_mock.clear_memory.assert_called_once()
         assert len(memory_system.agents) == 0
 
-    def test_clear_all_memories_failure(self, memory_system, mock_memory_agent):
+    def test_clear_all_memories_failure(self, memory_system, mock_memory_space):
         """Test clearing all memories with a failure."""
         # Add multiple agents to the system
-        memory_system.agents["agent1"] = mock_memory_agent
-        mock_agent2 = mock.MagicMock(spec=MemoryAgent)
+        memory_system.agents["agent1"] = mock_memory_space
+        mock_agent2 = mock.MagicMock(spec=MemorySpace)
         mock_agent2.clear_memory.return_value = False
         memory_system.agents["agent2"] = mock_agent2
 
@@ -549,7 +549,7 @@ class TestMemoryMaintenance:
 class TestMemoryHooks:
     """Tests for memory hook mechanism."""
 
-    def test_register_memory_hook(self, memory_system, mock_memory_agent):
+    def test_register_memory_hook(self, memory_system, mock_memory_space):
         """Test registering a memory hook."""
         agent_id = "test-agent"
         event_type = "memory_created"
@@ -559,19 +559,19 @@ class TestMemoryHooks:
             return True
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.register_hook.return_value = True
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.register_hook.return_value = True
 
         result = memory_system.register_memory_hook(
             agent_id, event_type, hook_function, priority
         )
 
         assert result is True
-        mock_memory_agent.register_hook.assert_called_once_with(
+        mock_memory_space.register_hook.assert_called_once_with(
             event_type, hook_function, priority
         )
 
-    def test_register_memory_hook_disabled(self, memory_system, mock_memory_agent):
+    def test_register_memory_hook_disabled(self, memory_system, mock_memory_space):
         """Test registering a memory hook when hooks are disabled."""
         agent_id = "test-agent"
         event_type = "memory_created"
@@ -584,31 +584,31 @@ class TestMemoryHooks:
         memory_system.config.enable_memory_hooks = False
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.register_memory_hook(
             agent_id, event_type, hook_function, priority
         )
 
         assert result is False
-        mock_memory_agent.register_hook.assert_not_called()
+        mock_memory_space.register_hook.assert_not_called()
 
-    def test_trigger_memory_event(self, memory_system, mock_memory_agent):
+    def test_trigger_memory_event(self, memory_system, mock_memory_space):
         """Test triggering a memory event."""
         agent_id = "test-agent"
         event_type = "memory_accessed"
         event_data = {"memory_id": "mem1", "access_time": 1234567890}
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
-        mock_memory_agent.trigger_event.return_value = True
+        memory_system.agents[agent_id] = mock_memory_space
+        mock_memory_space.trigger_event.return_value = True
 
         result = memory_system.trigger_memory_event(agent_id, event_type, event_data)
 
         assert result is True
-        mock_memory_agent.trigger_event.assert_called_once_with(event_type, event_data)
+        mock_memory_space.trigger_event.assert_called_once_with(event_type, event_data)
 
-    def test_trigger_memory_event_disabled(self, memory_system, mock_memory_agent):
+    def test_trigger_memory_event_disabled(self, memory_system, mock_memory_space):
         """Test triggering a memory event when hooks are disabled."""
         agent_id = "test-agent"
         event_type = "memory_accessed"
@@ -618,12 +618,12 @@ class TestMemoryHooks:
         memory_system.config.enable_memory_hooks = False
 
         # Add agent to the system
-        memory_system.agents[agent_id] = mock_memory_agent
+        memory_system.agents[agent_id] = mock_memory_space
 
         result = memory_system.trigger_memory_event(agent_id, event_type, event_data)
 
         assert result is False
-        mock_memory_agent.trigger_event.assert_not_called()
+        mock_memory_space.trigger_event.assert_not_called()
 
 
 def test_add_memory(memory_system, sample_memory):
