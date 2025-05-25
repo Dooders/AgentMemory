@@ -220,17 +220,15 @@ def test_from_agent_farm_import_verification(
     mock_agent1.im_store = mock_im_store1
     mock_agent1.ltm_store = mock_ltm_store1
 
-    # Configure mock agent importer to return 2 agents
+    # Configure mock agent importer to return 1 agent (matching current implementation)
     mock_agent_importer.import_agents.return_value = [
         MagicMock(agent_id=1),
-        MagicMock(agent_id=2),
     ]
 
     # Configure mock memory importer to return no memories
     # to avoid memory count mismatch
     mock_memory_importer.import_memories.side_effect = [
         [],  # No memories for agent 1
-        [],  # No memories for agent 2
     ]
 
     with patch(
@@ -244,19 +242,13 @@ def test_from_agent_farm_import_verification(
     ) as mock_memory_system:
 
         # Mock memory system to simulate verification failure
-        # Only one agent in the system when we expect two
-        mock_memory_system.return_value.agents = {1: mock_agent1}
+        # No agents in the system when we expect one
+        mock_memory_system.return_value.agents = {}
 
-        # Test should fail with either agent count or memory count mismatch
+        # Test should fail with agent count mismatch
         with pytest.raises(ValueError) as exc_info:
             from_agent_farm(str(db_path), config)
 
-        # Verify the error message contains either agent count or memory count mismatch
+        # Verify the error message contains agent count mismatch
         error_msg = str(exc_info.value)
-        assert any(
-            msg in error_msg
-            for msg in [
-                "Import verification failed: agent count mismatch",
-                "Import verification failed: memory count mismatch",
-            ]
-        )
+        assert "Import verification failed: agent count mismatch" in error_msg

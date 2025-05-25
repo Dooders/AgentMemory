@@ -99,8 +99,11 @@ class SimilaritySearchStrategy(SearchStrategy):
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
         logger.debug("Searching memory tiers: %s", tiers_to_search)
 
-        # Get the memory agent
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        if isinstance(self.memory_system, AgentMemorySystem):
+            # Get the memory agent
+            memory_agent = self.memory_system.get_memory_agent(agent_id)
+        else:
+            memory_agent = self.memory_system
 
         for current_tier in tiers_to_search:
             # Skip if tier is not supported
@@ -221,6 +224,10 @@ class SimilaritySearchStrategy(SearchStrategy):
                             )
                             continue
 
+                    # Ensure memory has required fields
+                    if "id" not in memory:
+                        memory["id"] = memory_id
+                    
                     # Attach similarity score and tier information
                     if "metadata" not in memory:
                         memory["metadata"] = {}

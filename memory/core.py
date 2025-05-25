@@ -344,12 +344,6 @@ class AgentMemorySystem:
         Returns:
             memory_id of the added memory
         """
-        # Generate memory_id if not provided
-        memory_id = memory_data.get(
-            "memory_id", f"mem_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-        )
-        memory_data["memory_id"] = memory_id
-
         # Get agent_id from memory or use a default
         agent_id = memory_data.get("agent_id", "default_agent")
 
@@ -360,27 +354,30 @@ class AgentMemorySystem:
         step_number = memory_data.get("step_number", 0)
         priority = memory_data.get("metadata", {}).get("importance_score", 1.0)
         memory_type = memory_data.get("type", "generic")
+        tier = memory_data.get("metadata", {}).get(
+            "tier", "stm"
+        )  # Get tier from metadata
 
         # Choose appropriate method based on memory type
         if memory_type == "state":
             memory_agent.store_state(
-                memory_data.get("content", {}), step_number, priority
+                memory_data.get("content", {}), step_number, priority, tier
             )
         elif memory_type == "interaction":
             memory_agent.store_interaction(
-                memory_data.get("content", {}), step_number, priority
+                memory_data.get("content", {}), step_number, priority, tier
             )
         elif memory_type == "action":
             memory_agent.store_action(
-                memory_data.get("content", {}), step_number, priority
+                memory_data.get("content", {}), step_number, priority, tier
             )
         else:
             # For generic types, use store_state as a fallback
             memory_agent.store_state(
-                memory_data.get("content", {}), step_number, priority
+                memory_data.get("content", {}), step_number, priority, tier
             )
 
-        return memory_id
+        return memory_data["memory_id"]
 
     def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a memory by its memory_id.
