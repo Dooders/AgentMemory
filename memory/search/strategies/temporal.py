@@ -66,7 +66,7 @@ class TemporalSearchStrategy(SearchStrategy):
         results = []
         temporal_params = self._process_query(query, start_time, end_time, start_step, end_step)
         tiers_to_search = ["stm", "im", "ltm"] if tier is None else [tier]
-        agent = self.memory_system.get_memory_agent(agent_id)
+        agent = self.memory_system.get_memory_space(agent_id)
         for current_tier in tiers_to_search:
             if current_tier not in ["stm", "im", "ltm"]:
                 logger.warning("Unsupported memory tier: %s", current_tier)

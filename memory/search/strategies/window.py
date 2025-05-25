@@ -71,7 +71,7 @@ class TimeWindowStrategy(SearchStrategy):
         Raises:
             ValueError: If time parameters are invalid or conflicting
         """
-        agent = self.memory_system.get_memory_agent(agent_id)
+        agent = self.memory_system.get_memory_space(agent_id)
         timestamp_field = query.get("timestamp_field", "metadata.timestamp")
         time_params = sum(
             1 for p in ["last_minutes", "last_hours", "last_days"] if p in query

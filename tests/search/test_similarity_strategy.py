@@ -25,13 +25,13 @@ class TestSimilaritySearchStrategy(unittest.TestCase):
         self.mock_memory_system.config = {}
         
         # Create mock memory agent
-        self.mock_memory_agent = MagicMock()
-        self.mock_memory_agent.stm_store = self.mock_stm_store
-        self.mock_memory_agent.im_store = self.mock_im_store
-        self.mock_memory_agent.ltm_store = self.mock_ltm_store
+        self.mock_memory_space = MagicMock()
+        self.mock_memory_space.stm_store = self.mock_stm_store
+        self.mock_memory_space.im_store = self.mock_im_store
+        self.mock_memory_space.ltm_store = self.mock_ltm_store
         
         # Set up memory system to return mock agent
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_memory_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_memory_space
         
         # Create strategy with mock memory system
         self.strategy = SimilaritySearchStrategy(self.mock_memory_system)

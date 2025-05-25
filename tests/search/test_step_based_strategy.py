@@ -22,7 +22,7 @@ class TestStepBasedStrategy(unittest.TestCase):
 
         # Create mock memory system
         self.mock_memory_system = MagicMock()
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
 
         # Create strategy with mock memory system
         self.strategy = StepBasedSearchStrategy(self.mock_memory_system)

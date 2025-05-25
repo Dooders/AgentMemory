@@ -63,8 +63,8 @@ def run_demo():
     
     # Clear existing LTM store to prevent duplicate memories
     log_print(logger, "Clearing existing memories to avoid duplicates...")
-    memory_agent = memory_system.get_memory_agent(agent_id)
-    memory_agent.ltm_store.clear()
+    memory_space = memory_system.get_memory_space(agent_id)
+    memory_space.ltm_store.clear()
     
     # Initialize validation tracking
     validation_results = {
@@ -297,7 +297,7 @@ def run_demo():
 
     # Explicitly add older memories directly to LTM for demonstration purposes
     log_print(logger, "Adding demonstration memories directly to LTM...")
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
 
     # Create older memories specifically for LTM
     ltm_memories = [
@@ -389,7 +389,7 @@ def run_demo():
             logger,
             f"Adding memory directly to LTM: {memory['content']['content'][:50]}...",
         )
-        memory_agent.ltm_store.store(memory)
+        memory_space.ltm_store.store(memory)
 
         # Generate and store embedding for the memory
         try:
@@ -401,7 +401,7 @@ def run_demo():
                         logger,
                         f"Generating embedding for memory: {text_content[:50]}...",
                     )
-                    memory_agent.ltm_store.generate_and_store_embedding(
+                    memory_space.ltm_store.generate_and_store_embedding(
                         memory_id=memory.get("memory_id"),
                         text=text_content,
                         agent_id=agent_id,
@@ -412,7 +412,7 @@ def run_demo():
 
     # Initialize the search model with the memory system's configuration
     log_print(logger, "\nInitializing search model...")
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
 
     # Initialize search model
     search_model = SearchModel(memory_system.config)
@@ -424,13 +424,13 @@ def run_demo():
 
     # Temporal search strategy
     temporal_strategy = TemporalSearchStrategy(
-        memory_agent.stm_store, memory_agent.im_store, memory_agent.ltm_store
+        memory_space.stm_store, memory_space.im_store, memory_space.ltm_store
     )
     search_model.register_strategy(temporal_strategy, make_default=True)
 
     # Attribute search strategy
     attribute_strategy = AttributeSearchStrategy(
-        memory_agent.stm_store, memory_agent.im_store, memory_agent.ltm_store
+        memory_space.stm_store, memory_space.im_store, memory_space.ltm_store
     )
     search_model.register_strategy(attribute_strategy)
 
@@ -459,12 +459,12 @@ def run_demo():
 
     log_print(logger, "Searching for memories from the last 48 hours...")
     # Use a direct approach with get_by_timerange to avoid the datetime conversion issue
-    memory_agent = memory_system.get_memory_agent(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
     
     # Get memories from each store
-    ltm_memories = memory_agent.ltm_store.get_by_timerange(two_days_ago, now, limit=10)
-    stm_memories = memory_agent.stm_store.get_all(agent_id)
-    im_memories = memory_agent.im_store.get_all(agent_id)
+    ltm_memories = memory_space.ltm_store.get_by_timerange(two_days_ago, now, limit=10)
+    stm_memories = memory_space.stm_store.get_all(agent_id)
+    im_memories = memory_space.im_store.get_all(agent_id)
     
     # Filter STM and IM memories by time
     filtered_stm = []

@@ -534,7 +534,7 @@ def run_experiment(episodes=100, memory_enabled=True, random_seed=None):
 
         # Important: Pre-initialize the memory agent for our agent ID
         # This ensures the agent exists in the memory system before hooks try to access it
-        memory_agent = memory_system.get_memory_agent(agent_id)
+        memory_space = memory_system.get_memory_space(agent_id)
 
         # 4. Create the agent with our compression-disabled config
         config = {"memory_config": memory_config}

@@ -403,7 +403,7 @@ class AgentMemoryAPI:
 
     def _aggregate_results(
         self,
-        memory_agent,
+        memory_space,
         query_fn: Callable,
         k: int = None,
         memory_type: Optional[str] = None,
@@ -414,7 +414,7 @@ class AgentMemoryAPI:
         """Aggregate results across memory tiers using the provided query function.
 
         Args:
-            memory_agent: The memory agent to query
+            memory_space: The memory agent to query
             query_fn: Function that takes (store, k, memory_type) and returns results
             k: Maximum number of results to return
             memory_type: Optional filter for specific memory types
@@ -433,9 +433,9 @@ class AgentMemoryAPI:
         store_results = []
 
         for store in [
-            memory_agent.stm_store,
-            memory_agent.im_store,
-            memory_agent.ltm_store,
+            memory_space.stm_store,
+            memory_space.im_store,
+            memory_space.ltm_store,
         ]:
             if remaining <= 0:
                 break
@@ -704,13 +704,13 @@ class AgentMemoryAPI:
         Returns:
             Memory entry or None if not found
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
+        memory_space = self.memory_system.get_memory_space(agent_id)
         # Try retrieving from each tier in order
-        memory = memory_agent.stm_store.get(memory_id)
+        memory = memory_space.stm_store.get(memory_id)
         if not memory:
-            memory = memory_agent.im_store.get(memory_id)
+            memory = memory_space.im_store.get(memory_id)
         if not memory:
-            memory = memory_agent.ltm_store.get(memory_id)
+            memory = memory_space.ltm_store.get(memory_id)
         return memory
 
     def retrieve_recent_states(
@@ -729,8 +729,8 @@ class AgentMemoryAPI:
         Returns:
             List of memory entries
         """
-        memory_agent = self.memory_system.get_memory_agent(agent_id)
-        return memory_agent.stm_store.get_recent(count, memory_type)
+        memory_space = self.memory_system.get_memory_space(agent_id)
+        return memory_space.stm_store.get_recent(count, memory_type)
 
     @cacheable(ttl=60)
     def retrieve_similar_states(
@@ -788,9 +788,9 @@ class AgentMemoryAPI:
                 memory_type=memory_type,
             )
 
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
 
-            if not memory_agent.embedding_engine:
+            if not memory_space.embedding_engine:
                 error_msg = (
                     "Vector similarity search requires embedding engine to be enabled"
                 )
@@ -804,7 +804,7 @@ class AgentMemoryAPI:
 
             # Generate embedding for query state
             try:
-                query_embedding = memory_agent.embedding_engine.encode_stm(query_state)
+                query_embedding = memory_space.embedding_engine.encode_stm(query_state)
                 log_with_context(
                     logger.debug,
                     "Generated embedding for query state",
@@ -824,9 +824,9 @@ class AgentMemoryAPI:
 
             def query_function(store, limit, mem_type):
                 # Determine which tier this store represents
-                if store == memory_agent.stm_store:
+                if store == memory_space.stm_store:
                     tier = "stm"
-                elif store == memory_agent.im_store:
+                elif store == memory_space.im_store:
                     tier = "im"
                 else:  # ltm_store
                     tier = "ltm"
@@ -843,7 +843,7 @@ class AgentMemoryAPI:
                 # Convert embedding to appropriate dimensions for this tier
                 try:
                     tier_embedding = (
-                        memory_agent.embedding_engine.ensure_embedding_dimensions(
+                        memory_space.embedding_engine.ensure_embedding_dimensions(
                             query_embedding, tier
                         )
                     )
@@ -882,7 +882,7 @@ class AgentMemoryAPI:
                     return []
 
             results = self._aggregate_results(
-                memory_agent,
+                memory_space,
                 query_function,
                 k=k,
                 memory_type=memory_type,
@@ -976,14 +976,14 @@ class AgentMemoryAPI:
             )
 
         try:
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
 
             def query_function(store, _, mem_type):
                 return store.get_by_step_range(start_step, end_step, mem_type)
 
             # Use merge sort since results from each store are already sorted by step number
             return self._aggregate_results(
-                memory_agent,
+                memory_space,
                 query_function,
                 memory_type=memory_type,
                 sort_key=lambda x: x.get("step_number", 0),
@@ -1029,13 +1029,13 @@ class AgentMemoryAPI:
             raise MemoryRetrievalException("At least one attribute must be specified")
 
         try:
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
 
             def query_function(store, _, mem_type):
                 return store.get_by_attributes(attributes, mem_type)
 
             return self._aggregate_results(
-                memory_agent,
+                memory_space,
                 query_function,
                 memory_type=memory_type,
                 sort_key=lambda x: x.get("step_number", 0),
@@ -1108,20 +1108,20 @@ class AgentMemoryAPI:
                 )
 
         try:
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
 
             # Determine which tiers to search
             tiers = memory_tiers or ["stm", "im", "ltm"]
             results = []
 
             tier_stores = {
-                "stm": memory_agent.stm_store,
-                "im": memory_agent.im_store,
-                "ltm": memory_agent.ltm_store,
+                "stm": memory_space.stm_store,
+                "im": memory_space.im_store,
+                "ltm": memory_space.ltm_store,
             }
 
             # Check if embedding engine is available for conversion
-            has_embedding_engine = memory_agent.embedding_engine is not None
+            has_embedding_engine = memory_space.embedding_engine is not None
 
             for tier in tiers:
                 if len(results) >= k:
@@ -1138,7 +1138,7 @@ class AgentMemoryAPI:
                     try:
                         # Automatically convert the embedding to the target tier format
                         tier_embedding = (
-                            memory_agent.embedding_engine.ensure_embedding_dimensions(
+                            memory_space.embedding_engine.ensure_embedding_dimensions(
                                 query_embedding, tier
                             )
                         )
@@ -1203,7 +1203,7 @@ class AgentMemoryAPI:
             raise MemoryRetrievalException("k must be a positive integer")
 
         try:
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
 
             # Convert string query to dict if needed
             if isinstance(content_query, str):
@@ -1215,7 +1215,7 @@ class AgentMemoryAPI:
                 return store.search_by_content(query_dict, k=limit)
 
             return self._aggregate_results(
-                memory_agent, query_function, k=k, merge_sorted=True
+                memory_space, query_function, k=k, merge_sorted=True
             )
         except Exception as e:
             logger.error(f"Failed to search by content for agent {agent_id}: {e}")
@@ -1238,15 +1238,15 @@ class AgentMemoryAPI:
             raise MemoryRetrievalException("Agent ID cannot be empty")
 
         try:
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
 
             # Gather statistics from each memory tier
-            stm_count = memory_agent.stm_store.count()
-            im_count = memory_agent.im_store.count()
-            ltm_count = memory_agent.ltm_store.count()
+            stm_count = memory_space.stm_store.count()
+            im_count = memory_space.im_store.count()
+            ltm_count = memory_space.ltm_store.count()
 
             # Get memory type counts in STM
-            memory_type_counts = memory_agent.stm_store.count_by_type()
+            memory_type_counts = memory_space.stm_store.count_by_type()
 
             return {
                 "total_memories": stm_count + im_count + ltm_count,
@@ -1254,8 +1254,8 @@ class AgentMemoryAPI:
                 "im_count": im_count,
                 "ltm_count": ltm_count,
                 "memory_type_distribution": memory_type_counts,
-                "last_maintenance_time": memory_agent.last_maintenance_time,
-                "insert_count_since_maintenance": memory_agent._insert_count,
+                "last_maintenance_time": memory_space.last_maintenance_time,
+                "insert_count_since_maintenance": memory_space._insert_count,
             }
         except Exception as e:
             logger.error(f"Failed to get memory statistics for agent {agent_id}: {e}")
@@ -1297,7 +1297,7 @@ class AgentMemoryAPI:
 
                 # Maintain single agent
                 try:
-                    memory_agent = self.memory_system.get_memory_agent(agent_id)
+                    memory_space = self.memory_system.get_memory_space(agent_id)
                 except Exception as e:
                     log_with_context(
                         logger.error,
@@ -1317,7 +1317,7 @@ class AgentMemoryAPI:
                         operation="force_memory_maintenance",
                     )
 
-                    result = memory_agent._perform_maintenance()
+                    result = memory_space._perform_maintenance()
 
                     if not result:
                         log_with_context(
@@ -1359,7 +1359,7 @@ class AgentMemoryAPI:
                 success = True
                 failed_agents = []
 
-                for current_agent_id, memory_agent in self.memory_system.agents.items():
+                for current_agent_id, memory_space in self.memory_system.agents.items():
                     try:
                         log_with_context(
                             logger.debug,
@@ -1368,7 +1368,7 @@ class AgentMemoryAPI:
                             operation="force_memory_maintenance",
                         )
 
-                        if not memory_agent._perform_maintenance():
+                        if not memory_space._perform_maintenance():
                             log_with_context(
                                 logger.error,
                                 "Maintenance failed",
@@ -1459,7 +1459,7 @@ class AgentMemoryAPI:
 
             # Get memory agent - this could raise if agent_id doesn't exist
             try:
-                memory_agent = self.memory_system.get_memory_agent(agent_id)
+                memory_space = self.memory_system.get_memory_space(agent_id)
             except Exception as e:
                 logger.error(f"Failed to get memory agent for agent {agent_id}: {e}")
                 raise MemoryMaintenanceException(
@@ -1469,7 +1469,7 @@ class AgentMemoryAPI:
             if not memory_tiers:
                 # Clear all tiers
                 try:
-                    result = memory_agent.clear_memory()
+                    result = memory_space.clear_memory()
                     if not result:
                         logger.error(f"Failed to clear memory for agent {agent_id}")
                     return result
@@ -1485,7 +1485,7 @@ class AgentMemoryAPI:
             # Clear specified tiers
             if "stm" in memory_tiers:
                 try:
-                    if not memory_agent.stm_store.clear():
+                    if not memory_space.stm_store.clear():
                         logger.error(f"Failed to clear STM for agent {agent_id}")
                         success = False
                         failed_tiers.append("stm")
@@ -1496,7 +1496,7 @@ class AgentMemoryAPI:
 
             if "im" in memory_tiers:
                 try:
-                    if not memory_agent.im_store.clear():
+                    if not memory_space.im_store.clear():
                         logger.error(f"Failed to clear IM for agent {agent_id}")
                         success = False
                         failed_tiers.append("im")
@@ -1507,7 +1507,7 @@ class AgentMemoryAPI:
 
             if "ltm" in memory_tiers:
                 try:
-                    if not memory_agent.ltm_store.clear():
+                    if not memory_space.ltm_store.clear():
                         logger.error(f"Failed to clear LTM for agent {agent_id}")
                         success = False
                         failed_tiers.append("ltm")
@@ -1567,7 +1567,7 @@ class AgentMemoryAPI:
             )
 
         try:
-            memory_agent = self.memory_system.get_memory_agent(agent_id)
+            memory_space = self.memory_system.get_memory_space(agent_id)
 
             # Find memory and update importance score
             memory = self.retrieve_state_by_id(agent_id, memory_id)
@@ -1581,12 +1581,12 @@ class AgentMemoryAPI:
             )
 
             # Determine which store contains the memory and update
-            if memory_agent.stm_store.contains(memory_id):
-                return memory_agent.stm_store.update(memory)
-            elif memory_agent.im_store.contains(memory_id):
-                return memory_agent.im_store.update(memory)
-            elif memory_agent.ltm_store.contains(memory_id):
-                return memory_agent.ltm_store.update(memory)
+            if memory_space.stm_store.contains(memory_id):
+                return memory_space.stm_store.update(memory)
+            elif memory_space.im_store.contains(memory_id):
+                return memory_space.im_store.update(memory)
+            elif memory_space.ltm_store.contains(memory_id):
+                return memory_space.ltm_store.update(memory)
 
             return False
         except Exception as e:
@@ -1792,7 +1792,7 @@ class AgentMemoryAPI:
                 operation="configure_memory_system",
             )
 
-            for agent_id, memory_agent in self.memory_system.agents.items():
+            for agent_id, memory_space in self.memory_system.agents.items():
                 try:
                     log_with_context(
                         logger.debug,
@@ -1802,16 +1802,16 @@ class AgentMemoryAPI:
                     )
 
                     # Update agent config
-                    memory_agent.config = self.memory_system.config
+                    memory_space.config = self.memory_system.config
 
                     # Update store configurations
-                    memory_agent.stm_store.config = self.memory_system.config.stm_config
-                    memory_agent.im_store.config = self.memory_system.config.im_config
-                    memory_agent.ltm_store.config = self.memory_system.config.ltm_config
+                    memory_space.stm_store.config = self.memory_system.config.stm_config
+                    memory_space.im_store.config = self.memory_system.config.im_config
+                    memory_space.ltm_store.config = self.memory_system.config.ltm_config
 
                     # Update embedding engine if needed
-                    if memory_agent.embedding_engine:
-                        memory_agent.embedding_engine.configure(
+                    if memory_space.embedding_engine:
+                        memory_space.embedding_engine.configure(
                             self.memory_system.config.autoencoder_config
                         )
                 except Exception as e:

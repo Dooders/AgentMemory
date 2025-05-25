@@ -95,8 +95,8 @@ def main():
     )
 
     # Get the loaded memories from the memory system
-    memory_agent = memory_system.get_memory_agent(agent_id)
-    loaded_memories = memory_agent.stm_store.get_all(agent_id)
+    memory_space = memory_system.get_memory_space(agent_id)
+    loaded_memories = memory_space.stm_store.get_all(agent_id)
 
     print(f"Loaded memories from system: {len(loaded_memories)}")
 

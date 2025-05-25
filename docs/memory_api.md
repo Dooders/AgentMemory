@@ -164,10 +164,10 @@ result = ActionResult(
 
 ```python
 # Get memory agent instance for more specialized operations
-memory_agent = memory_api.get_memory_agent("agent-123")
+memory_space = memory_api.get_memory_space("agent-123")
 
 # Get recent states
-recent_states = memory_agent.retrieve_recent_states(
+recent_states = memory_space.retrieve_recent_states(
     count=5,
     memory_type="state"  # Optional filter
 )
@@ -266,8 +266,8 @@ The hooks system automatically:
 embedding = [0.1, 0.2, 0.3, ...]  # Your embedding vector
 
 # Search using the raw embedding
-memory_agent = memory_api.get_memory_agent("agent-123")
-similar_memories = memory_agent.search_by_embedding(
+memory_space = memory_api.get_memory_space("agent-123")
+similar_memories = memory_space.search_by_embedding(
     query_embedding=embedding,
     k=10,
     memory_tiers=["stm", "im"]  # Optional: specific tiers to search
@@ -278,10 +278,10 @@ similar_memories = memory_agent.search_by_embedding(
 
 ```python
 # Get memory agent instance
-memory_agent = memory_api.get_memory_agent("agent-123")
+memory_space = memory_api.get_memory_space("agent-123")
 
 # Search by content pattern 
-memories = memory_agent.search_by_content(
+memories = memory_space.search_by_content(
     content_query="trade wood",
     k=5
 )
@@ -369,7 +369,7 @@ The merge sorting algorithm:
 
 ```python
 # The merge_sorted parameter is enabled by default for appropriate methods
-memories = memory_agent.retrieve_by_time_range(
+memories = memory_space.retrieve_by_time_range(
     agent_id="agent-123",
     start_step=1000,
     end_step=2000
@@ -382,14 +382,14 @@ Expensive operations like semantic similarity searches can be automatically cach
 
 ```python
 # This query will cache results (using lru_cache)
-similar_states = memory_agent.retrieve_similar_states(
+similar_states = memory_space.retrieve_similar_states(
     agent_id="agent-123",
     query_state=current_state,
     k=5
 )
 
 # Subsequent identical calls will use the cached result
-similar_states_again = memory_agent.retrieve_similar_states(
+similar_states_again = memory_space.retrieve_similar_states(
     agent_id="agent-123",
     query_state=current_state,
     k=5
@@ -403,10 +403,10 @@ The caching system provides:
 
 ```python
 # Configure the default cache TTL
-memory_agent.set_cache_ttl(300)  # 5 minutes
+memory_space.set_cache_ttl(300)  # 5 minutes
 
 # Clear the entire cache
-memory_agent.clear_cache()
+memory_space.clear_cache()
 ```
 
 ### When to Use Caching
@@ -510,7 +510,7 @@ Client code should implement appropriate retry and fallback mechanisms based on 
 
 | Method | Description |
 |--------|-------------|
-| `get_memory_agent(agent_id)` | Get a MemoryAgent instance for more specialized operations |
+| `get_memory_space(agent_id)` | Get a MemorySpace instance for more specialized operations |
 | `force_memory_maintenance(agent_id=None)` | Force tier transitions and cleanup |
 | `get_memory_statistics(agent_id)` | Get statistics about memory usage |
 | `clear_cache()` | Clear the query result cache |
@@ -595,7 +595,7 @@ Example of tier-specific querying:
 
 ```python
 # Search only STM and IM (faster than searching all tiers)
-results = memory_agent.search_by_embedding(
+results = memory_space.search_by_embedding(
     query_embedding=embedding,
     k=10,
     memory_tiers=["stm", "im"]  # Skip LTM for faster results
@@ -639,4 +639,4 @@ The API is designed to integrate seamlessly with agent systems:
 - [Core Concepts](../../../core_concepts.md): Fundamental architecture and data structures
 - [Memory Hooks](memory_hooks.md): Non-intrusive agent integration
 - [Redis Integration](../../../redis_integration.md): Redis backend details
-- [Memory Agent](../../../memory_agent.md): Memory agent implementation 
+- [Memory Space](../../../memory_space.md): Memory agent implementation 

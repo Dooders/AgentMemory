@@ -323,7 +323,7 @@ Approximate memory usage per entry:
 
 The `RedisSTMStore` integrates with:
 
-1. **Memory Agent**: Provides storage for the memory agent's operations
+1. **Memory Space**: Provides storage for the memory agent's operations
 2. **API Layer**: Used by the API to fulfill retrieval requests
 3. **Memory Tiers**: Part of the hierarchical memory architecture
 4. **Memory Hooks**: Used by agent hooks to store state snapshots
@@ -354,5 +354,5 @@ The `RedisSTMStore` integrates with:
 - [Agent State Storage](../../agent_state_storage.md)
 - [Redis Integration](../../redis_integration.md)
 - [ResilientRedisClient](resilient_redis_client.md)
-- [Memory Agent](memory_agent.md)
+- [Memory Space](memory_space.md)
 - [Agent Memory API](agent_memory_api.md) 

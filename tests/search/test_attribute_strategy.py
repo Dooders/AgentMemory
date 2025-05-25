@@ -19,7 +19,7 @@ class TestAttributeSearchStrategy(unittest.TestCase):
         
         # Create mock agent
         self.mock_agent = MagicMock()
-        self.mock_memory_system.get_memory_agent.return_value = self.mock_agent
+        self.mock_memory_system.get_memory_space.return_value = self.mock_agent
         
         # Set up mock stores in the agent
         self.mock_agent.stm_store = MagicMock()

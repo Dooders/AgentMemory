@@ -55,7 +55,7 @@ def significant_event_hook(
     Returns:
         True if processing was successful
     """
-    # Handle when agent_id is a MemoryAgent object
+    # Handle when agent_id is a MemorySpace object
     agent_id_str = getattr(agent_id, "agent_id", agent_id)
     print(f"Significant event hook triggered for agent {agent_id_str}")
     print(f"  Event type: {event_data.get('type', 'unknown')}")
@@ -104,7 +104,7 @@ def state_change_hook(
     Returns:
         True if processing was successful
     """
-    # Handle when agent_id is a MemoryAgent object
+    # Handle when agent_id is a MemorySpace object
     agent_id_str = getattr(agent_id, "agent_id", agent_id)
     print(f"State change hook triggered for agent {agent_id_str}")
 
@@ -194,7 +194,7 @@ def interaction_hook(
     Returns:
         True if processing was successful
     """
-    # Handle when agent_id is a MemoryAgent object
+    # Handle when agent_id is a MemorySpace object
     agent_id_str = getattr(agent_id, "agent_id", agent_id)
     print(f"Interaction hook triggered for agent {agent_id_str}")
 
