@@ -5,7 +5,6 @@ Script to run the AgentFarm to Memory System converter.
 
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from converter.config import DEFAULT_CONFIG
@@ -20,23 +19,18 @@ def main():
     use_mock_redis = True
     batch_size = 100
     tiering_strategy = "simple"
-    log_file = None
+    log_file = "logs/converter.log"
 
     # Create logs directory if it doesn't exist
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
-
-    # Generate default log filename if not provided
-    if not log_file:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log_file = log_dir / f"converter_{timestamp}.log"
 
     # Configure logging
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.FileHandler(log_file),
+            logging.FileHandler(log_file, mode="w"),  # 'w' mode overwrites the file
             logging.StreamHandler(sys.stdout),
         ],
         force=True,

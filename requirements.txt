@@ -24,7 +24,8 @@ sqlite3-plus
 
 # Testing dependencies
 pytest
-pytest-asyncio 
+pytest-asyncio
+hypothesis
 
 # Visualization and analysis
 matplotlib

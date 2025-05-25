@@ -1,5 +1,32 @@
 """
-Memory import handlers for the AgentFarm DB to Memory System converter.
+Memory import system for converting AgentFarm database records to a memory-based system.
+
+This module provides functionality to import and convert various types of agent memories
+from an AgentFarm database into a structured memory system. It handles different memory
+types including agent states, actions, and social interactions, with support for:
+
+- Memory validation and error handling
+- Tiered memory organization
+- Batch processing of records
+- Metadata extraction and transformation
+- Incremental import capabilities
+
+Key Components:
+    - MemoryImporter: Main class for handling the import process
+    - MemoryMetadata: Data structure for storing imported memory information
+    - TieringContext: Context for determining memory importance tiers
+
+The module integrates with:
+    - DatabaseManager for database operations
+    - MemoryTypeMapper for type conversion
+    - TieringStrategy for memory importance determination
+    - ConverterConfig for import configuration
+
+Example Usage:
+    ```python
+    importer = MemoryImporter(db_manager, config, tiering_strategy, memory_type_mapper)
+    memories = importer.import_memories(agent_id=123)
+    ```
 """
 
 import logging

@@ -2,7 +2,8 @@
 Tests for the agent import system.
 """
 
-from unittest.mock import MagicMock, patch
+from datetime import datetime
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -47,6 +48,26 @@ def mock_agent():
     return agent
 
 
+@pytest.fixture
+def mock_agent_with_death():
+    """Create a mock agent with death time."""
+    agent = MagicMock()
+    agent.agent_id = "test-agent-2"
+    agent.name = "Dead Agent"
+    agent.birth_time = "2024-01-01T00:00:00"
+    agent.death_time = "2024-01-02T00:00:00"
+    agent.agent_type = "test_type"
+    agent.position_x = 15
+    agent.position_y = 25
+    agent.initial_resources = 200
+    agent.starting_health = 75
+    agent.starvation_threshold = 30
+    agent.genome_id = "genome-2"
+    agent.generation = 2
+    agent.action_weights = {"action1": 0.7, "action2": 0.3}
+    return agent
+
+
 def test_agent_importer_initialization(mock_db_manager, mock_config):
     """Test AgentImporter initialization."""
     importer = AgentImporter(mock_db_manager, mock_config)
@@ -75,7 +96,7 @@ def test_import_agents_full_mode(mock_db_manager, mock_config, mock_agent):
     assert len(agents) == 1
     assert isinstance(agents[0], AgentMetadata)
     assert agents[0].agent_id == mock_agent.agent_id
-    assert agents[0].name == mock_agent.name
+    assert agents[0].name == f"Agent-{mock_agent.agent_id}"
 
     # Verify query chain
     mock_session.query.assert_called_once_with(mock_db_manager.AgentModel)
@@ -259,11 +280,7 @@ def test_batch_processing(mock_db_manager, mock_config):
         len(agents) == 1
     )  # Due to the current implementation returning only first agent
 
-    # Verify offset calls - we expect 4 calls because:
-    # 1. First batch (offset 0)
-    # 2. Second batch (offset 2)
-    # 3. Third batch (offset 4)
-    # 4. Empty batch (offset 6)
+    # Verify offset calls
     assert mock_query.offset.call_count == 4
 
     # Verify the actual offset values used
@@ -273,3 +290,81 @@ def test_batch_processing(mock_db_manager, mock_config):
     # Verify limit calls match batch size
     limit_calls = [call[0][0] for call in mock_query.limit.call_args_list]
     assert all(limit == mock_config.batch_size for limit in limit_calls)
+
+
+def test_import_agent_with_death_time(
+    mock_db_manager, mock_config, mock_agent_with_death
+):
+    """Test importing an agent with death time."""
+    importer = AgentImporter(mock_db_manager, mock_config)
+    metadata = importer._import_agent(mock_agent_with_death)
+
+    assert metadata.agent_id == mock_agent_with_death.agent_id
+    assert metadata.name == f"Agent-{mock_agent_with_death.agent_id}"
+    assert metadata.created_at == mock_agent_with_death.birth_time
+    assert metadata.updated_at == mock_agent_with_death.death_time
+
+
+def test_import_agent_with_missing_optional_fields(mock_db_manager, mock_config):
+    """Test importing an agent with missing optional fields."""
+    mock_agent = MagicMock()
+    mock_agent.agent_id = "test-agent-3"
+    mock_agent.name = None  # Missing name
+    mock_agent.birth_time = "2024-01-01T00:00:00"
+    mock_agent.death_time = None
+    mock_agent.agent_type = "test_type"
+    mock_agent.position_x = 10
+    mock_agent.position_y = 20
+    mock_agent.initial_resources = None  # Missing initial_resources
+    mock_agent.starting_health = None  # Missing starting_health
+    mock_agent.starvation_threshold = None  # Missing starvation_threshold
+    mock_agent.genome_id = None  # Missing genome_id
+    mock_agent.generation = None  # Missing generation
+    mock_agent.action_weights = None  # Missing action_weights
+
+    importer = AgentImporter(mock_db_manager, mock_config)
+    metadata = importer._import_agent(mock_agent)
+
+    assert metadata.agent_id == mock_agent.agent_id
+    assert metadata.name == f"Agent-{mock_agent.agent_id}"  # Should use default name
+    assert metadata.created_at == mock_agent.birth_time
+    assert (
+        metadata.updated_at == mock_agent.birth_time
+    )  # Should use birth_time as updated_at
+
+
+def test_import_agents_with_database_error(mock_db_manager, mock_config):
+    """Test handling of database errors during import."""
+    # Setup mock session to raise an exception
+    mock_session = MagicMock()
+    mock_db_manager.session.return_value.__enter__.return_value = mock_session
+    mock_session.query.side_effect = Exception("Database connection error")
+
+    importer = AgentImporter(mock_db_manager, mock_config)
+
+    with pytest.raises(Exception, match="Database connection error"):
+        importer.import_agents()
+
+
+def test_import_agents_with_invalid_batch_size(mock_db_manager, mock_config):
+    """Test handling of invalid batch size configuration."""
+    mock_config.batch_size = 0  # Invalid batch size
+
+    with pytest.raises(ValueError, match="Batch size must be greater than 0"):
+        AgentImporter(mock_db_manager, mock_config)
+
+
+def test_import_agents_with_invalid_error_handling(mock_db_manager, mock_config):
+    """Test handling of invalid error handling mode."""
+    mock_config.error_handling = "invalid_mode"
+
+    with pytest.raises(ValueError, match="Invalid error handling mode"):
+        AgentImporter(mock_db_manager, mock_config)
+
+
+def test_import_agents_with_invalid_import_mode(mock_db_manager, mock_config):
+    """Test handling of invalid import mode."""
+    mock_config.import_mode = "invalid_mode"
+
+    with pytest.raises(ValueError, match="Invalid import mode"):
+        AgentImporter(mock_db_manager, mock_config)

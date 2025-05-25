@@ -1,5 +1,51 @@
 """
 Configuration system for the AgentFarm DB to Memory System converter.
+
+This module provides a comprehensive configuration system for managing the conversion
+process from AgentFarm database to the Memory System. It includes:
+
+1. Configuration Management:
+   - Redis connection settings
+   - Validation and error handling options
+   - Processing parameters (batch size, progress display)
+   - Memory type mappings
+   - Tiering strategy selection
+   - Import mode settings
+
+2. Key Features:
+   - Type-safe configuration using dataclasses
+   - Automatic validation of configuration values
+   - Default values for all settings
+   - Support for custom memory type mappings
+   - Multiple tiering strategies (simple, step-based, importance-aware)
+   - Flexible error handling modes (skip, fail, log)
+   - Support for both full and incremental imports
+
+3. Usage:
+   ```python
+   from converter.config import ConverterConfig
+
+   # Use default configuration
+   config = ConverterConfig()
+
+   # Custom configuration
+   config = ConverterConfig(
+       use_mock_redis=False,
+       batch_size=200,
+       error_handling="fail",
+       import_mode="incremental"
+   )
+   ```
+
+4. Validation:
+   - All configuration values are validated on initialization
+   - Invalid values raise ValueError with descriptive messages
+   - Memory type mappings must include all required models
+   - Batch size must be positive
+   - Error handling and import modes must be valid options
+
+The configuration system is designed to be extensible while maintaining strict
+validation to ensure reliable operation of the converter.
 """
 
 import logging
