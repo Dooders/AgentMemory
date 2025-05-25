@@ -132,11 +132,12 @@ class TestMemoryImporter:
         memory.position_x = 10.0
         memory.position_y = 20.0
         memory.timestamp = datetime.now()
-
+        memory.importance_score = 0.5
+    
         mock_tiering_strategy.determine_tier.return_value = "long_term"
-
+    
         metadata = memory_importer._import_memory(memory, "test_type", "ActionModel")
-
+    
         assert metadata is not None
         assert metadata.agent_id == "123"
         assert metadata.step_number == 5
@@ -200,8 +201,9 @@ class TestMemoryImporter:
         memory.position_x = 10.0
         memory.position_y = 20.0
         memory.timestamp = datetime.now()
-
+        memory.importance_score = 0.5
+    
         metadata = memory_importer._import_memory(memory, "test_type", "ActionModel")
-
+    
         assert metadata.memory_id == 999
         mock_generate_id.assert_called_once_with("test_type", 123, 5)

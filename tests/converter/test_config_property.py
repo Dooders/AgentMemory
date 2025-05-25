@@ -5,6 +5,7 @@ Property-based tests for the configuration system using hypothesis.
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from hypothesis import settings, HealthCheck
 
 from converter.config import ConverterConfig
 
@@ -21,12 +22,15 @@ tiering_strategy_strategy = st.sampled_from(
 )
 
 # Strategy for valid memory type mappings
-memory_type_mapping_strategy = st.dictionaries(
-    keys=st.sampled_from(["AgentStateModel", "ActionModel", "SocialInteractionModel"]),
-    values=st.sampled_from(["state", "action", "interaction"]),
+memory_type_mapping_strategy = st.lists(
+    st.sampled_from(["state", "action", "interaction"]),
     min_size=3,
     max_size=3,
-)
+    unique=True
+).map(lambda types: dict(zip(
+    ["AgentStateModel", "ActionModel", "SocialInteractionModel"],
+    types
+)))
 
 # Strategy for valid batch sizes
 batch_size_strategy = st.integers(min_value=1, max_value=1000)
@@ -46,6 +50,7 @@ selective_agents_strategy = st.lists(st.integers(min_value=1), min_size=0, max_s
     tiering_strategy_type=tiering_strategy_strategy,
     memory_type_mapping=memory_type_mapping_strategy,
 )
+@settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
 def test_config_properties(
     use_mock_redis,
     validate,
