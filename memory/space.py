@@ -100,7 +100,7 @@ class MemorySpace:
 
         # Initialize vector store
         self.vector_store = VectorStore(
-            redis_client=self.stm_store.redis,
+            redis_client=None,
             stm_dimension=config.autoencoder_config.stm_dim,
             im_dimension=config.autoencoder_config.im_dim,
             ltm_dimension=config.autoencoder_config.ltm_dim,
@@ -293,7 +293,7 @@ class MemorySpace:
                 data = self.compression_engine.compress(data, level=2)
 
         # Create standardized memory entry
-        return {
+        memory_entry = {
             "memory_id": memory_id,
             "agent_id": self.agent_id,
             "step_number": step_number,
@@ -310,6 +310,9 @@ class MemorySpace:
             },
             "embeddings": embeddings,
         }
+
+        self.vector_store.store_memory_vectors(memory_entry, tier)
+        return memory_entry
 
     def _check_memory_transition(self) -> None:
         """Check if memories need to be transitioned between tiers.

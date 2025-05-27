@@ -304,9 +304,9 @@ class RedisVectorIndex(VectorIndex):
 
             # Store in Redis
             key = f"{self.index_name}:{id}"
-            self.redis.hset(
+            self.redis.hset_dict(
                 key,
-                mapping={
+                {
                     self.vector_field: vector_bytes,
                     "metadata": metadata_json,
                     "timestamp": int(time.time()),

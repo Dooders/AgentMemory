@@ -15,10 +15,8 @@ from memory import (
     RedisIMConfig,
     RedisSTMConfig,
     SQLiteLTMConfig,
+    MemorySpace,
 )
-from memory.api.hooks import BaseAgent
-from memory.api.models import ActionResult
-from memory.config import AutoencoderConfig
 
 
 # Helper function to convert NumPy types to native Python types for JSON serialization
@@ -106,18 +104,17 @@ class MazeEnvironment:
         return self.get_observation(), reward, done
 
 
-# Base agent class that extends the BaseAgent from memory hooks
-class SimpleAgent(BaseAgent):
+# Base agent class without hooks
+class SimpleAgent:
     def __init__(
         self,
         agent_id,
-        config=None,
         action_space=4,
         learning_rate=0.1,
         discount_factor=0.9,
         **kwargs,
     ):
-        super().__init__(config=config, agent_id=agent_id, **kwargs)
+        self.agent_id = agent_id
         self.action_space = action_space
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
@@ -125,15 +122,7 @@ class SimpleAgent(BaseAgent):
         self.current_observation = None
         self.demo_path = None  # For scripted demo actions
         self.demo_step = 0
-
-    def get_state(self):
-        """Override get_state to provide current observation for memory hooks"""
-        state = super().get_state()
-        # Add the current observation to the state if available
-        if self.current_observation:
-            # Convert NumPy types to Python types
-            state.extra_data = convert_numpy_to_python(self.current_observation)
-        return state
+        self.step_number = 0
 
     def _get_state_key(self, observation):
         # Enhance state representation by including more context
@@ -182,18 +171,12 @@ class SimpleAgent(BaseAgent):
         self.q_table[state_key][action] = new_q
 
     def act(self, observation, epsilon=0.1):
-        """Override act method to implement agent behavior"""
+        """Act method that returns action as integer"""
         self.step_number += 1
         # Convert NumPy types to Python types
         self.current_observation = convert_numpy_to_python(observation)
         action = self.select_action(self.current_observation, epsilon)
-
-        # Return an object with the expected structure for memory hooks
-        return ActionResult(
-            action_type="move",
-            params={"direction": int(action)},  # Convert to standard Python int
-            action_id=str(action),  # Convert to string for safe serialization
-        )
+        return int(action)  # Return as integer instead of ActionResult
 
     def set_demo_path(self, path):
         """Set a predetermined path to follow for demonstration"""
@@ -201,29 +184,50 @@ class SimpleAgent(BaseAgent):
         self.demo_step = 0
 
 
-# Memory-enhanced agent using direct API calls instead of hooks
+# Memory-enhanced agent using MemorySpace directly
 class MemoryEnhancedAgent(SimpleAgent):
     def __init__(
         self,
         agent_id,
-        config,
+        memory_system,
         action_space=4,
         learning_rate=0.1,
         discount_factor=0.9,
         **kwargs,
     ):
-        # Initialize config first so memory system can be accessed
-        self.config = config
         super().__init__(
             agent_id=agent_id,
-            config=config,
             action_space=action_space,
             learning_rate=learning_rate,
             discount_factor=discount_factor,
             **kwargs,
         )
-        # Get memory system instance
-        self.memory_system = AgentMemorySystem.get_instance(config.get("memory_config"))
+        
+        memory_config = MemoryConfig(
+            stm_config=RedisSTMConfig(
+                ttl=120,  # Increase TTL to keep more memories active
+                memory_limit=500,  # Increase memory limit
+                use_mock=True,  # Use mock Redis for easy setup
+            ),
+            im_config=RedisIMConfig(
+                ttl=240,  # Longer TTL for IM
+                memory_limit=1000,  # Larger memory limit
+                compression_level=0,  # No compression for IM
+                use_mock=True,  # Use mock Redis for easy setup
+            ),
+            ltm_config=SQLiteLTMConfig(
+                compression_level=0,  # No compression for LTM
+                batch_size=20,  # Larger batch size
+                db_path="memory_demo.db",  # Use a real file for SQLite
+            ),
+            cleanup_interval=1000,  # Reduce cleanup frequency
+            enable_memory_hooks=False,  # Disable memory hooks since we're using direct API calls
+            use_embedding_engine=True,  # Enable embedding engine for similarity search
+            text_model_name="all-MiniLM-L6-v2",  # Use a default text embedding model
+        )
+        # Store the memory system and get the memory space for this agent
+        self.memory_space = MemorySpace(agent_id, memory_config)
+        
         # Keep track of visited states to avoid redundant storage
         self.visited_states = set()
         # Add memory cache for direct position lookups
@@ -245,91 +249,89 @@ class MemoryEnhancedAgent(SimpleAgent):
             self.demo_step += 1
             return action
 
-        # Try to retrieve similar experiences from memory using direct API
+        # Try to retrieve similar experiences from memory
         try:
-            if hasattr(self, "memory_system") and self.memory_system is not None:
-                # Store current state using direct API if not already visited
-                if state_key not in self.visited_states:
-                    # Enhanced state representation
-                    enhanced_state = {
-                        "position": observation["position"],
-                        "target": observation["target"],
-                        "steps": observation["steps"],
-                        "nearby_obstacles": observation["nearby_obstacles"],
-                        "manhattan_distance": abs(observation["position"][0] - observation["target"][0]) + 
-                                             abs(observation["position"][1] - observation["target"][1]),
-                        "state_key": state_key,
-                        "position_key": position_key  # Add position key for direct lookup
-                    }
-                    self.memory_system.store_agent_state(
-                        agent_id=self.agent_id,
-                        state_data=convert_numpy_to_python(enhanced_state),
-                        step_number=self.step_number,
-                        priority=0.7  # Medium priority for state
-                    )
-                    self.visited_states.add(state_key)
-                
-                # Create a query with the enhanced state features
-                query_state = {
+            # Store current state if not already visited
+            if state_key not in self.visited_states:
+                # Enhanced state representation
+                enhanced_state = {
                     "position": observation["position"],
                     "target": observation["target"],
                     "steps": observation["steps"],
+                    "nearby_obstacles": observation["nearby_obstacles"],
                     "manhattan_distance": abs(observation["position"][0] - observation["target"][0]) + 
-                                         abs(observation["position"][1] - observation["target"][1])
+                                         abs(observation["position"][1] - observation["target"][1]),
+                    "state_key": state_key,
+                    "position_key": position_key  # Add position key for direct lookup
                 }
-                
-                similar_states = self.memory_system.retrieve_similar_states(
-                    agent_id=self.agent_id, 
-                    query_state=query_state, 
-                    k=10  # Increase from 5 to 10 to find more candidates
+                self.memory_space.store_state(
+                    state_data=convert_numpy_to_python(enhanced_state),
+                    step_number=self.step_number,
+                    priority=0.7  # Medium priority for state
                 )
-                
-                # NEW: Direct position-based lookup as fallback
-                if len(similar_states) == 0:
-                    # Try direct lookup from our position memory cache
-                    if position_key in self.position_memory_cache:
-                        direct_memories = self.position_memory_cache[position_key]
-                        similar_states = direct_memories
-                
-                for i, s in enumerate(similar_states):
-                    # Update our position memory cache with this memory for future direct lookups
-                    mem_position = None
-                    if 'position' in s['contents']:
-                        mem_position = str(s['contents']['position'])
-                    elif 'next_state' in s['contents']:
-                        mem_position = str(s['contents']['next_state'])
-                        
-                    if mem_position:
-                        if mem_position not in self.position_memory_cache:
-                            self.position_memory_cache[mem_position] = []
-                        if s not in self.position_memory_cache[mem_position]:
-                            self.position_memory_cache[mem_position].append(s)
+                self.visited_states.add(state_key)
+            
+            # Create a query with the enhanced state features
+            query_state = {
+                "position": observation["position"],
+                "target": observation["target"],
+                "steps": observation["steps"],
+                "manhattan_distance": abs(observation["position"][0] - observation["target"][0]) + 
+                                     abs(observation["position"][1] - observation["target"][1])
+            }
+            
+            similar_states = self.memory_space.retrieve_similar_states(
+                query_state=query_state, 
+                k=10,  # Increase from 5 to 10 to find more candidates
+                memory_type="state"
+            )
+            
+            # NEW: Direct position-based lookup as fallback
+            if len(similar_states) == 0:
+                # Try direct lookup from our position memory cache
+                if position_key in self.position_memory_cache:
+                    direct_memories = self.position_memory_cache[position_key]
+                    similar_states = direct_memories
+            
+            for i, s in enumerate(similar_states):
+                # Update our position memory cache with this memory for future direct lookups
+                mem_position = None
+                if 'position' in s.get('content', {}):
+                    mem_position = str(s['content']['position'])
+                elif 'next_state' in s.get('content', {}):
+                    mem_position = str(s['content']['next_state'])
+                    
+                if mem_position:
+                    if mem_position not in self.position_memory_cache:
+                        self.position_memory_cache[mem_position] = []
+                    if s not in self.position_memory_cache[mem_position]:
+                        self.position_memory_cache[mem_position].append(s)
 
-                # Strong bias toward using memory (higher than epsilon)
-                if similar_states and np.random.random() > 0.2:
-                    # Use any experience with significant reward
-                    actions_from_memory = []
-                    for s in similar_states:
-                        # Consider any action with a reward, not just positive ones
-                        if "action" in s["contents"]:
-                            # Weight action by reward to prefer better outcomes
-                            # Add the action multiple times based on reward magnitude
-                            reward = s["contents"].get("reward", -1)
-                            # Consider any reward better than average
-                            # Add actions with better rewards more times
-                            weight = 1
-                            if reward > -2:  # Better than the typical step penalty
-                                weight = 3
-                            if reward > 0:  # Positive rewards get even more weight
-                                weight = 5
-                                
-                            for _ in range(weight):
-                                actions_from_memory.append(s["contents"]["action"])
+            # Strong bias toward using memory (higher than epsilon)
+            if similar_states and np.random.random() > 0.2:
+                # Use any experience with significant reward
+                actions_from_memory = []
+                for s in similar_states:
+                    # Consider any action with a reward, not just positive ones
+                    if "action" in s.get("content", {}):
+                        # Weight action by reward to prefer better outcomes
+                        # Add the action multiple times based on reward magnitude
+                        reward = s["content"].get("reward", -1)
+                        # Consider any reward better than average
+                        # Add actions with better rewards more times
+                        weight = 1
+                        if reward > -2:  # Better than the typical step penalty
+                            weight = 3
+                        if reward > 0:  # Positive rewards get even more weight
+                            weight = 5
+                            
+                        for _ in range(weight):
+                            actions_from_memory.append(s["content"]["action"])
 
-                    if actions_from_memory:
-                        # Most common action from similar states, weighted by reward
-                        chosen_action = max(set(actions_from_memory), key=actions_from_memory.count)
-                        return chosen_action
+                if actions_from_memory:
+                    # Most common action from similar states, weighted by reward
+                    chosen_action = max(set(actions_from_memory), key=actions_from_memory.count)
+                    return chosen_action
         except Exception as e:
             # Fallback to regular selection on any error
             pass
@@ -343,13 +345,13 @@ class MemoryEnhancedAgent(SimpleAgent):
             return action
     
     def act(self, observation, epsilon=0.1):
-        """Override act method to implement agent behavior with direct memory API calls"""
+        """Override act method to implement agent behavior with memory storage"""
         self.step_number += 1
         # Convert NumPy types to Python types
         self.current_observation = convert_numpy_to_python(observation)
         action = self.select_action(self.current_observation, epsilon)
 
-        # Store the action using direct API - Fix #4: Balance storage
+        # Store the action using memory space
         try:
             # Include more context in the action data
             position_key = str(observation['position'])
@@ -360,8 +362,7 @@ class MemoryEnhancedAgent(SimpleAgent):
                 "steps": self.current_observation["steps"],
                 "position_key": position_key
             }
-            self.memory_system.store_agent_action(
-                agent_id=self.agent_id,
+            self.memory_space.store_action(
                 action_data=action_data,
                 step_number=self.step_number,
                 priority=0.6  # Medium priority
@@ -373,7 +374,7 @@ class MemoryEnhancedAgent(SimpleAgent):
                 
             # Create a memory-like structure for our cache
             memory_entry = {
-                "contents": action_data,
+                "content": action_data,
                 "step_number": self.step_number
             }
             
@@ -382,19 +383,15 @@ class MemoryEnhancedAgent(SimpleAgent):
         except Exception as e:
             pass
 
-        # Return an object with the expected structure
-        return ActionResult(
-            action_type="move",
-            params={"direction": int(action)},  # Convert to standard Python int
-            action_id=str(action),  # Convert to string for safe serialization
-        )
+        # Return action as integer
+        return int(action)
 
     def update_q_value(self, observation, action, reward, next_observation, done):
-        """Override to store rewards and outcomes using memory API"""
+        """Override to store rewards and outcomes using memory space"""
         # First, call the parent method to update Q-values
         super().update_q_value(observation, action, reward, next_observation, done)
         
-        # Then store the reward and outcome using direct API
+        # Then store the reward and outcome using memory space
         try:
             # Enhance interaction data with more context
             position_key = str(observation['position'])
@@ -419,8 +416,7 @@ class MemoryEnhancedAgent(SimpleAgent):
             if done and reward > 0:  # Successful completion
                 priority = 1.0  # Maximum priority
             
-            self.memory_system.store_agent_interaction(
-                agent_id=self.agent_id,
+            self.memory_space.store_interaction(
                 interaction_data=interaction_data,
                 step_number=self.step_number,
                 priority=priority
@@ -434,7 +430,7 @@ class MemoryEnhancedAgent(SimpleAgent):
                 
                 # Create a memory-like structure for our cache
                 memory_entry = {
-                    "contents": interaction_data,
+                    "content": interaction_data,
                     "step_number": self.step_number
                 }
                 
@@ -484,15 +480,7 @@ def run_experiment(episodes=100, memory_enabled=True, random_seed=None):
     # Create agent based on memory flag
     agent_id = "agent_memory" if memory_enabled else "standard_agent"
     if memory_enabled:
-        # Fix #3: Improve memory embedding by configuring the autoencoder better
-        autoencoder_config = AutoencoderConfig(
-            use_neural_embeddings=False,  # Using simple embeddings for clarity
-            epochs=1,  # Minimize any training
-            batch_size=1,  # Smallest possible batch
-            vector_similarity_threshold=0.6,  # Lower the threshold to find more similar states
-        )
-
-        # 2. Create configurations with compression disabled
+        # Create configurations with compression disabled
         stm_config = RedisSTMConfig(
             ttl=120,  # Increase TTL to keep more memories active
             memory_limit=500,  # Increase memory limit
@@ -517,33 +505,27 @@ def run_experiment(episodes=100, memory_enabled=True, random_seed=None):
             db_path=db_path,  # Use a real file for SQLite
         )
 
-        # 3. Create the main memory config with all compression disabled
+        # Create the main memory config with all compression disabled and text embedding engine
         memory_config = MemoryConfig(
             stm_config=stm_config,
             im_config=im_config,
             ltm_config=ltm_config,
-            autoencoder_config=autoencoder_config,
             cleanup_interval=1000,  # Reduce cleanup frequency
             enable_memory_hooks=False,  # Disable memory hooks since we're using direct API calls
+            use_embedding_engine=True,  # Enable embedding engine for similarity search
+            text_model_name="all-MiniLM-L6-v2",  # Use a default text embedding model
         )
 
-        # Important: Set up the memory system singleton with our config
-        # Since memory hooks use the singleton pattern, we need to ensure
-        # our memory system is the singleton instance
+        # Create the memory system
         memory_system = AgentMemorySystem.get_instance(memory_config)
 
-        # Important: Pre-initialize the memory agent for our agent ID
-        # This ensures the agent exists in the memory system before hooks try to access it
-        memory_space = memory_system.get_memory_space(agent_id)
-
-        # 4. Create the agent with our compression-disabled config
-        config = {"memory_config": memory_config}
-        agent = MemoryEnhancedAgent(agent_id, config=config, action_space=4)
+        # Create the agent with memory system
+        agent = MemoryEnhancedAgent(agent_id, memory_system, action_space=4)
 
         # Set the demonstration path for the first episode
         agent.set_demo_path(optimal_path)
 
-        print("Created memory agent with compression and neural embeddings disabled")
+        print("Created memory agent with text embedding engine (no autoencoder)")
     else:
         agent = SimpleAgent(agent_id, action_space=4)
         # No memory, but still give the demo path for the first episode
@@ -576,14 +558,14 @@ def run_experiment(episodes=100, memory_enabled=True, random_seed=None):
         # Episode loop
         while not done:
             action = agent.act(observation, epsilon)
-            next_observation, reward, done = env.step(action.params["direction"])
+            next_observation, reward, done = env.step(action)
 
             # Update Q-values with higher learning rate for faster learning
             if memory_enabled:
                 # Memory agent can learn faster because it has memory
                 agent.learning_rate = 0.2
             agent.update_q_value(
-                observation, action.params["direction"], reward, next_observation, done
+                observation, action, reward, next_observation, done
             )
 
             total_reward += reward
