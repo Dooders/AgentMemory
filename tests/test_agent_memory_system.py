@@ -626,9 +626,13 @@ class TestMemoryHooks:
         mock_memory_space.trigger_event.assert_not_called()
 
 
-def test_add_memory(memory_system, sample_memory):
+def test_add_memory(memory_system, mock_memory_space, sample_memory):
     """Test adding a memory entry to the memory system."""
     print("\n==== STARTING TEST_ADD_MEMORY ====")
+
+    # Add the mock memory space to the system
+    agent_id = sample_memory["agent_id"]
+    memory_system.agents[agent_id] = mock_memory_space
 
     # First, create a custom implementation of get_memory that will work for our test
     original_get_memory = memory_system.get_memory

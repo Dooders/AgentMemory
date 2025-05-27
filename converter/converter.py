@@ -171,7 +171,9 @@ def from_agent_farm(db_path: str, config: Optional[Dict] = None) -> AgentMemoryS
 
             # For memory verification, we'll verify that the add_memory calls were successful
             # by checking that we processed all the imported memories
-            logger.info(f"Verification: {len(all_memories)} memories were imported and processed")
+            logger.info(
+                f"Verification: {len(all_memories)} memories were imported and processed"
+            )
 
         return memory_system
 

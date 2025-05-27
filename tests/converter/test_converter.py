@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
+import numpy as np
 
 from converter.config import ConverterConfig
 from converter.converter import from_agent_farm
@@ -121,6 +122,12 @@ def test_from_agent_farm_successful_import(
         [mock_memory2],  # One memory for agent 2
     ]
 
+    # Create a mock for SentenceTransformer
+    mock_sentence_transformer = MagicMock()
+    mock_sentence_transformer.__version__ = "2.2.2"  # Add version attribute
+    mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 384
+    mock_sentence_transformer.encode.return_value = np.array([0.1] * 384)
+
     with patch(
         "converter.converter.DatabaseManager", return_value=mock_db_manager
     ), patch(
@@ -129,7 +136,11 @@ def test_from_agent_farm_successful_import(
         "converter.converter.MemoryImporter", return_value=mock_memory_importer
     ), patch(
         "memory.core.AgentMemorySystem"
-    ) as mock_memory_system:
+    ) as mock_memory_system, patch(
+        "sentence_transformers.SentenceTransformer", return_value=mock_sentence_transformer
+    ), patch(
+        "memory.embeddings.text_embeddings.SentenceTransformer", return_value=mock_sentence_transformer
+    ):
 
         # Configure mock memory system with two distinct agents
         mock_memory_system.return_value.agents = {1: mock_agent1, 2: mock_agent2}
@@ -231,6 +242,12 @@ def test_from_agent_farm_import_verification(
         [],  # No memories for agent 1
     ]
 
+    # Create a mock for SentenceTransformer
+    mock_sentence_transformer = MagicMock()
+    mock_sentence_transformer.__version__ = "2.2.2"
+    mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 384
+    mock_sentence_transformer.encode.return_value = np.array([0.1] * 384)
+
     with patch(
         "converter.converter.DatabaseManager", return_value=mock_db_manager
     ), patch(
@@ -239,16 +256,16 @@ def test_from_agent_farm_import_verification(
         "converter.converter.MemoryImporter", return_value=mock_memory_importer
     ), patch(
         "memory.core.AgentMemorySystem"
-    ) as mock_memory_system:
+    ) as mock_memory_system, patch(
+        "sentence_transformers.SentenceTransformer", return_value=mock_sentence_transformer
+    ), patch(
+        "memory.embeddings.text_embeddings.SentenceTransformer", return_value=mock_sentence_transformer
+    ):
 
         # Mock memory system to simulate verification failure
         # No agents in the system when we expect one
         mock_memory_system.return_value.agents = {}
 
         # Test should fail with agent count mismatch
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="Import verification failed: agent count mismatch"):
             from_agent_farm(str(db_path), config)
-
-        # Verify the error message contains agent count mismatch
-        error_msg = str(exc_info.value)
-        assert "Import verification failed: agent count mismatch" in error_msg
