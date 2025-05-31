@@ -118,6 +118,8 @@ class QAgent(Agent):
             self.q_table[next_state_key] = np.zeros(self.action_space)
 
         # Q-learning update
+        if state_key not in self.q_table:
+            self.q_table[state_key] = np.zeros(self.action_space)
         current_q = self.q_table[state_key][action]
 
         if done:
