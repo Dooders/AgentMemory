@@ -1,25 +1,18 @@
-"""
-Agent classes for reinforcement learning and memory-augmented agents.
-
-This module defines several agent classes for use in environments such as mazes or gridworlds:
-
-- SimpleAgent: A basic Q-learning agent with epsilon-greedy action selection.
-- MemoryAgent: An agent that augments Q-learning with episodic memory, using a MemorySpace for storing and retrieving experiences to inform decisions.
-- RandomAgent: An agent that selects actions randomly, for baseline comparison.
-
-Agents can be used with or without memory, and support demonstration paths for scripted exploration. The MemoryAgent leverages a memory system for enhanced learning and recall of past experiences.
-"""
-
 import numpy as np
 
-from memory import (MemoryConfig, MemorySpace, RedisIMConfig, RedisSTMConfig,
-                    SQLiteLTMConfig)
+from agents import Agent
+from memory import (
+    MemoryConfig,
+    MemorySpace,
+    RedisIMConfig,
+    RedisSTMConfig,
+    SQLiteLTMConfig,
+)
 from memory.api.models import MazeActionSpace, MazeObservation
 from memory.utils.util import convert_numpy_to_python
 
 
-# Base agent class without hooks
-class SimpleAgent:
+class QAgent(Agent):
     def __init__(
         self,
         agent_id: str,
@@ -29,7 +22,7 @@ class SimpleAgent:
         **kwargs,
     ) -> None:
         """
-        Initialize a SimpleAgent for reinforcement learning.
+        Initialize a q-learning agent for reinforcement learning.
 
         Args:
             agent_id (str): Unique identifier for the agent.
@@ -168,8 +161,7 @@ class SimpleAgent:
         self.demo_step = 0
 
 
-# Memory-enhanced agent using MemorySpace directly
-class MemoryAgent(SimpleAgent):
+class MemoryQAgent(QAgent):
     def __init__(
         self,
         agent_id: str,
@@ -178,16 +170,6 @@ class MemoryAgent(SimpleAgent):
         discount_factor: float = 0.9,
         **kwargs,
     ) -> None:
-        """
-        Initialize a MemoryAgent that augments Q-learning with episodic memory.
-
-        Args:
-            agent_id (str): Unique identifier for the agent.
-            action_space (int or MazeActionSpace): Number of possible actions or MazeActionSpace object.
-            learning_rate (float): Q-learning learning rate.
-            discount_factor (float): Q-learning discount factor.
-            **kwargs: Additional arguments (unused).
-        """
         super().__init__(
             agent_id=agent_id,
             action_space=action_space,
@@ -195,87 +177,62 @@ class MemoryAgent(SimpleAgent):
             discount_factor=discount_factor,
             **kwargs,
         )
-
         memory_config = MemoryConfig(
             stm_config=RedisSTMConfig(
-                ttl=120,  # Increase TTL to keep more memories active
-                memory_limit=500,  # Increase memory limit
-                use_mock=True,  # Use mock Redis for easy setup
+                ttl=120,
+                memory_limit=500,
+                use_mock=True,
             ),
             im_config=RedisIMConfig(
-                ttl=240,  # Longer TTL for IM
-                memory_limit=1000,  # Larger memory limit
-                compression_level=0,  # No compression for IM
-                use_mock=True,  # Use mock Redis for easy setup
+                ttl=240,
+                memory_limit=1000,
+                compression_level=0,
+                use_mock=True,
             ),
             ltm_config=SQLiteLTMConfig(
-                compression_level=0,  # No compression for LTM
-                batch_size=20,  # Larger batch size
-                db_path="memory_demo.db",  # Use a real file for SQLite
+                compression_level=0,
+                batch_size=20,
+                db_path="memory_demo.db",
             ),
-            cleanup_interval=1000,  # Reduce cleanup frequency
-            enable_memory_hooks=False,  # Disable memory hooks since we're using direct API calls
-            use_embedding_engine=True,  # Enable embedding engine for similarity search
-            text_model_name="all-MiniLM-L6-v2",  # Use a default text embedding model
+            cleanup_interval=1000,
+            enable_memory_hooks=False,
+            use_embedding_engine=True,
+            text_model_name="all-MiniLM-L6-v2",
         )
-        # Store the memory system and get the memory space for this agent
         self.memory = MemorySpace(agent_id, memory_config)
-
-        # Keep track of visited states to avoid redundant storage
         self.visited_states = set()
-        # Add memory cache for direct position lookups
-        self.position_memory_cache = {}  # Mapping from positions to memories
+        self.position_memory_cache = {}
 
     def select_action(self, observation: MazeObservation, epsilon: float = 0.1) -> int:
-        """
-        Select an action using memory-augmented Q-learning and experience recall.
-
-        Args:
-            observation (MazeObservation): The current environment observation.
-            epsilon (float): Probability of choosing a random action (exploration).
-
-        Returns:
-            int: The selected action index.
-        """
         self.current_observation = observation
         state_key = self._get_state_key(observation)
-        position_key = str(observation.position)  # Use position as direct lookup key
-
-        # Initialize state if not seen before
+        position_key = str(observation.position)
         if state_key not in self.q_table:
             self.q_table[state_key] = np.zeros(self.action_space)
-
-        # If we have a demo path, follow it first to ensure we explore the correct path
         if self.demo_path is not None and self.demo_step < len(self.demo_path):
             action = self.demo_path[self.demo_step]
             self.demo_step += 1
             return action
-
-        # Try to retrieve similar experiences from memory
         try:
-            # Store current state if not already visited
             if state_key not in self.visited_states:
-                # Enhanced state representation
                 enhanced_state = {
                     "position": observation.position,
                     "target": observation.target,
                     "steps": observation.steps,
-                    "nearby_obstacles": observation.nearby_obstacles,
+                    "nearby_obstacles": getattr(observation, "nearby_obstacles", None),
                     "manhattan_distance": abs(
                         observation.position[0] - observation.target[0]
                     )
                     + abs(observation.position[1] - observation.target[1]),
                     "state_key": state_key,
-                    "position_key": position_key,  # Add position key for direct lookup
+                    "position_key": position_key,
                 }
                 self.memory.store_state(
                     state_data=convert_numpy_to_python(enhanced_state),
                     step_number=self.step_number,
-                    priority=0.7,  # Medium priority for state
+                    priority=0.7,
                 )
                 self.visited_states.add(state_key)
-
-            # Create a query with the enhanced state features
             query_state = {
                 "position": observation.position,
                 "target": observation.target,
@@ -285,97 +242,57 @@ class MemoryAgent(SimpleAgent):
                 )
                 + abs(observation.position[1] - observation.target[1]),
             }
-
-            # Use search strategy directly
-            #! Needs to be updated to use the SimilaritySearch strategy
             similar_states = self.memory.retrieve_similar_states(
                 query_state=query_state,
-                k=10,  # Increase from 5 to 10 to find more candidates
+                k=10,
                 memory_type="state",
             )
-
-            # Direct position-based lookup as fallback
             if len(similar_states) == 0:
-                # Try direct lookup from our position memory cache
                 if position_key in self.position_memory_cache:
-                    direct_memories = self.position_memory_cache[position_key]
-                    similar_states = direct_memories
-
+                    similar_states = self.position_memory_cache[position_key]
             for s in similar_states:
-                # Update our position memory cache with this memory for future direct lookups
                 mem_position = None
                 if "position" in s.get("content", {}):
                     mem_position = str(s["content"]["position"])
                 elif "next_state" in s.get("content", {}):
                     mem_position = str(s["content"]["next_state"])
-
                 if mem_position:
                     if mem_position not in self.position_memory_cache:
                         self.position_memory_cache[mem_position] = []
                     if s not in self.position_memory_cache[mem_position]:
                         self.position_memory_cache[mem_position].append(s)
-
-            # Strong bias toward using memory (higher than epsilon)
             if similar_states and np.random.random() > 0.2:
-                # Use any experience with significant reward
                 actions_from_memory = []
                 for s in similar_states:
-                    # Consider any action with a reward, not just positive ones
                     if "action" in s.get("content", {}):
-                        # Weight action by reward to prefer better outcomes
-                        # Add the action multiple times based on reward magnitude
                         reward = s["content"].get("reward", -1)
-                        # Consider any reward better than average
-                        # Add actions with better rewards more times
                         weight = 1
-                        if reward > -2:  # Better than the typical step penalty
+                        if reward > -2:
                             weight = 3
-                        if reward > 0:  # Positive rewards get even more weight
+                        if reward > 0:
                             weight = 5
-
                         for _ in range(weight):
                             actions_from_memory.append(s["content"]["action"])
-
                 if actions_from_memory:
-                    # Most common action from similar states, weighted by reward
                     chosen_action = max(
                         set(actions_from_memory), key=actions_from_memory.count
                     )
                     return chosen_action
-        except Exception as e:
-            # Fallback to regular selection on any error
+        except Exception:
             pass
-
-        # Epsilon-greedy policy as fallback
         if np.random.random() < epsilon:
-            action = np.random.randint(self.action_space)
-            return action
+            return np.random.randint(self.action_space)
         else:
-            action = np.argmax(self.q_table[state_key])
-            return action
+            return int(np.argmax(self.q_table[state_key]))
 
-    def act(self, observation: dict, epsilon: float = 0.1) -> int:
-        """
-        Choose and return an action for the given observation, storing the action in memory.
-
-        Args:
-            observation (dict): The current environment observation.
-            epsilon (float): Probability of choosing a random action (exploration).
-
-        Returns:
-            int: The selected action index.
-        """
+    def act(self, observation: MazeObservation, epsilon: float = 0.1) -> int:
         self.step_number += 1
-        # Convert NumPy types to Python types
         obs = convert_numpy_to_python(observation)
         if not isinstance(obs, MazeObservation):
             obs = MazeObservation(**obs)
         self.current_observation = obs
         action = self.select_action(self.current_observation, epsilon)
-
-        # Store the action using memory space
         try:
-            # Include more context in the action data
             position_key = str(observation.position)
             action_data = {
                 "action": int(action),
@@ -387,22 +304,14 @@ class MemoryAgent(SimpleAgent):
             self.memory.store_action(
                 action_data=action_data,
                 step_number=self.step_number,
-                priority=0.6,  # Medium priority
+                priority=0.6,
             )
-
-            # Add to position cache
             if position_key not in self.position_memory_cache:
                 self.position_memory_cache[position_key] = []
-
-            # Create a memory-like structure for our cache
             memory_entry = {"content": action_data, "step_number": self.step_number}
-
             self.position_memory_cache[position_key].append(memory_entry)
-
-        except Exception as e:
+        except Exception:
             pass
-
-        # Return action as integer
         return int(action)
 
     def update_q_value(
@@ -413,25 +322,10 @@ class MemoryAgent(SimpleAgent):
         next_observation: MazeObservation,
         done: bool,
     ) -> None:
-        """
-        Update the Q-value and store the reward and outcome in memory.
-
-        Args:
-            observation (MazeObservation): The current state observation.
-            action (int): The action taken.
-            reward (float): The reward received.
-            next_observation (MazeObservation): The next state observation.
-            done (bool): Whether the episode has ended.
-        """
-        # First, call the parent method to update Q-values
         super().update_q_value(observation, action, reward, next_observation, done)
-
-        # Then store the reward and outcome using memory space
         try:
-            # Enhance interaction data with more context
             position_key = str(observation.position)
             next_position_key = str(next_observation.position)
-
             interaction_data = {
                 "action": int(action),
                 "reward": float(reward),
@@ -447,44 +341,24 @@ class MemoryAgent(SimpleAgent):
                 "position_key": position_key,
                 "next_position_key": next_position_key,
             }
-
-            # Increase priority for successful interactions
-            priority = abs(float(reward)) / 100  # Base priority on reward magnitude
-            if done and reward > 0:  # Successful completion
-                priority = 1.0  # Maximum priority
-
+            priority = abs(float(reward)) / 100
+            if done and reward > 0:
+                priority = 1.0
             self.memory.store_interaction(
                 interaction_data=interaction_data,
                 step_number=self.step_number,
                 priority=priority,
             )
-
-            # Add to position cache - very important for successful experiences!
-            # This ensures we can directly lookup both the current and next positions
             for pos_key in [position_key, next_position_key]:
                 if pos_key not in self.position_memory_cache:
                     self.position_memory_cache[pos_key] = []
-
-                # Create a memory-like structure for our cache
                 memory_entry = {
                     "content": interaction_data,
                     "step_number": self.step_number,
                 }
-
                 self.position_memory_cache[pos_key].append(memory_entry)
-
-            # If this was a successful completion, store it prominently
             if done and reward > 0:
-                # Make extra copies in the cache to increase influence
-                for _ in range(10):  # Store 10 copies to really emphasize this path
+                for _ in range(10):
                     self.position_memory_cache[position_key].append(memory_entry)
-
-        except Exception as e:
+        except Exception:
             pass
-
-
-# Random agent that chooses actions randomly
-class RandomAgent(SimpleAgent):
-    def select_action(self, observation: MazeObservation, epsilon: float = 0.1) -> int:
-        self.current_observation = observation
-        return np.random.randint(self.action_space)

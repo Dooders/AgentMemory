@@ -16,6 +16,7 @@ Example usage:
     obs, reward, done = env.step(1)  # Take action 'right'
 """
 
+from memory.api.models import MazeObservation, MazeActionSpace
 
 class MazeEnvironment:
     """
@@ -28,6 +29,7 @@ class MazeEnvironment:
         max_steps (int): Maximum steps per episode.
         position (tuple[int, int]): Current agent position.
         steps (int): Steps taken in current episode.
+        action_space (MazeActionSpace): The action space for the environment.
     """
 
     def __init__(
@@ -48,6 +50,7 @@ class MazeEnvironment:
         self.obstacles = obstacles or []
         self.target = (size - 2, size - 2)
         self.max_steps = max_steps
+        self.action_space = MazeActionSpace()
         self.reset()
 
     def reset(self) -> dict:
@@ -61,19 +64,19 @@ class MazeEnvironment:
         self.steps = 0
         return self.get_observation()
 
-    def get_observation(self) -> dict:
+    def get_observation(self) -> MazeObservation:
         """
         Get the current observation of the environment.
 
         Returns:
-            dict: Observation containing position, target, nearby obstacles, and steps.
+            MazeObservation: Observation containing position, target, nearby obstacles, and steps.
         """
-        return {
-            "position": self.position,
-            "target": self.target,
-            "nearby_obstacles": self._get_nearby_obstacles(),
-            "steps": self.steps,
-        }
+        return MazeObservation(
+            position=self.position,
+            target=self.target,
+            nearby_obstacles=self._get_nearby_obstacles(),
+            steps=self.steps,
+        )
 
     def _get_nearby_obstacles(self) -> list[tuple[int, int]]:
         """
@@ -135,3 +138,12 @@ class MazeEnvironment:
             done = False
 
         return self.get_observation(), reward, done
+
+    def get_action_space(self) -> MazeActionSpace:
+        """
+        Get the action space for the environment.
+
+        Returns:
+            MazeActionSpace: The action space model for the maze.
+        """
+        return self.action_space
