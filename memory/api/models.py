@@ -158,3 +158,29 @@ class ActionResult(BaseModel):
     action_type: str
     params: Dict[str, Any] = Field(default_factory=dict)
     reward: float = 0.0
+
+
+class MazeObservation(BaseModel):
+    """Observation model for MazeEnvironment.
+
+    Attributes:
+        position: The agent's current position (row, col).
+        target: The target position (row, col).
+        nearby_obstacles: List of nearby obstacle coordinates (row, col).
+        steps: Number of steps taken in the current episode.
+    """
+    position: tuple[int, int]
+    target: tuple[int, int]
+    nearby_obstacles: list[tuple[int, int]]
+    steps: int
+
+
+class MazeActionSpace(BaseModel):
+    """Action space model for MazeEnvironment.
+
+    Attributes:
+        n: Number of discrete actions.
+        actions: List of action descriptions (e.g., ["up", "right", "down", "left"]).
+    """
+    n: int = 4
+    actions: list[str] = ["up", "right", "down", "left"]

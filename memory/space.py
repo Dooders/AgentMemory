@@ -523,6 +523,7 @@ class MemorySpace:
         threshold: float = 0.6,
         context_weights: Dict[str, float] = None,
     ) -> List[Dict[str, Any]]:
+        #! Needs to be updated to use the SimilaritySearch strategy
         """Retrieve most similar past states to the provided query state.
 
         Args:

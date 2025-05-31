@@ -50,7 +50,7 @@ def run_experiment(episodes=100, memory_enabled=True, random_seed=None):
 
     # Create the optimal path for demonstration
     #! Why do I need this?
-    optimal_path = create_optimal_path_for_maze(maze_size)
+    # optimal_path = create_optimal_path_for_maze(maze_size)
 
     # Create agent based on memory flag
     agent_id = "agent_memory" if memory_enabled else "standard_agent"
@@ -99,13 +99,13 @@ def run_experiment(episodes=100, memory_enabled=True, random_seed=None):
         agent = MemoryAgent(agent_id, memory_system, action_space=4)
 
         # Set the demonstration path for the first episode
-        agent.set_demo_path(optimal_path)
+        # agent.set_demo_path(optimal_path)
 
         print("Created memory agent with text embedding engine (no autoencoder)")
     else:
         agent = SimpleAgent(agent_id, action_space=4)
         # No memory, but still give the demo path for the first episode
-        agent.set_demo_path(optimal_path)
+        # agent.set_demo_path(optimal_path)
 
     # Track metrics
     rewards_per_episode = []
