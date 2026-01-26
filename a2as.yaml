@@ -1,0 +1,1824 @@
+manifest:
+  version: "0.1.2"
+  schema: https://a2as.org/cert/schema
+  subject:
+    name: dooders/agentmemory
+    source: https://github.com/dooders/agentmemory
+    branch: main
+    commit: "45cdb31e"
+    scope: [agents/__init__.py, agents/algo_agent.py, agents/deep_q_agent.py, agents/q_agent.py, agents/random_agent.py, memory/__init__.py,
+      memory/api/models.py, memory/config/memory_config.py, memory/space.py, memory/utils/util.py, scripts/agent_conversation.py]
+  issued:
+    by: A2AS.org
+    at: '2026-01-26T16:11:04Z'
+  signatures:
+    digest: sha256:95DF4VmtIcH_atXwHqqpqHI_EMRVei-3tIC4vyL5oqk
+    key: ed25519:wqDiFMr28qYhP16gjlm-6Bhn0-eVPYpUtPeuFTRe828
+    sig: ed25519:HAjowYy-G3v7aivTWDlb-f5515kFxw7aTlCvXyycHlUWLuhQIrTzX1hUn5TnyZRetEsrP-KR15UK6OCZBSSPBw
+
+agents:
+  agent.MemoryAlgoAgent:
+    type: class
+    params:
+      class: MemoryAlgoAgent
+      base: AlgoAgent
+      agent_id: agent_id
+      action_space: action_space
+      search_algo: search_algo
+  agent.MemoryDeepQAgent:
+    type: class
+    params:
+      class: MemoryDeepQAgent
+      base: DeepQAgent
+      agent_id: agent_id
+      action_space: action_space
+      learning_rate: learning_rate
+      discount_factor: discount_factor
+      batch_size: "100"
+      memory_size: memory_size
+      target_update: target_update
+      device: device
+  agent.MemoryQAgent:
+    type: class
+    params:
+      class: MemoryQAgent
+      base: QAgent
+      agent_id: agent_id
+      action_space: action_space
+      learning_rate: learning_rate
+      discount_factor: discount_factor
+  agent.MemoryRandomAgent:
+    type: class
+    params:
+      class: MemoryRandomAgent
+      base: RandomAgent
+  lincoln:
+    type: instance
+    models: [gpt-3.5-turbo]
+    params:
+      name: Abraham Lincoln
+      instructions: ['You are Abraham Lincoln, speaking privately with Nero.']
+  nero:
+    type: instance
+    models: [gpt-3.5-turbo]
+    params:
+      name: Emperor Nero
+      instructions: ['You are Emperor Nero, speaking privately with Abraham Lincoln.']
+
+models:
+  gpt-3.5-turbo:
+    type: literal
+    agents: [lincoln, nero]
+
+imports:
+  ABC: abc.ABC
+  abstractmethod: abc.abstractmethod
+  Agent: agents.Agent
+  AgentMemorySystem: memory.core.AgentMemorySystem
+  Any: typing.Any
+  AsyncCircuitBreaker: memory.utils.error_handling.AsyncCircuitBreaker
+  asyncio: asyncio
+  AsyncResilientRedisClient: memory.storage.async_redis_client.AsyncResilientRedisClient
+  AsyncStoreOperation: memory.utils.error_handling.AsyncStoreOperation
+  AttributeRetrieval: memory.retrieval.attribute.AttributeRetrieval
+  AutoencoderConfig: memory.config.AutoencoderConfig
+  AutoencoderEmbeddingEngine: memory.embeddings.autoencoder.AutoencoderEmbeddingEngine
+  Awaitable: typing.Awaitable
+  base64: base64
+  BaseModel: pydantic.BaseModel
+  Callable: typing.Callable
+  CircuitBreaker: memory.utils.error_handling.CircuitBreaker
+  CircuitOpenError: memory.utils.error_handling.CircuitOpenError
+  CompressionEngine: memory.embeddings.compression.CompressionEngine
+  ConnectionError: core.ConnectionError
+  ConnectionPool: redis.asyncio.ConnectionPool
+  contextmanager: contextlib.contextmanager
+  convert_numpy_to_python: memory.utils.util.convert_numpy_to_python
+  copy: copy
+  cosine_similarity: memory.embeddings.utils.cosine_similarity
+  dataclass: dataclasses.dataclass
+  DataLoader: torch.utils.data.DataLoader
+  datetime: datetime
+  deque: collections.deque
+  Dict: typing.Dict
+  Enum: enum.Enum
+  enum: enum
+  Field: pydantic.Field
+  field_validator: pydantic.field_validator
+  filter_dict_keys: memory.embeddings.utils.filter_dict_keys
+  flatten_dict: memory.embeddings.utils.flatten_dict
+  fnmatch: fnmatch
+  generate_checksum: memory.utils.checksums.generate_checksum
+  generate_memory_id: memory.utils.identity.generate_memory_id
+  hashlib: hashlib
+  json: json
+  jsonschema: jsonschema
+  KFold: sklearn.model_selection.KFold
+  List: typing.List
+  load_dotenv: dotenv.load_dotenv
+  load_memory_system_from_json: memory.utils.serialization.load_memory_system_from_json
+  logging: logging
+  math: math
+  MazeActionSpace: memory.api.models.MazeActionSpace
+  MazeObservation: memory.api.models.MazeObservation
+  MemoryConfig: memory.config.memory_config.MemoryConfig
+  MemoryConfigModel: memory.config.models.MemoryConfigModel
+  MemorySpace: memory.space.MemorySpace
+  MockRedis: memory.storage.mockredis.MockRedis
+  model_validator: pydantic.model_validator
+  nn: torch.nn
+  np: numpy
+  object_to_text: memory.embeddings.utils.object_to_text
+  OpenAI: openai.OpenAI
+  optim: torch.optim
+  Optional: typing.Optional
+  os: os
+  pickle: pickle
+  Pipeline: pipeline.Pipeline
+  Priority: memory.utils.error_handling.Priority
+  PubSub: pubsub.PubSub
+  PydanticAutoencoderConfig: memory.config.models.AutoencoderConfig
+  PydanticIMConfig: memory.config.models.IMConfig
+  PydanticLTMConfig: memory.config.models.LTMConfig
+  PydanticSTMConfig: memory.config.models.STMConfig
+  queue: queue
+  r2_score: sklearn.metrics.r2_score
+  random: random
+  re: re
+  RecoveryQueue: memory.utils.error_handling.RecoveryQueue
+  Redis: redis.asyncio.Redis
+  redis: redis
+  RedisError: core.RedisError
+  RedisFactory: redis_factory.RedisFactory
+  RedisIMConfig: memory.config.memory_config.RedisIMConfig
+  RedisIMStore: memory.storage.redis_im.RedisIMStore
+  RedisSTMConfig: memory.config.RedisSTMConfig
+  RedisSTMStore: memory.storage.redis_stm.RedisSTMStore
+  RedisTimeoutError: memory.utils.error_handling.RedisTimeoutError
+  RedisUnavailableError: memory.utils.error_handling.RedisUnavailableError
+  ResilientRedisClient: redis_client.ResilientRedisClient
+  RetryPolicy: memory.utils.error_handling.RetryPolicy
+  Runner: agents.Runner
+  save_memory_system_to_json: memory.utils.serialization.save_memory_system_to_json
+  sd: sounddevice
+  SentenceTransformer: sentence_transformers.SentenceTransformer
+  Set: typing.Set
+  sf: soundfile
+  SimilarityRetrieval: memory.retrieval.similarity.SimilarityRetrieval
+  sqlite3: sqlite3
+  SQLiteLTMConfig: memory.config.memory_config.SQLiteLTMConfig
+  SQLiteLTMStore: memory.storage.sqlite_ltm.SQLiteLTMStore
+  SQLitePermanentError: memory.utils.error_handling.SQLitePermanentError
+  SQLiteTemporaryError: memory.utils.error_handling.SQLiteTemporaryError
+  StateAutoencoder: memory.embeddings.autoencoder.StateAutoencoder
+  StoreOperation: memory.utils.error_handling.StoreOperation
+  struct: struct
+  SubsetRandomSampler: torch.utils.data.SubsetRandomSampler
+  sys: sys
+  tempfile: tempfile
+  TemporalRetrieval: memory.retrieval.temporal.TemporalRetrieval
+  TextEmbeddingEngine: memory.embeddings.text_embeddings.TextEmbeddingEngine
+  threading: threading
+  time: time
+  torch: torch
+  traceback: traceback
+  Tuple: typing.Tuple
+  Type: typing.Type
+  TypedDict: typing.TypedDict
+  TypeVar: typing.TypeVar
+  Union: typing.Union
+  uuid: uuid
+  validate_checksum: memory.utils.checksums.validate_checksum
+  validate_memory_system_json: memory.schema.validate_memory_system_json
+  VectorStore: memory.embeddings.vector_store.VectorStore
+  zlib: zlib
+
+functions:
+  __enter__:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+    args: [self]
+  __exit__:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+    args: [self, exc_type, exc_val, exc_tb]
+  __getitem__:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, idx]
+    params:
+      returns: torch.Tensor
+  __init__:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, config]
+  __len__:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self]
+    params:
+      returns: int
+  __str__:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: str
+  _bfs:
+    type: sync
+    module: agents.algo_agent
+    args: [self, obs]
+  _binary_compress:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, obj]
+    params:
+      returns: str
+  _binary_decompress:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, compressed_str]
+    params:
+      returns: Any
+  _calculate_compression_ratio:
+    type: sync
+    module: memory.space
+    args: [self, tier]
+    params:
+      returns: float
+  _calculate_hit_rate:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self, info]
+    params:
+      returns: float
+  _calculate_importance:
+    type: sync
+    module: memory.space
+    args: [self, memory]
+    params:
+      returns: float
+  _calculate_tier_importance:
+    type: sync
+    module: memory.space
+    args: [self, tier]
+    params:
+      returns: float
+  _check_agent_exists:
+    type: sync
+    module: memory.core
+    args: [self, agent_id]
+    params:
+      returns: None
+  _check_circuit_state:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  _check_embedding_engine:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: Dict
+  _check_health:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: None
+  _check_lua_scripting:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self]
+    params:
+      returns: bool
+  _check_memory_transition:
+    type: sync
+    module: memory.space
+    args: [self]
+    params:
+      returns: None
+  _check_redis_im:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: Dict
+  _check_redis_stm:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: Dict
+  _check_sqlite_ltm:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: Dict
+  _check_vector_search_available:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self]
+    params:
+      returns: bool
+  _check_watched_keys:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+    args: [self]
+  _circuit_breaker_wrapper:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, func]
+  _cosine_similarity:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, a, b]
+    params:
+      returns: float
+  _create_memory_entry:
+    type: sync
+    module: memory.space
+    args: [self, data, step_number, memory_type, priority, tier]
+    params:
+      returns: Dict
+  _create_redis_client:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: redis.Redis
+  _create_vector_index:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self]
+    params:
+      returns: None
+  _dfs:
+    type: sync
+    module: agents.algo_agent
+    args: [self, obs]
+  _ensure_index:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self]
+    params:
+      returns: None
+  _execute_with_circuit_breaker:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, operation_name, operation]
+    params:
+      returns: T
+  _filter_content_keys:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, content, filter_keys]
+    params:
+      returns: Dict
+  _float_list_to_bytes:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self, vector]
+    params:
+      returns: bytes
+  _get_access_patterns:
+    type: sync
+    module: memory.space
+    args: [self]
+    params:
+      returns: Dict
+  _get_action_from_positions:
+    type: sync
+    module: agents.algo_agent
+    args: [self, current, next_pos]
+  _get_agent:
+    type: sync
+    module: memory.core
+    args: [self, agent_id]
+    params:
+      returns: MemorySpace
+  _get_agent_memories_key:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id]
+    params:
+      returns: str
+  _get_agent_prefix:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id]
+    params:
+      returns: str
+  _get_connection:
+    type: sync
+    module: memory.storage.sqlite_ltm
+    args: [self]
+  _get_importance_key:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id]
+    params:
+      returns: str
+  _get_memory_key:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, memory_id]
+    params:
+      returns: str
+  _get_memory_type_distribution:
+    type: sync
+    module: memory.space
+    args: [self]
+    params:
+      returns: Dict
+  _get_state_key:
+    type: sync
+    module: agents.q_agent
+    args: [self, observation]
+    params:
+      returns: str
+  _get_store_for_tier:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, tier]
+  _get_timeline_key:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id]
+    params:
+      returns: str
+  _get_value_at_path:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, obj, path]
+    params:
+      returns: Any
+  _get_vector_key:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, memory_id]
+    params:
+      returns: str
+  _handle_ft_info:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, index_name]
+  _handle_retry:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self, priority, operation, exception]
+    params:
+      returns: None
+  _hash_to_memory_entry:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self, hash_data]
+    params:
+      returns: MemoryEntry
+  _heavy_abstraction:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, content]
+    params:
+      returns: Dict
+  _init_database:
+    type: sync
+    module: memory.storage.sqlite_ltm
+    args: [self]
+  _initialize_listener:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+    args: [self]
+  _light_abstraction:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, content]
+    params:
+      returns: Dict
+  _matches_attributes:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, memory, attributes]
+    params:
+      returns: bool
+  _matches_metadata_filters:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, memory, filters]
+    params:
+      returns: bool
+  _normalize_numeric_value:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, value]
+  _plan_path:
+    type: sync
+    module: agents.algo_agent
+    args: [self, obs]
+  _prepare_vectors:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self]
+    params:
+      returns: np.ndarray
+  _process_queue:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: None
+  _record_failure:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  _record_success:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  _reduce_numeric_precision:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, obj, precision]
+    params:
+      returns: None
+  _search_by_attributes_python:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self, agent_id, attributes, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  _search_by_attributes_redis:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self, agent_id, attributes, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  _search_by_step_range_redis:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self, agent_id, start_step, end_step, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  _search_similar_python:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self, agent_id, query_embedding, k, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  _search_similar_redis_vector:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self, agent_id, query_embedding, limit, score_threshold, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  _start_cleaner:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  _state_to_vector:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, state]
+    params:
+      returns: np.ndarray
+  _store_action_and_interaction:
+    type: sync
+    module: agents.algo_agent
+    args: [self, obs, action, reward, next_obs, done]
+  _store_in_tier:
+    type: sync
+    module: memory.space
+    args: [self, tier, memory_entry]
+    params:
+      returns: bool
+  _store_memory_entry:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, memory_entry]
+    params:
+      returns: bool
+  _update_access_metadata:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, memory_id, memory_entry]
+    params:
+      returns: None
+  abstract_memory:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, memory_entry, level]
+    params:
+      returns: Dict
+  act:
+    type: sync
+    module: agents.algo_agent
+    args: [self, observation, epsilon]
+    params:
+      returns: int
+  add:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self, id, vector, metadata]
+    params:
+      returns: bool
+  add_checksum_to_memory:
+    type: sync
+    module: memory.utils.checksums
+    args: [memory_entry, config]
+    params:
+      returns: Dict
+  add_memory:
+    type: sync
+    module: memory.core
+    args: [self, memory_data]
+    params:
+      returns: str
+  as_dict:
+    type: sync
+    module: memory.api.models
+    args: [self]
+    params:
+      returns: Dict
+  async_exponential_backoff:
+    type: async
+    module: memory.storage.async_redis_client
+    args: [attempt, base_delay, max_delay]
+    params:
+      returns: float
+  auto_recover:
+    type: sync
+    module: memory.storage.mockredis.core
+  calculate_reward_score:
+    type: sync
+    module: memory.space
+    args: [self, memory]
+    params:
+      returns: float
+  check_health:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self]
+    params:
+      returns: Dict
+  cleaner:
+    type: sync
+    module: memory.storage.mockredis.core
+  clear:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id]
+    params:
+      returns: bool
+  clear_all:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self]
+    params:
+      returns: bool
+  clear_all_memories:
+    type: sync
+    module: memory.core
+    args: [self]
+    params:
+      returns: bool
+  clear_memory:
+    type: sync
+    module: memory.space
+    args: [self]
+    params:
+      returns: bool
+  close:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: None
+  cmd:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+  compress:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, memory, level]
+    params:
+      returns: Dict
+  configure:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, config]
+    params:
+      returns: None
+  convert_embedding:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, embedding, source_tier, target_tier]
+    params:
+      returns: List[float]
+  convert_numpy_to_python:
+    type: sync
+    module: memory.utils.util
+    args: [obj]
+  cosine_similarity:
+    type: sync
+    module: memory.embeddings.utils
+    args: [a, b]
+    params:
+      returns: float
+  count:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id]
+    params:
+      returns: int
+  create_async_client:
+    type: async
+    module: memory.storage.redis_factory
+    args: [client_name, use_mock, host, port, db, password, socket_timeout, socket_connect_timeout, circuit_threshold, circuit_reset_timeout,
+      critical_retry_attempts, retry_base_delay, retry_max_delay, max_connections, health_check_interval]
+    params:
+      returns: AsyncResilientRedisClient
+  create_client:
+    type: sync
+    module: memory.storage.redis_factory
+    args: [client_name, use_mock, host, port, db, password, socket_timeout, socket_connect_timeout, circuit_threshold, circuit_reset_timeout,
+      critical_retry_attempts, retry_base_delay, retry_max_delay, max_connections, health_check_interval, use_resilient_client]
+    params:
+      returns: ResilientRedisClient
+  decode_im:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, z]
+    params:
+      returns: torch.Tensor
+  decode_ltm:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, z]
+    params:
+      returns: torch.Tensor
+  decode_stm:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, z]
+    params:
+      returns: torch.Tensor
+  decompress:
+    type: sync
+    module: memory.embeddings.compression
+    args: [self, memory]
+    params:
+      returns: Dict
+  decorator:
+    type: sync
+    module: memory.storage.redis_client
+    args: [func]
+    params:
+      returns: Callable
+  default:
+    type: sync
+    module: memory.utils.serialization
+    args: [self, obj]
+  delete:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, memory_id]
+    params:
+      returns: bool
+  delete_memory_vectors:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self, memory_id]
+    params:
+      returns: bool
+  deserialize_memory:
+    type: sync
+    module: memory.utils.serialization
+    args: [data, format]
+    params:
+      returns: Dict
+  deserialize_vector:
+    type: sync
+    module: memory.utils.serialization
+    args: [vector_str]
+    params:
+      returns: List[float]
+  encode:
+    type: sync
+    module: memory.embeddings.text_embeddings
+    args: [self, data, context_weights]
+    params:
+      returns: List[float]
+  encode_im:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, state, context_weights]
+    params:
+      returns: List[float]
+  encode_ltm:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, state, context_weights]
+    params:
+      returns: List[float]
+  encode_stm:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, state, context_weights]
+    params:
+      returns: List[float]
+  enqueue:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self, operation, priority]
+    params:
+      returns: None
+  ensure_embedding_dimensions:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, embedding, target_tier]
+    params:
+      returns: List[float]
+  eval:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, script, numkeys]
+    params:
+      returns: Any
+  evalsha:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, sha1, numkeys]
+  execute:
+    type: async
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: bool
+  execute_command:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: Any
+  execute_with_double_await:
+    type: async
+    module: memory.storage.async_redis_client
+    args: [coro]
+    params:
+      returns: T
+  exists:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: int
+  expire:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, key, time]
+    params:
+      returns: bool
+  exponential_backoff:
+    type: sync
+    module: memory.storage.redis_client
+    args: [attempt, base_delay, max_delay]
+    params:
+      returns: float
+  extract:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, state]
+    params:
+      returns: List[float]
+  filter:
+    type: sync
+    module: memory.utils.logging
+    args: [self, record]
+  filter_dict_keys:
+    type: sync
+    module: memory.embeddings.utils
+    args: [content, filter_keys]
+    params:
+      returns: Dict
+  filter_fn:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [metadata]
+  find_similar_memories:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self, query_vector, tier, limit, metadata_filter]
+    params:
+      returns: List[Dict]
+  flatten_dict:
+    type: sync
+    module: memory.embeddings.utils
+    args: [d, prefix]
+    params:
+      returns: Dict
+  flush_memories:
+    type: sync
+    module: memory.storage.sqlite_ltm
+    args: [self, memories, force]
+    params:
+      returns: Tuple
+  flush_to_ltm:
+    type: sync
+    module: memory.space
+    args: [self, include_stm, include_im, force]
+    params:
+      returns: Dict
+  flushall:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  force_maintenance:
+    type: sync
+    module: memory.space
+    args: [self]
+    params:
+      returns: bool
+  force_memory_maintenance:
+    type: sync
+    module: memory.core
+    args: [self, agent_id]
+    params:
+      returns: bool
+  forward:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, x, level]
+    params:
+      returns: Tuple
+  from_json:
+    type: sync
+    module: memory.utils.serialization
+    args: [json_str]
+    params:
+      returns: Any
+  from_pickle:
+    type: sync
+    module: memory.utils.serialization
+    args: [pickle_str]
+    params:
+      returns: Any
+  from_url:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [cls, url]
+  generate_checksum:
+    type: sync
+    module: memory.utils.checksums
+    args: [memory_content, algorithm, version, include_metadata, chunk_size]
+    params:
+      returns: str
+  generate_memory_id:
+    type: sync
+    module: memory.utils.identity
+    args: [memory_type, agent_id, step_number]
+    params:
+      returns: str
+  get:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, memory_id, skip_validation]
+    params:
+      returns: Optional[MemoryEntry]
+  get_all:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, limit, skip_validation]
+    params:
+      returns: List[MemoryEntry]
+  get_by_importance:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, min_importance, max_importance, limit, skip_validation]
+    params:
+      returns: List[MemoryEntry]
+  get_by_timerange:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, start_time, end_time, limit, skip_validation]
+    params:
+      returns: List[MemoryEntry]
+  get_health_status:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: Dict
+  get_instance:
+    type: sync
+    module: memory.core
+    args: [cls, config]
+    params:
+      returns: AgentMemorySystem
+  get_latency:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: float
+  get_memory:
+    type: sync
+    module: memory.core
+    args: [self, memory_id]
+    params:
+      returns: Optional[Dict]
+  get_memory_space:
+    type: sync
+    module: memory.core
+    args: [self, agent_id]
+    params:
+      returns: MemorySpace
+  get_memory_statistics:
+    type: sync
+    module: memory.space
+    args: [self, simplified]
+    params:
+      returns: Dict
+  get_message:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+    args: [self, timeout]
+  get_monitoring_data:
+    type: sync
+    module: memory.storage.redis_im
+    args: [self]
+    params:
+      returns: Dict
+  get_most_similar:
+    type: sync
+    module: memory.storage.sqlite_ltm
+    args: [self, query_vector, top_k, agent_id, skip_validation]
+    params:
+      returns: List[Tuple]
+  get_retry_delay:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self, attempt]
+    params:
+      returns: float
+  get_schema_as_json:
+    type: sync
+    module: memory.schema
+    params:
+      returns: str
+  get_size:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id]
+    params:
+      returns: int
+  get_state_difference:
+    type: sync
+    module: memory.api.models
+    args: [self]
+    params:
+      returns: Dict
+  hdel:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name]
+    params:
+      returns: int
+  hget:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, key]
+    params:
+      returns: Optional[str]
+  hgetall:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name]
+    params:
+      returns: Dict
+  hmset:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, mapping]
+    params:
+      returns: bool
+  hset:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, key, value]
+    params:
+      returns: int
+  hset_dict:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, mapping]
+    params:
+      returns: int
+  hybrid_retrieve:
+    type: sync
+    module: memory.space
+    args: [self, query_state, k, memory_type, vector_weight, attribute_weight]
+    params:
+      returns: List[Dict]
+  info:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  init:
+    type: async
+    module: memory.storage.async_redis_client
+    args: [self]
+  keys:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, pattern]
+  listen:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+    args: [self]
+  listener:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+  load_and_validate:
+    type: sync
+    module: memory.schema
+    args: [filepath]
+    params:
+      returns: Optional[Dict]
+  load_from_json:
+    type: sync
+    module: memory.core
+    args: [cls, filepath, use_mock_redis]
+    params:
+      returns: Optional[AgentMemorySystem]
+  load_memory_system_from_json:
+    type: sync
+    module: memory.utils.serialization
+    args: [filepath, use_mock_redis]
+  load_model:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, path]
+    params:
+      returns: None
+  lpop:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, name]
+  lpush:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, name]
+  memory_json_decoder:
+    type: sync
+    module: memory.utils.serialization
+    args: [obj]
+  multi:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+    args: [self]
+  object_to_text:
+    type: sync
+    module: memory.embeddings.utils
+    args: [obj]
+    params:
+      returns: str
+  observation_to_tensor:
+    type: sync
+    module: agents.deep_q_agent
+    args: [obs]
+    params:
+      returns: torch.Tensor
+  observe:
+    type: sync
+    module: agents.deep_q_agent
+    args: [self, observation, action, reward, next_observation, done]
+  ping:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: bool
+  pipeline:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: redis.client.Pipeline
+  psubscribe:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+    args: [self]
+  publish:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, channel, message]
+  pubsub:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  punsubscribe:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+    args: [self]
+  register_hook:
+    type: sync
+    module: memory.space
+    args: [self, event_type, hook_function, priority]
+    params:
+      returns: bool
+  register_memory_hook:
+    type: sync
+    module: memory.core
+    args: [self, agent_id, event_type, hook_function, priority]
+    params:
+      returns: bool
+  remember:
+    type: sync
+    module: agents.deep_q_agent
+    args: [self, obs, action, reward, next_obs, done]
+  reset_transaction_state:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+    args: [self]
+  resilient_operation:
+    type: sync
+    module: memory.storage.redis_client
+    args: [operation_name]
+  retrieve:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, memories, query, limit]
+    params:
+      returns: List[Dict]
+  retrieve_by_attributes:
+    type: sync
+    module: memory.space
+    args: [self, attributes, memory_type]
+    params:
+      returns: List[Dict]
+  retrieve_by_compound_query:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, conditions, operator, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_content_pattern:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, path, pattern, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_content_value:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, path, value, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_custom_filter:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, filter_fn, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_example:
+    type: sync
+    module: memory.retrieval.similarity
+    args: [self, example, limit, min_score, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_importance:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, min_importance, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_memory_type:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, memory_type, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_metadata:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, metadata_filters, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_step:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, step, tier]
+    params:
+      returns: Optional[Dict]
+  retrieve_by_tag:
+    type: sync
+    module: memory.retrieval.attribute
+    args: [self, tag, limit, tier]
+    params:
+      returns: List[Dict]
+  retrieve_by_time_range:
+    type: sync
+    module: memory.space
+    args: [self, start_step, end_step, memory_type]
+    params:
+      returns: List[Dict]
+  retrieve_last_n_minutes:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, minutes, memory_type, tier]
+    params:
+      returns: List[Dict]
+  retrieve_narrative_sequence:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, memory_id, context_before, context_after, tier]
+    params:
+      returns: List[Dict]
+  retrieve_oldest:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, count, memory_type, tier]
+    params:
+      returns: List[Dict]
+  retrieve_recent:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, count, memory_type, tier]
+    params:
+      returns: List[Dict]
+  retrieve_similar_states:
+    type: sync
+    module: memory.space
+    args: [self, query_state, k, memory_type, threshold, context_weights]
+    params:
+      returns: List[Dict]
+  retrieve_similar_to_memory:
+    type: sync
+    module: memory.retrieval.similarity
+    args: [self, memory_id, limit, min_score, exclude_self, tier]
+    params:
+      returns: List[Dict]
+  retrieve_similar_to_state:
+    type: sync
+    module: memory.retrieval.similarity
+    args: [self, state, limit, min_score, memory_type, tier]
+    params:
+      returns: List[Dict]
+  retrieve_step_range:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, start_step, end_step, memory_type, tier]
+    params:
+      returns: List[Dict]
+  retrieve_time_range:
+    type: sync
+    module: memory.retrieval.temporal
+    args: [self, start_time, end_time, memory_type, tier]
+    params:
+      returns: List[Dict]
+  rpop:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, name]
+  rpush:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, name]
+  run_conversation:
+    type: async
+    module: scripts.agent_conversation
+  save_memory_system_to_json:
+    type: sync
+    module: memory.utils.serialization
+    args: [memory_system, filepath]
+    params:
+      returns: bool
+  save_model:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, path]
+    params:
+      returns: None
+  save_schema_to_file:
+    type: sync
+    module: memory.schema
+    args: [filepath]
+    params:
+      returns: bool
+  save_to_json:
+    type: sync
+    module: memory.core
+    args: [self, filepath]
+    params:
+      returns: bool
+  scan:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, cursor, match, count]
+  scan_iter:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, match, count]
+    params:
+      returns: list
+  script_exists:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  script_flush:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self]
+  script_load:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, script]
+  search:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self, query_vector, limit, filter_fn]
+    params:
+      returns: List[Dict]
+  search_by_attributes:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, attributes, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  search_by_content:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, content_query, k]
+    params:
+      returns: List[MemoryEntry]
+  search_by_embedding:
+    type: sync
+    module: memory.space
+    args: [self, query_embedding, k, memory_tiers]
+    params:
+      returns: List[Dict]
+  search_by_step_range:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, start_step, end_step, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  search_similar:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, query_embedding, k, memory_type]
+    params:
+      returns: List[MemoryEntry]
+  select_action:
+    type: sync
+    module: agents.deep_q_agent
+    args: [self, observation, epsilon]
+    params:
+      returns: int
+  serialize_memory:
+    type: sync
+    module: memory.utils.serialization
+    args: [memory_entry, format]
+    params:
+      returns: str
+  serialize_vector:
+    type: sync
+    module: memory.utils.serialization
+    args: [vector]
+    params:
+      returns: str
+  set:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, key, value, ex, px, nx, xx]
+    params:
+      returns: bool
+  set_demo_path:
+    type: sync
+    module: agents.algo_agent
+    args: [self, path]
+    params:
+      returns: None
+  setup_logging:
+    type: sync
+    module: memory.utils.logging
+    args: [demo_name, log_dir]
+    params:
+      returns: logging.Logger
+  should_retry:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self, attempt, exception]
+    params:
+      returns: bool
+  simulate_connection_failure:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, duration]
+  start:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: None
+  start_monitoring:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: None
+  stop:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: None
+  stop_monitoring:
+    type: sync
+    module: memory.utils.error_handling
+    args: [self]
+    params:
+      returns: None
+  store:
+    type: sync
+    module: memory.storage.redis_stm
+    args: [self, agent_id, memory_entry, priority]
+    params:
+      returns: bool
+  store_action:
+    type: sync
+    module: memory.space
+    args: [self, action_data, step_number, priority, tier]
+    params:
+      returns: bool
+  store_agent_action:
+    type: sync
+    module: memory.core
+    args: [self, agent_id, action_data, step_number, priority, tier]
+    params:
+      returns: bool
+  store_agent_interaction:
+    type: sync
+    module: memory.core
+    args: [self, agent_id, interaction_data, step_number, priority, tier]
+    params:
+      returns: bool
+  store_agent_state:
+    type: sync
+    module: memory.core
+    args: [self, agent_id, state_data, step_number, priority, tier]
+    params:
+      returns: bool
+  store_batch:
+    type: sync
+    module: memory.storage.sqlite_ltm
+    args: [self, memory_entries]
+    params:
+      returns: bool
+  store_interaction:
+    type: sync
+    module: memory.space
+    args: [self, interaction_data, step_number, priority, tier]
+    params:
+      returns: bool
+  store_memory_vectors:
+    type: sync
+    module: memory.embeddings.vector_store
+    args: [self, memory_entry, tier]
+    params:
+      returns: bool
+  store_state:
+    type: sync
+    module: memory.space
+    args: [self, state_data, step_number, priority, tier]
+    params:
+      returns: bool
+  store_with_retry:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, agent_id, state_data, store_func, priority, retry_attempts, base_delay, max_delay]
+    params:
+      returns: bool
+  subscribe:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+    args: [self]
+  text_to_speech:
+    type: async
+    module: scripts.agent_conversation
+    args: [text, voice]
+  to_config_object:
+    type: sync
+    module: memory.config.models
+    args: [self, config]
+  to_json:
+    type: sync
+    module: memory.utils.serialization
+    args: [obj]
+    params:
+      returns: str
+  to_pickle:
+    type: sync
+    module: memory.utils.serialization
+    args: [obj]
+    params:
+      returns: str
+  train:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, states, epochs, batch_size, learning_rate, validation_split, early_stopping_patience]
+    params:
+      returns: Dict
+  train_with_kfold:
+    type: sync
+    module: memory.embeddings.autoencoder
+    args: [self, states, epochs, batch_size, learning_rate, n_folds, early_stopping_patience]
+    params:
+      returns: Dict
+  trigger_event:
+    type: sync
+    module: memory.space
+    args: [self, event_type, event_data]
+    params:
+      returns: bool
+  trigger_memory_event:
+    type: sync
+    module: memory.core
+    args: [self, agent_id, event_type, event_data]
+    params:
+      returns: bool
+  type:
+    type: sync
+    module: memory.storage.mockredis.core
+    args: [self, key]
+  unsubscribe:
+    type: sync
+    module: memory.storage.mockredis.pubsub
+    args: [self]
+  unwatch:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+    args: [self]
+  update:
+    type: sync
+    module: agents.deep_q_agent
+    args: [self]
+  update_q_value:
+    type: sync
+    module: agents.q_agent
+    args: [self, observation, action, reward, next_observation, done]
+    params:
+      returns: None
+  validate_checksum:
+    type: sync
+    module: memory.utils.checksums
+    args: [memory_entry, strict, config]
+    params:
+      returns: bool
+  validate_cleanup_interval:
+    type: sync
+    module: memory.config.models
+    args: [cls, v]
+  validate_config_consistency:
+    type: sync
+    module: memory.config.models
+    args: [self]
+  validate_db_path:
+    type: sync
+    module: memory.config.models
+    args: [cls, v]
+  validate_dimensions:
+    type: sync
+    module: memory.config.models
+    args: [cls, v, info]
+  validate_memory_limit:
+    type: sync
+    module: memory.config.models
+    args: [cls, v]
+  validate_memory_priority_decay:
+    type: sync
+    module: memory.config.models
+    args: [cls, v]
+  validate_memory_system_json:
+    type: sync
+    module: memory.schema
+    args: [data]
+    params:
+      returns: bool
+  validate_port:
+    type: sync
+    module: memory.config.models
+    args: [cls, v]
+  validate_ttl:
+    type: sync
+    module: memory.config.models
+    args: [cls, v]
+  watch:
+    type: sync
+    module: memory.storage.mockredis.pipeline
+    args: [self]
+  wrapper:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self]
+    params:
+      returns: T
+  zadd:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, mapping, nx, xx, ch, incr]
+    params:
+      returns: int
+  zcard:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name]
+    params:
+      returns: int
+  zrange:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, start, end, desc, withscores, score_cast_func]
+    params:
+      returns: List[Any]
+  zrangebyscore:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, min, max, start, num, withscores, score_cast_func]
+    params:
+      returns: List[Any]
+  zrem:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name]
+    params:
+      returns: int
+  zscore:
+    type: sync
+    module: memory.storage.redis_client
+    args: [self, name, value]
+    params:
+      returns: Optional[float]
+
+variables:
+  OPENAI_API_KEY:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [scripts.agent_conversation]
+
+files:
+  .mp3:
+    type: literal
+    actions: [write]
+    params:
+      caller: [tempfile.NamedTemporaryFile]
+      delete: "False"
+  config.model_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.path.exists]
+  db_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.makedirs]
+  dir_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.makedirs]
+  filepath:
+    type: variable
+    actions: [read, write]
+    params:
+      caller: [open, json.load, os.path.abspath]
+      alias: [f]
+  log_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.makedirs]
+  log_file:
+    type: variable
+    actions: [write]
+    params:
+      caller: [open]
+      alias: [f]
+  model_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.path.exists]
+  path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [torch.load]
+  temp_file_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [sf.read, os.unlink]
